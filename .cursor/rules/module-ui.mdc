@@ -1,0 +1,26 @@
+---
+globs: components/*-module.tsx
+---
+# Module UI Rules
+
+Conventions
+- File naming: `{name}-module.tsx` under `components/`.
+- Must be client components when using Web Audio (`"use client"`).
+- Use `module-wrapper` and `module-container` for layout.
+
+Worklet lifecycle
+- Ensure `audioContext.audioWorklet.addModule('/{name}-processor.js')` is awaited before constructing `AudioWorkletNode`.
+- Do not create multiple `AudioContext` instances; obtain the shared context from connection/manager utilities.
+
+Ports & patching
+- Expose inputs/outputs via `Port` and coordinate connections with `lib/use-port.tsx` and `components/connection-manager.tsx`.
+- Input/output names should match the processor's expectations for clarity in the patch UI.
+
+Controls
+- Use `components/ui/knob.tsx` for continuous params and standard UI primitives from `components/ui`.
+    - The knob value ranges from 0.0 - 1.0. The values must be mapped to the proper values if the associated audio worklet parameter expects a different range. 
+- Keep React state as the single source of truth; push changes to the `AudioWorkletNode` parameters and/or `port.postMessage`.
+
+Performance
+- Debounce/throttle high-frequency UI updates to prevent React re-renders from interfering with audio.
+- Offload heavy DSP to the processor; keep UI light and responsive.

@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+---
+# Connections & Patching Rules
+
+Core concepts
+- Patching is virtual Eurorack-style: modules expose `inputs` and `outputs` via `Port` components.
+- Connections track source/target ports and render cables on a canvas overlay.
+
+Key files
+- Manager: [components/connection-manager.tsx](mdc:components/connection-manager.tsx)
+- Hook: [lib/use-port.tsx](mdc:lib/use-port.tsx)
+- Port UI: [components/port.tsx](mdc:components/port.tsx)
+- Wires: [components/wire-canvas.tsx](mdc:components/wire-canvas.tsx), [lib/wire-overlay.tsx](mdc:lib/wire-overlay.tsx)
+- Types: [lib/connection-types.ts](mdc:lib/connection-types.ts)
+
+Rules
+- Port IDs must be stable and globally unique (e.g. `${moduleId}-{param}-in` / `${moduleId}-{signal}-out`).
+- A connection must validate type compatibility based on `ConnectionType` from `lib/connection-types.ts`.
+- When a connection is created, wire actual `AudioNode`/`AudioParam` graph nodes immediately (and disconnect on removal).
+- Maintain UI state and audio graph state in sync: add/remove connections in both domains atomically.
+- Only allow valid fan-in/fan-out per type as defined in the manager (e.g., CV vs audio rules).
+
+Performance & UX
+- Batch re-layout/re-render of wires to animation frames; avoid reflow storms on drag.
+- Use hit testing that doesn’t interfere with pointer events on module controls.
+- Provide clear hover/active states for potential connection targets and invalid drops.
+
+Testing
+- Prefer deterministic IDs in tests to assert connection creation/removal.
+- Simulate drag via events to validate wire placement and manager updates.

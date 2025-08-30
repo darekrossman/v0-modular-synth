@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+---
+# V0 Modular Synth — Project Structure & Conventions
+
+- App shell: [app/layout.tsx](mdc:app/layout.tsx), [app/page.tsx](mdc:app/page.tsx). Global styles: [app/globals.css](mdc:app/globals.css), [styles/globals.css](mdc:styles/globals.css).
+- Synth modules (UI + wiring) live in [components](mdc:components) and follow `{name}-module.tsx`.
+  - Examples: [components/oscillator-module.tsx](mdc:components/oscillator-module.tsx), [components/adsr-module.tsx](mdc:components/adsr-module.tsx), [components/vca-module.tsx](mdc:components/vca-module.tsx), [components/lowpass-filter-module.tsx](mdc:components/lowpass-filter-module.tsx), [components/delay-module.tsx](mdc:components/delay-module.tsx), [components/lfo-module.tsx](mdc:components/lfo-module.tsx), [components/random-module.tsx](mdc:components/random-module.tsx), [components/sequencer-module.tsx](mdc:components/sequencer-module.tsx), [components/keyboard-cv-module.tsx](mdc:components/keyboard-cv-module.tsx), [components/oscilloscope-module.tsx](mdc:components/oscilloscope-module.tsx), [components/clock-module.tsx](mdc:components/clock-module.tsx), [components/output-module.tsx](mdc:components/output-module.tsx).
+- AudioWorklet processor scripts live in [public](mdc:public) and follow `{name}-processor.js`.
+  - Examples: [public/oscillator-processor.js](mdc:public/oscillator-processor.js), [public/adsr-processor.js](mdc:public/adsr-processor.js), [public/vca-processor.js](mdc:public/vca-processor.js), [public/ladder-filter-processor.js](mdc:public/ladder-filter-processor.js), [public/delay-processor.js](mdc:public/delay-processor.js), [public/lfo-processor.js](mdc:public/lfo-processor.js), [public/random-processor.js](mdc:public/random-processor.js), [public/sequencer-processor.js](mdc:public/sequencer-processor.js), [public/clock-processor.js](mdc:public/clock-processor.js), [public/output-meter-processor.js](mdc:public/output-meter-processor.js), [public/capture-processor.js](mdc:public/capture-processor.js).
+- Patching & connections: [components/connection-manager.tsx](mdc:components/connection-manager.tsx), [lib/use-port.tsx](mdc:lib/use-port.tsx), [components/port.tsx](mdc:components/port.tsx), [lib/connection-types.ts](mdc:lib/connection-types.ts), [components/wire-canvas.tsx](mdc:components/wire-canvas.tsx), [lib/wire-overlay.tsx](mdc:lib/wire-overlay.tsx).
+- UI primitives live in [components/ui](mdc:components/ui). Notable: [components/ui/knob-v2.tsx](mdc:components/ui/knob-v2.tsx), [components/ui/push-button.tsx](mdc:components/ui/push-button.tsx).
+- Patch management: [components/patch-manager.tsx](mdc:components/patch-manager.tsx), [components/patch-dropdown.tsx](mdc:components/patch-dropdown.tsx).
+- AudioWorklet types: [types/audioworklet.d.ts](mdc:types/audioworklet.d.ts).
+
+Guidelines
+
+- New audio module: add `{name}-processor.js` in `public` and `{name}-module.tsx` in `components`.
+- Load processors with `audioContext.audioWorklet.addModule('/{name}-processor.js')` in client components only.
+- Use `module-wrapper` and `module-container` for consistent layout: [components/module-wrapper.tsx](mdc:components/module-wrapper.tsx), [components/module-container.tsx](mdc:components/module-container.tsx).
+- Expose inputs/outputs using `Port` and connection APIs (`lib/use-port.tsx`, `lib/connection-types.ts`).
+- Any Web Audio access must be inside client components (`"use client"`).

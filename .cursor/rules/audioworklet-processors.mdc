@@ -1,0 +1,28 @@
+---
+globs: public/*-processor.js
+---
+# AudioWorklet Processor Rules
+
+Naming & location
+- Files must live in `public` and be named `{name}-processor.js`.
+- Register with `registerProcessor('{name}-processor', class extends AudioWorkletProcessor { ... })`.
+
+Loading from UI
+- Always load via `await audioContext.audioWorklet.addModule('/{name}-processor.js')` before constructing `new AudioWorkletNode(audioContext, '{name}-processor')`.
+- Perform this only in client components (`"use client"`).
+
+Real-time safety
+- Avoid allocations and dynamic imports in `process()`; do not use `await`, DOM, console, or random I/O.
+- Use `static get parameterDescriptors()` to define automatable params. Read via `parameters[name][0]` inside `process()`.
+
+Audio I/O conventions
+- Mono default: use `outputs[0][0]` when emitting a single channel.
+- Respect block processing: iterate `for (let i = 0; i < outputs[0][0].length; i++)`.
+- If no input is connected, guard against `inputs[0]` being empty.
+
+Messaging
+- Communicate with UI via `this.port.postMessage(data)` and `this.port.onmessage = (e) => { ... }`.
+- Use small, structured messages. Prefer numeric arrays for high-rate data.
+
+Versioning & caching
+- Because files are served from `public`, update the URL if you need cache busting (e.g. `/{name}-processor.js?v=2`).
