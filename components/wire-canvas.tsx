@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useSettings } from "@/components/settings-context"
 import { useConnections } from "./connection-manager"
-import type { ConnectionEdge } from "./connection-types"
+import type { ConnectionEdge } from "@/lib/connection-types"
 
 // Deterministic color fallback (FNV-like hash → palette)
 function hashColor(s: string) {
@@ -53,6 +53,23 @@ export function WireCanvas() {
   const staticLayerRef = useRef<SVGGElement | null>(null)
   const tempPathRef = useRef<SVGPathElement | null>(null)
   const { settings } = useSettings()
+  const droopRef = useRef(0.5)
+  const opacityRef = useRef(0.5)
+  const sagPathRef = useRef<(a: { x: number; y: number }, b: { x: number; y: number }) => string>(() => "")
+
+  // Keep latest droop and path factory without re-registering handlers
+  useEffect(() => {
+    const d = Number(settings.wireDroop ?? 0.5)
+    const clamped = isFinite(d) ? Math.max(0, Math.min(1, d)) : 0.5
+    droopRef.current = clamped
+    sagPathRef.current = makeSagPath(clamped)
+  }, [settings.wireDroop])
+
+  // Keep latest opacity in a ref for rAF-driven draws
+  useEffect(() => {
+    const o = Number(settings.wireOpacity ?? 0.5)
+    opacityRef.current = isFinite(o) ? Math.max(0, Math.min(1, o)) : 0.5
+  }, [settings.wireOpacity])
 
   const groupMap = useRef(new Map<string, SVGGElement>())
   const pathMap = useRef(new Map<string, SVGPathElement>())
@@ -113,10 +130,9 @@ export function WireCanvas() {
       }
       const a = toSvg(fromScreen)
       const b = toSvg(toScreen)
-      const sagPath = makeSagPath(Number(settings.wireDroop ?? 0.5))
-      pathEl.setAttribute("d", sagPath(a, b))
+      pathEl.setAttribute("d", sagPathRef.current(a, b))
     })
-  }, [registerTempWireUpdater, settings.wireDroop])
+  }, [registerTempWireUpdater])
 
   const ensureEdgeDom = (edge: ConnectionEdge) => {
     const layer = staticLayerRef.current
@@ -129,7 +145,7 @@ export function WireCanvas() {
     const p = document.createElementNS("http://www.w3.org/2000/svg", "path")
     p.setAttribute("fill", "none")
     p.setAttribute("stroke-width", "6")
-    p.setAttribute("stroke-opacity", "0.5")
+    p.setAttribute("stroke-opacity", "1")
     p.setAttribute("vector-effect", "non-scaling-stroke")
     // safe default so wire is never invisible
     p.setAttribute("stroke", "#888")
@@ -158,7 +174,7 @@ export function WireCanvas() {
       if (!present.has(id)) {
         try {
           g.remove()
-        } catch {}
+        } catch { }
         groupMap.current.delete(id)
         pathMap.current.delete(id)
         aDotMap.current.delete(id)
@@ -169,9 +185,10 @@ export function WireCanvas() {
 
   const drawEdge = (edge: ConnectionEdge) => {
     const p = pathMap.current.get(edge.id)
+    const g = groupMap.current.get(edge.id)
     const ca = aDotMap.current.get(edge.id)
     const cb = bDotMap.current.get(edge.id)
-    if (!p || !ca || !cb) return
+    if (!p || !ca || !cb || !g) return
 
     const aScr = getScreenCenter(edge.from)
     const bScr = getScreenCenter(edge.to)
@@ -182,14 +199,16 @@ export function WireCanvas() {
 
     const a = toSvg(aScr)
     const b = toSvg(bScr)
-    const sagPath = makeSagPath(Number(settings.wireDroop ?? 0.5))
-    const d = sagPath(a, b)
+    const d = sagPathRef.current(a, b)
     const color = pickColor(edge)
 
     const safeColor = color && typeof color === "string" && color.trim() ? color : "#888888"
 
     p.setAttribute("d", d)
     p.setAttribute("stroke", safeColor)
+    const opacity = opacityRef.current
+    // Apply opacity at the group level so path and endpoints fade together
+    g.setAttribute("opacity", String(opacity))
     ca.setAttribute("cx", String(a.x))
     ca.setAttribute("cy", String(a.y))
     ca.setAttribute("fill", safeColor)
@@ -226,7 +245,7 @@ export function WireCanvas() {
     settleUntil.current = performance.now() + 400
     if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geometryVersion, settings.wireDroop])
+  }, [geometryVersion, settings.wireDroop, settings.wireOpacity])
 
   useEffect(() => {
     return () => {
@@ -234,7 +253,7 @@ export function WireCanvas() {
       groupMap.current.forEach((g) => {
         try {
           g.remove()
-        } catch {}
+        } catch { }
       })
       groupMap.current.clear()
       pathMap.current.clear()
@@ -259,7 +278,7 @@ export function WireCanvas() {
         stroke="#fff"
         strokeWidth="4"
         fill="none"
-        strokeOpacity="0.9"
+        strokeOpacity={Number(settings.wireOpacity ?? 0.5)}
         vectorEffect="non-scaling-stroke"
       />
 
