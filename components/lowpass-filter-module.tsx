@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { ModuleContainer } from "@/components/module-container"
 import { Knob } from "@/components/ui/knob"
 import { Port } from "@/components/port"
 import { useConnections } from "@/components/connection-manager"
 import * as utils from "@/lib/utils"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 // --- Shared AudioContext helper (same pattern as OutputModule) ---
 function getAudioContext(): AudioContext {
@@ -16,8 +17,8 @@ function getAudioContext(): AudioContext {
 }
 
 // Optional: wire these if your host expects them
-const getParameters = () => {}
-const setParameters = (_: any) => {}
+const getParameters = () => { }
+const setParameters = (_: any) => { }
 
 const MIN_CUTOFF = 20
 const MAX_CUTOFF = 20000
@@ -30,7 +31,7 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
     resonance: 0.0,
     drive: 0.0,
     postGain: 1.1,
-    resComp: 0.9,
+    resComp: 0.6,
     fbSat: 0.09,
     input1Level: 1,
     input2Level: 1,
@@ -64,10 +65,10 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
   // ---- helpers --------------------------------------------------------------
   const setMono = (node: AudioNode) => {
     try {
-      ;(node as any).channelCount = 1
-      ;(node as any).channelCountMode = "explicit"
-      ;(node as any).channelInterpretation = "discrete"
-    } catch {}
+      ; (node as any).channelCount = 1
+        ; (node as any).channelCountMode = "explicit"
+        ; (node as any).channelInterpretation = "discrete"
+    } catch { }
   }
 
   const pushInputLevels = () => {
@@ -182,86 +183,88 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
   const onIn3 = (v: number[]) => { paramsRef.current.input3Level = v[0]; pushInputLevels(); setUiUpdateTrigger((x) => x + 1) }
 
   // ---- mount ---------------------------------------------------------------
-  useEffect(() => {
+  const initAudioNodes = useCallback(async () => {
+    if (workletRef.current) return // Already initialized
+
     const ac = getAudioContext()
     acRef.current = ac
-    let cancelled = false
 
-    const setup = async () => {
-      try { await ac.audioWorklet.addModule("/ladder-filter-processor.js") } catch {}
-      if (cancelled) return
+    await ac.audioWorklet.addModule("/ladder-filter-processor.js")
 
-      // Inputs as ports (mono)
-      in1Ref.current = ac.createGain(); setMono(in1Ref.current); in1Ref.current.gain.value = paramsRef.current.input1Level
-      in2Ref.current = ac.createGain(); setMono(in2Ref.current); in2Ref.current.gain.value = paramsRef.current.input2Level
-      in3Ref.current = ac.createGain(); setMono(in3Ref.current); in3Ref.current.gain.value = paramsRef.current.input3Level
+    // Inputs as ports (mono)
+    in1Ref.current = ac.createGain(); setMono(in1Ref.current); in1Ref.current.gain.value = paramsRef.current.input1Level
+    in2Ref.current = ac.createGain(); setMono(in2Ref.current); in2Ref.current.gain.value = paramsRef.current.input2Level
+    in3Ref.current = ac.createGain(); setMono(in3Ref.current); in3Ref.current.gain.value = paramsRef.current.input3Level
 
-      // Register inputs with new system (no type arg)
-      registerAudioNode(`${moduleId}-audio-in-1`, in1Ref.current)
-      registerAudioNode(`${moduleId}-audio-in-2`, in2Ref.current)
-      registerAudioNode(`${moduleId}-audio-in-3`, in3Ref.current)
+    // Register inputs with new system
+    registerAudioNode(`${moduleId}-audio-in-1`, in1Ref.current, "input")
+    registerAudioNode(`${moduleId}-audio-in-2`, in2Ref.current, "input")
+    registerAudioNode(`${moduleId}-audio-in-3`, in3Ref.current, "input")
 
-      // CV inputs (optional) + analysers for snapshots
-      cutoffCVInRef.current = ac.createGain(); cutoffCVInRef.current.gain.value = 1
-      resCVInRef.current = ac.createGain();    resCVInRef.current.gain.value = 1
-      registerAudioNode(`${moduleId}-cutoff-cv-in`, cutoffCVInRef.current)
-      registerAudioNode(`${moduleId}-resonance-cv-in`, resCVInRef.current)
+    // CV inputs (optional) + analysers for snapshots
+    cutoffCVInRef.current = ac.createGain(); cutoffCVInRef.current.gain.value = 1
+    resCVInRef.current = ac.createGain(); resCVInRef.current.gain.value = 1
+    registerAudioNode(`${moduleId}-cutoff-cv-in`, cutoffCVInRef.current, "input")
+    registerAudioNode(`${moduleId}-resonance-cv-in`, resCVInRef.current, "input")
 
-      cutoffAnalyserRef.current = ac.createAnalyser()
-      cutoffAnalyserRef.current.fftSize = 1024
-      cutoffAnalyserRef.current.smoothingTimeConstant = 0.98
-      cutoffCVInRef.current.connect(cutoffAnalyserRef.current)
+    cutoffAnalyserRef.current = ac.createAnalyser()
+    cutoffAnalyserRef.current.fftSize = 1024
+    cutoffAnalyserRef.current.smoothingTimeConstant = 0.98
+    cutoffCVInRef.current.connect(cutoffAnalyserRef.current)
 
-      resAnalyserRef.current = ac.createAnalyser()
-      resAnalyserRef.current.fftSize = 1024
-      resAnalyserRef.current.smoothingTimeConstant = 0.98
-      resCVInRef.current.connect(resAnalyserRef.current)
+    resAnalyserRef.current = ac.createAnalyser()
+    resAnalyserRef.current.fftSize = 1024
+    resAnalyserRef.current.smoothingTimeConstant = 0.98
+    resCVInRef.current.connect(resAnalyserRef.current)
 
-      // Mixer (mono)
-      mixRef.current = ac.createGain(); setMono(mixRef.current); mixRef.current.gain.value = 1
-      in1Ref.current.connect(mixRef.current)
-      in2Ref.current.connect(mixRef.current)
-      in3Ref.current.connect(mixRef.current)
+    // Mixer (mono)
+    mixRef.current = ac.createGain(); setMono(mixRef.current); mixRef.current.gain.value = 1
+    in1Ref.current.connect(mixRef.current)
+    in2Ref.current.connect(mixRef.current)
+    in3Ref.current.connect(mixRef.current)
 
-      // Worklet
-      const initCut = utils.mapExponential(paramsRef.current.cutoff, MIN_CUTOFF, MAX_CUTOFF)
-      workletRef.current = new AudioWorkletNode(ac, "ladder-filter-processor", {
-        numberOfInputs: 1,
-        numberOfOutputs: 1,
-        outputChannelCount: [1],
-        channelCount: 1,
-        channelCountMode: "explicit",
-        channelInterpretation: "discrete",
-        parameterData: {
-          cutoff: initCut,
-          resonance: paramsRef.current.resonance,
-          drive: paramsRef.current.drive,
-          postGain: paramsRef.current.postGain,
-          // resComp: paramsRef.current.resComp,
-          // fbSat: paramsRef.current.fbSat,
-        },
-      } as any)
+    // Worklet
+    const initCut = utils.mapExponential(paramsRef.current.cutoff, MIN_CUTOFF, MAX_CUTOFF)
+    workletRef.current = new AudioWorkletNode(ac, "ladder-filter-processor", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+      channelCount: 1,
+      channelCountMode: "explicit",
+      channelInterpretation: "discrete",
+      parameterData: {
+        cutoff: initCut,
+        resonance: paramsRef.current.resonance,
+        drive: paramsRef.current.drive,
+        postGain: paramsRef.current.postGain,
+        // resComp: paramsRef.current.resComp,
+        // fbSat: paramsRef.current.fbSat,
+      },
+    } as any)
 
-      // Output (mono) + register as port
-      outRef.current = ac.createGain(); setMono(outRef.current); outRef.current.gain.value = 1
-      mixRef.current.connect(workletRef.current!)
-      workletRef.current!.connect(outRef.current)
-      registerAudioNode(`${moduleId}-audio-out`, outRef.current)
+    // Output (mono) + register as port
+    outRef.current = ac.createGain(); setMono(outRef.current); outRef.current.gain.value = 1
+    mixRef.current.connect(workletRef.current!)
+    workletRef.current!.connect(outRef.current)
+    registerAudioNode(`${moduleId}-audio-out`, outRef.current, "output")
 
-      // expose get/set if your host uses them
-      const el = document.querySelector(`[data-module-id="${moduleId}"]`)
-      if (el) { ;(el as any).getParameters = getParameters; (el as any).setParameters = setParameters }
+    // expose get/set if your host uses them
+    const el = document.querySelector(`[data-module-id="${moduleId}"]`)
+    if (el) { ; (el as any).getParameters = getParameters; (el as any).setParameters = setParameters }
 
-      // Prime & start rAF loop
-      updateCvSnapshot()
-      updateFilter()
-      pushInputLevels()
-      rafRef.current = requestAnimationFrame(function loop() { tick(); })
-    }
+    // Prime & start rAF loop
+    updateCvSnapshot()
+    updateFilter()
+    pushInputLevels()
+    rafRef.current = requestAnimationFrame(function loop() { tick(); })
+  }, [moduleId, registerAudioNode])
 
-    setup()
+  // Use the module initialization hook
+  const { isReady, initError, retryInit } = useModuleInit(initAudioNodes, "FILTER")
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      cancelled = true
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       try {
         outRef.current?.disconnect()
@@ -272,9 +275,9 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
         in3Ref.current?.disconnect()
         cutoffCVInRef.current?.disconnect()
         resCVInRef.current?.disconnect()
-      } catch {}
+      } catch { }
     }
-  }, [moduleId, registerAudioNode])
+  }, [])
 
   // ---- UI -------------------------------------------------------------------
   return (
@@ -301,14 +304,14 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
 
       <div className="flex flex-col gap-2">
         <div className="flex justify-between items-end gap-2">
-          <Port id={`${moduleId}-audio-in-1`} type="input" label="IN 1" audioType="audio" />
-          <Port id={`${moduleId}-audio-in-2`} type="input" label="IN 2" audioType="audio" />
-          <Port id={`${moduleId}-audio-in-3`} type="input" label="IN 3" audioType="audio" />
+          <Port id={`${moduleId}-audio-in-1`} type="input" label="IN 1" audioType="audio" audioNode={in1Ref.current ?? undefined} />
+          <Port id={`${moduleId}-audio-in-2`} type="input" label="IN 2" audioType="audio" audioNode={in2Ref.current ?? undefined} />
+          <Port id={`${moduleId}-audio-in-3`} type="input" label="IN 3" audioType="audio" audioNode={in3Ref.current ?? undefined} />
         </div>
         <div className="flex justify-between items-end gap-2">
-          <Port id={`${moduleId}-cutoff-cv-in`} type="input" label="CUTOFF" audioType="cv" />
-          <Port id={`${moduleId}-resonance-cv-in`} type="input" label="RES" audioType="cv" />
-          <Port id={`${moduleId}-audio-out`} type="output" label="OUT" audioType="audio" />
+          <Port id={`${moduleId}-cutoff-cv-in`} type="input" label="CUTOFF" audioType="cv" audioNode={cutoffCVInRef.current ?? undefined} />
+          <Port id={`${moduleId}-resonance-cv-in`} type="input" label="RES" audioType="cv" audioNode={resCVInRef.current ?? undefined} />
+          <Port id={`${moduleId}-audio-out`} type="output" label="OUT" audioType="audio" audioNode={outRef.current ?? undefined} />
         </div>
       </div>
     </ModuleContainer>

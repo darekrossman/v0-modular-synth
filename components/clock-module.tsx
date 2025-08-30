@@ -6,6 +6,7 @@ import { Knob } from "@/components/ui/knob"
 import { PushButton } from "@/components/ui/push-button"
 import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -32,12 +33,12 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
   const div3OutRef = useRef<GainNode | null>(null)
   const div4OutRef = useRef<GainNode | null>(null)
 
-  const isInitializedRef = useRef(false)
 
   const keepAliveRef = useRef<GainNode | null>(null)
 
   const initAudio = useCallback(async () => {
-    if (isInitializedRef.current) return
+    if (nodeRef.current) return
+
     const ac = getAudioContext()
     audioContextRef.current = ac
 
@@ -89,8 +90,8 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
     keepAliveRef.current = sink
 
     node.port.postMessage({ type: "running", value: false })
-    isInitializedRef.current = true
-  }, [moduleId])
+    console.log("[clock] initialized")
+  }, [moduleId, bpm, div1, div2, div3, div4])
 
   const startClock = useCallback(() => {
     const node = nodeRef.current
@@ -141,8 +142,9 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
   const handleDiv3Change = useCallback(makeDivHandler("div3", setDiv3), [])
   const handleDiv4Change = useCallback(makeDivHandler("div4", setDiv4), [])
 
+  const { isReady, initError, retryInit } = useModuleInit(initAudio, "CLOCK")
+
   useEffect(() => {
-    initAudio()
     return () => {
       try {
         stopClock()
@@ -153,9 +155,9 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
         div3OutRef.current?.disconnect()
         div4OutRef.current?.disconnect()
         keepAliveRef.current?.disconnect()
-      } catch {}
+      } catch { }
     }
-  }, [initAudio, stopClock])
+  }, [stopClock])
 
   const defaultKnobValue = [120 / 300]
 
@@ -169,11 +171,10 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
         <div className="flex-1 flex justify-center items-center gap-6">
           <PushButton
             onClick={handleStartStop}
-            className={`${
-              isRunning
+            className={`${isRunning
                 ? "bg-red-600 hover:bg-red-700 active:bg-red-800"
                 : "bg-green-600 hover:bg-green-700 active:bg-green-800"
-            }`}
+              }`}
             label={isRunning ? "Stop" : "Run"}
           />
           <Knob

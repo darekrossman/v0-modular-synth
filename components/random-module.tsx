@@ -5,6 +5,7 @@ import { ModuleContainer } from "./module-container"
 import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -36,7 +37,6 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
   const cvOut6Ref = useRef<GainNode | null>(null)
   const cvOut = [cvOut1Ref, cvOut2Ref, cvOut3Ref, cvOut4Ref, cvOut5Ref, cvOut6Ref]
 
-  const isInitializedRef = useRef(false)
 
   const paramName = (kind: "atten" | "offset", idx: number) => `${kind}${idx + 1}` as const
 
@@ -69,7 +69,7 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
   }
 
   const init = useCallback(async () => {
-    if (isInitializedRef.current) return
+    if (workletRef.current) return
     const ac = getAudioContext()
     audioContextRef.current = ac
 
@@ -120,12 +120,11 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
     sink.gain.value = 0
     cvOut[0].current!.connect(sink)
     sink.connect(ac.destination)
+  }, [moduleId, atten, offset])
 
-    isInitializedRef.current = true
-  }, [moduleId])
+  const { isReady, initError, retryInit } = useModuleInit(init, "RANDOM")
 
   useEffect(() => {
-    init()
     return () => {
       try {
         for (let i = 0; i < 6; i++) {
@@ -135,7 +134,7 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
         workletRef.current?.disconnect()
       } catch {}
     }
-  }, [init])
+  }, [])
 
   return (
     <ModuleContainer title="Random" moduleId={moduleId}>

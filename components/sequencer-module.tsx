@@ -7,6 +7,7 @@ import { Toggle } from "@/components/ui/toggle"
 import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -55,16 +56,13 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
   const pitchOutRef = useRef<GainNode | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
   const keepAliveRefs = useRef<{ gate: GainNode | null; pitch: GainNode | null }>({ gate: null, pitch: null })
-  const isInitializedRef = useRef(false)
   const lastDivIdxRef = useRef<number>(-1)
   const latestStepRef = useRef<number>(-1)
 
   //
 
   const initAudio = useCallback(async () => {
-    if (isInitializedRef.current) return
-    // Set init guard BEFORE any awaits to prevent duplicate init
-    isInitializedRef.current = true
+    if (nodeRef.current) return
     const ac = getAudioContext()
     audioContextRef.current = ac
 
@@ -126,10 +124,11 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
     }
 
     console.log("[seq] initialized")
-  }, [moduleId])
+  }, [moduleId, steps, octaveRef, clockDivRef, gateRatioRef])
+
+  const { isReady, initError, retryInit } = useModuleInit(initAudio, "SEQUENCER")
 
   useEffect(() => {
-    initAudio()
     return () => {
       try {
         nodeRef.current?.disconnect()
@@ -141,7 +140,7 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
         keepAliveRefs.current.pitch?.disconnect()
       } catch { }
     }
-  }, [initAudio])
+  }, [])
 
   // Frame-synced step indicator: show the latest reported step once per rAF
   useEffect(() => {

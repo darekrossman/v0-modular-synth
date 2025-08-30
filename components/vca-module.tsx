@@ -5,6 +5,7 @@ import { ModuleContainer } from "./module-container"
 import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -21,14 +22,14 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
   const vcaNodeRef = useRef<AudioWorkletNode | null>(null)
   const audioOutRef = useRef<GainNode | null>(null)
   const keepAliveRef = useRef<GainNode | null>(null)
-  const initializedRef = useRef(false)
 
   // UI knobs are 0..1
   const [cvAmount, setCvAmount] = useState([1.0]) // 0..1 attenuator
   const [offset, setOffset] = useState([0.0]) // 0..1 base gain
 
   const initializeAudio = useCallback(async () => {
-    if (initializedRef.current) return
+    if (vcaNodeRef.current) return // Already initialized
+    
     const ac = getAudioContext()
     audioContextRef.current = ac
 
@@ -72,13 +73,11 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
     audioOutRef.current.connect(keepAliveRef.current)
     keepAliveRef.current.connect(ac.destination)
 
-    initializedRef.current = true
     console.log("[VCA] initialized (linear, 10V=unity)")
-  }, [moduleId])
+  }, [cvAmount, offset])
 
-  useEffect(() => {
-    initializeAudio()
-  }, [initializeAudio])
+  // Use the module initialization hook
+  const { isReady, initError, retryInit } = useModuleInit(initializeAudio, "VCA")
 
   useEffect(() => {
     const ac = audioContextRef.current,

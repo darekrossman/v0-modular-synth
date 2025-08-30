@@ -7,6 +7,7 @@ import { Knob } from "@/components/ui/knob"
 import { KnobV2 } from "@/components/ui/knob-v2"
 import { Button } from "@/components/ui/button"
 import { mapLinear } from "@/lib/utils"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -32,15 +33,15 @@ const invMapLinear = (value: number, min: number, max: number) => {
   return Math.max(0, Math.min(1, t))
 }
 
-type Shape = 0|1|2|3|4|5
+type Shape = 0 | 1 | 2 | 3 | 4 | 5
 
-const icons: Record<Shape, JSX.Element> = {
-  0: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 12 Q8 4 16 12 T30 12" stroke="currentColor" strokeWidth="2" fill="none"/></svg>,
-  1: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 20 L8 4 L14 20 L20 4 L26 20 L30 12" stroke="currentColor" strokeWidth="2" fill="none"/></svg>,
-  2: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 20 L10 4 L10 20 L18 4 L18 20 L26 4 L26 20 L30 20" stroke="currentColor" strokeWidth="2" fill="none"/></svg>,
-  3: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 20 L2 4 L12 4 L12 20 L22 20 L22 4 L30 4 L30 20" stroke="currentColor" strokeWidth="2" fill="none"/></svg>,
-  4: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 16 Q6 8 10 14 T18 10 Q22 18 26 12 L30 16" stroke="currentColor" strokeWidth="2" fill="none"/></svg>,
-  5: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 16 L6 16 L6 8 L10 8 L10 18 L14 18 L14 6 L18 6 L18 14 L22 14 L22 20 L26 20 L26 10 L30 10" stroke="currentColor" strokeWidth="2" fill="none"/></svg>,
+const icons: Record<Shape, React.ReactNode> = {
+  0: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 12 Q8 4 16 12 T30 12" stroke="currentColor" strokeWidth="2" fill="none" /></svg>,
+  1: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 20 L8 4 L14 20 L20 4 L26 20 L30 12" stroke="currentColor" strokeWidth="2" fill="none" /></svg>,
+  2: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 20 L10 4 L10 20 L18 4 L18 20 L26 4 L26 20 L30 20" stroke="currentColor" strokeWidth="2" fill="none" /></svg>,
+  3: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 20 L2 4 L12 4 L12 20 L22 20 L22 4 L30 4 L30 20" stroke="currentColor" strokeWidth="2" fill="none" /></svg>,
+  4: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 16 Q6 8 10 14 T18 10 Q22 18 26 12 L30 16" stroke="currentColor" strokeWidth="2" fill="none" /></svg>,
+  5: <svg width="16" height="12" viewBox="0 0 32 24"><path d="M2 16 L6 16 L6 8 L10 8 L10 18 L14 18 L14 6 L18 6 L18 14 L22 14 L22 20 L26 20 L26 10 L30 10" stroke="currentColor" strokeWidth="2" fill="none" /></svg>,
 }
 
 export function LFOModule({ moduleId }: { moduleId: string }) {
@@ -90,10 +91,11 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
   }
 
   const init = useCallback(async () => {
-    if (workletRef.current) return
+    if (workletRef.current) return // Already initialized
+
     const ac = getAudioContext()
-    acRef.current = ac
-    try { await ac.audioWorklet.addModule("/lfo-processor.js") } catch (e) { console.error("LFO worklet load", e) }
+    acRef.current = ac 
+    await ac.audioWorklet.addModule("/lfo-processor.js")
 
     // inputs (CV ports)
     const mkIn = () => { const g = ac.createGain(); g.gain.value = 1; return g }
@@ -112,16 +114,16 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
       channelCountMode: "explicit",
       channelInterpretation: "discrete",
       parameterData: {
-        freq:      mapLinear(freq[0], FREQ_MIN, FREQ_MAX),
+        freq: mapLinear(freq[0], FREQ_MIN, FREQ_MAX),
         shape,
-        pw:        mapLinear(pw[0], PW_MIN, PW_MAX),
-        amp:       mapLinear(amp[0], AMP_MIN, AMP_MAX),
-        offset:    mapLinear(offset[0], OFF_MIN, OFF_MAX),
+        pw: mapLinear(pw[0], PW_MIN, PW_MAX),
+        amp: mapLinear(amp[0], AMP_MIN, AMP_MAX),
+        offset: mapLinear(offset[0], OFF_MIN, OFF_MAX),
         rateCvAmt: mapLinear(rateAmt[0], RATEAMT_MIN, RATEAMT_MAX),
-        pwCvAmt:   mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX),
-        ampCvAmt:  mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX),  // NEW
-        offCvAmt:  mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX),  // NEW
-        slew:      mapLinear(slew[0], SLEW_MIN, SLEW_MAX),
+        pwCvAmt: mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX),
+        ampCvAmt: mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX),  // NEW
+        offCvAmt: mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX),  // NEW
+        slew: mapLinear(slew[0], SLEW_MIN, SLEW_MAX),
       },
     } as any)
     workletRef.current = w
@@ -140,20 +142,24 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
     // IMPORTANT: select output index explicitly
     w.connect(outBipRef.current, 0, 0) // worklet output 0 → OUT (bipolar)
     w.connect(outUniRef.current, 1, 0) // worklet output 1 → UNI (unipolar)
-  }, [])
+
+    console.log("[LFO] initialized")
+  }, [freq, shape, pw, amp, offset, rateAmt, pwAmt, ampAmt, offAmt, slew])
+
+  // Use the module initialization hook
+  const { isReady, initError, retryInit } = useModuleInit(init, "LFO")
 
   // param pushes
-  useEffect(() => { init() }, [init])
-  useEffect(() => { setParam('freq',      mapLinear(freq[0],    FREQ_MIN,    FREQ_MAX)) }, [freq])
-  useEffect(() => { setParam('shape',     shape) }, [shape])
-  useEffect(() => { setParam('pw',        mapLinear(pw[0],      PW_MIN,      PW_MAX)) }, [pw])
-  useEffect(() => { setParam('amp',       mapLinear(amp[0],     AMP_MIN,     AMP_MAX)) }, [amp])
-  useEffect(() => { setParam('offset',    mapLinear(offset[0],  OFF_MIN,     OFF_MAX)) }, [offset])
+  useEffect(() => { setParam('freq', mapLinear(freq[0], FREQ_MIN, FREQ_MAX)) }, [freq])
+  useEffect(() => { setParam('shape', shape) }, [shape])
+  useEffect(() => { setParam('pw', mapLinear(pw[0], PW_MIN, PW_MAX)) }, [pw])
+  useEffect(() => { setParam('amp', mapLinear(amp[0], AMP_MIN, AMP_MAX)) }, [amp])
+  useEffect(() => { setParam('offset', mapLinear(offset[0], OFF_MIN, OFF_MAX)) }, [offset])
   useEffect(() => { setParam('rateCvAmt', mapLinear(rateAmt[0], RATEAMT_MIN, RATEAMT_MAX)) }, [rateAmt])
-  useEffect(() => { setParam('pwCvAmt',   mapLinear(pwAmt[0],   PWAMT_MIN,   PWAMT_MAX)) }, [pwAmt])
-  useEffect(() => { setParam('ampCvAmt',  mapLinear(ampAmt[0],  AMPAMT_MIN,  AMPAMT_MAX)) }, [ampAmt])  // NEW
-  useEffect(() => { setParam('offCvAmt',  mapLinear(offAmt[0],  OFFAMT_MIN,  OFFAMT_MAX)) }, [offAmt])  // NEW
-  useEffect(() => { setParam('slew',      mapLinear(slew[0],    SLEW_MIN,    SLEW_MAX)) }, [slew])
+  useEffect(() => { setParam('pwCvAmt', mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX)) }, [pwAmt])
+  useEffect(() => { setParam('ampCvAmt', mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX)) }, [ampAmt])  // NEW
+  useEffect(() => { setParam('offCvAmt', mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX)) }, [offAmt])  // NEW
+  useEffect(() => { setParam('slew', mapLinear(slew[0], SLEW_MIN, SLEW_MAX)) }, [slew])
 
   // Patch save/load (use physical values)
   useEffect(() => {
@@ -161,27 +167,27 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
     if (!el) return
     el.getParameters = () => ({
       shape,
-      freq:     mapLinear(freq[0],   FREQ_MIN, FREQ_MAX),
-      pw:       mapLinear(pw[0],     PW_MIN,   PW_MAX),
-      amp:      mapLinear(amp[0],    AMP_MIN,  AMP_MAX),
-      offset:   mapLinear(offset[0], OFF_MIN,  OFF_MAX),
-      slew:     mapLinear(slew[0],   SLEW_MIN, SLEW_MAX),
-      rateAmt:  mapLinear(rateAmt[0], RATEAMT_MIN, RATEAMT_MAX),
-      pwAmt:    mapLinear(pwAmt[0],   PWAMT_MIN,   PWAMT_MAX),
-      ampAmt:   mapLinear(ampAmt[0],  AMPAMT_MIN,  AMPAMT_MAX),   // NEW
-      offAmt:   mapLinear(offAmt[0],  OFFAMT_MIN,  OFFAMT_MAX),   // NEW
+      freq: mapLinear(freq[0], FREQ_MIN, FREQ_MAX),
+      pw: mapLinear(pw[0], PW_MIN, PW_MAX),
+      amp: mapLinear(amp[0], AMP_MIN, AMP_MAX),
+      offset: mapLinear(offset[0], OFF_MIN, OFF_MAX),
+      slew: mapLinear(slew[0], SLEW_MIN, SLEW_MAX),
+      rateAmt: mapLinear(rateAmt[0], RATEAMT_MIN, RATEAMT_MAX),
+      pwAmt: mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX),
+      ampAmt: mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX),   // NEW
+      offAmt: mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX),   // NEW
     })
     el.setParameters = (p: any) => {
-      if (p.shape   !== undefined) setShape(p.shape)
-      if (p.freq    !== undefined) setFreq([invMapLinear(p.freq,   FREQ_MIN, FREQ_MAX)])
-      if (p.pw      !== undefined) setPw([invMapLinear(p.pw,       PW_MIN,   PW_MAX)])
-      if (p.amp     !== undefined) setAmp([invMapLinear(p.amp,     AMP_MIN,  AMP_MAX)])
-      if (p.offset  !== undefined) setOffset([invMapLinear(p.offset,OFF_MIN,  OFF_MAX)])
-      if (p.slew    !== undefined) setSlew([invMapLinear(p.slew,   SLEW_MIN, SLEW_MAX)])
+      if (p.shape !== undefined) setShape(p.shape)
+      if (p.freq !== undefined) setFreq([invMapLinear(p.freq, FREQ_MIN, FREQ_MAX)])
+      if (p.pw !== undefined) setPw([invMapLinear(p.pw, PW_MIN, PW_MAX)])
+      if (p.amp !== undefined) setAmp([invMapLinear(p.amp, AMP_MIN, AMP_MAX)])
+      if (p.offset !== undefined) setOffset([invMapLinear(p.offset, OFF_MIN, OFF_MAX)])
+      if (p.slew !== undefined) setSlew([invMapLinear(p.slew, SLEW_MIN, SLEW_MAX)])
       if (p.rateAmt !== undefined) setRateAmt([invMapLinear(p.rateAmt, RATEAMT_MIN, RATEAMT_MAX)])
-      if (p.pwAmt   !== undefined) setPwAmt([invMapLinear(p.pwAmt,   PWAMT_MIN,   PWAMT_MAX)])
-      if (p.ampAmt  !== undefined) setAmpAmt([invMapLinear(p.ampAmt, AMPAMT_MIN,  AMPAMT_MAX)]) // NEW
-      if (p.offAmt  !== undefined) setOffAmt([invMapLinear(p.offAmt, OFFAMT_MIN,  OFFAMT_MAX)]) // NEW
+      if (p.pwAmt !== undefined) setPwAmt([invMapLinear(p.pwAmt, PWAMT_MIN, PWAMT_MAX)])
+      if (p.ampAmt !== undefined) setAmpAmt([invMapLinear(p.ampAmt, AMPAMT_MIN, AMPAMT_MAX)]) // NEW
+      if (p.offAmt !== undefined) setOffAmt([invMapLinear(p.offAmt, OFFAMT_MIN, OFFAMT_MAX)]) // NEW
     }
   }, [moduleId, shape, freq, pw, amp, offset, slew, rateAmt, pwAmt, ampAmt, offAmt])
 
@@ -189,7 +195,7 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
     <ModuleContainer title="LFO" moduleId={moduleId}>
       {/* Wave buttons */}
       <div className="grid grid-cols-6 gap-1 mx-auto">
-        {[0,1,2,3,4,5].map((s) => (
+        {[0, 1, 2, 3, 4, 5].map((s) => (
           <Button
             key={s}
             size="sm"
@@ -221,22 +227,22 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
       {/* Ports – pass the node you want that port to represent */}
       <div className="flex flex-col gap-2 flex-1 justify-end">
         <div className="grid grid-cols-4 justify-items-center gap-2">
-          <Knob value={rateAmt} onValueChange={setRateAmt}  size="xs" />
-          <Knob value={pwAmt}   onValueChange={setPwAmt}      size="xs" />
-          <Knob value={ampAmt}  onValueChange={setAmpAmt}   size="xs" />
-          <Knob value={offAmt}  onValueChange={setOffAmt}  size="xs" />
-        </div>  
-        <div className="flex justify-between items-end gap-2">
-          <Port id={`${moduleId}-rate-cv-in`}   type="input"  label="RATE"   audioType="cv" audioNode={rateInRef.current ?? undefined} />
-          <Port id={`${moduleId}-pw-cv-in`}     type="input"  label="PWM"    audioType="cv" audioNode={pwInRef.current ?? undefined} />
-          <Port id={`${moduleId}-amp-cv-in`}    type="input"  label="AMP"    audioType="cv" audioNode={ampInRef.current ?? undefined} />
-          <Port id={`${moduleId}-offset-cv-in`} type="input"  label="OFFS"   audioType="cv" audioNode={offInRef.current ?? undefined} />
+          <Knob value={rateAmt} onValueChange={setRateAmt} size="xs" />
+          <Knob value={pwAmt} onValueChange={setPwAmt} size="xs" />
+          <Knob value={ampAmt} onValueChange={setAmpAmt} size="xs" />
+          <Knob value={offAmt} onValueChange={setOffAmt} size="xs" />
         </div>
         <div className="flex justify-between items-end gap-2">
-          <div className="w-11"/>
-          <Port id={`${moduleId}-sync-in`}      type="input"  label="SYNC"   audioType="cv" audioNode={syncInRef.current ?? undefined} />
-          <Port id={`${moduleId}-uni-out`}      type="output" label="UNI"    audioType="cv" audioNode={outUniRef.current ?? undefined} />
-          <Port id={`${moduleId}-cv-out`}       type="output" label="OUT"    audioType="cv" audioNode={outBipRef.current ?? undefined} />
+          <Port id={`${moduleId}-rate-cv-in`} type="input" label="RATE" audioType="cv" audioNode={rateInRef.current ?? undefined} />
+          <Port id={`${moduleId}-pw-cv-in`} type="input" label="PWM" audioType="cv" audioNode={pwInRef.current ?? undefined} />
+          <Port id={`${moduleId}-amp-cv-in`} type="input" label="AMP" audioType="cv" audioNode={ampInRef.current ?? undefined} />
+          <Port id={`${moduleId}-offset-cv-in`} type="input" label="OFFS" audioType="cv" audioNode={offInRef.current ?? undefined} />
+        </div>
+        <div className="flex justify-between items-end gap-2">
+          <div className="w-11" />
+          <Port id={`${moduleId}-sync-in`} type="input" label="SYNC" audioType="cv" audioNode={syncInRef.current ?? undefined} />
+          <Port id={`${moduleId}-uni-out`} type="output" label="UNI" audioType="cv" audioNode={outUniRef.current ?? undefined} />
+          <Port id={`${moduleId}-cv-out`} type="output" label="OUT" audioType="cv" audioNode={outBipRef.current ?? undefined} />
         </div>
       </div>
     </ModuleContainer>

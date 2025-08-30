@@ -4,6 +4,7 @@
 //   in[0]: 2ch audio (L,R)
 //   in[1]: 1ch time CV  (-1..+1)
 //   in[2]: 1ch feedback CV (-1..+1)
+//   in[3]: 1ch clock input (pulses). Rising edges define clock period.
 // Output:
 //   out[0]: 2ch audio (L,R)
 
@@ -23,6 +24,11 @@ class DelayProcessor extends AudioWorkletProcessor {
       // CV depths (0..1). CV signals are expected in [-1..+1].
       { name: "timeCvAmt", defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
       { name: "fbCvAmt",   defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
+      // Clocked mode: if enabled, delay time follows measured clock period * clockMult
+      { name: "clocked",   defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
+      { name: "clockMult", defaultValue: 1.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
+      // Dry mono balance: when enabled, dry path uses mono sum for both channels
+      { name: "dryMono",   defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
     ];
   }
 
@@ -48,6 +54,12 @@ class DelayProcessor extends AudioWorkletProcessor {
     this.aParam = 1 - Math.exp(-1 / (this.sr * 0.02)); // ~20ms
 
     this.toneAlpha = 1 - Math.exp(-2 * Math.PI * 8000 / this.sr); // set each block
+
+    // Clock detection state
+    this.clockLastVal = 0.0;
+    this.lastEdgeSampleIndex = -1; // global sample index of last rising edge
+    this.clockPeriodSamples = 0;   // measured period in samples
+    this.globalSampleIndex = 0;    // running sample counter across blocks
   }
 
   // ring read with linear interpolation (pos can be fractional, relative to absolute write index)
@@ -78,6 +90,7 @@ class DelayProcessor extends AudioWorkletProcessor {
 
     const inTimeCv = (inputs[1] && inputs[1][0]) ? inputs[1][0] : null;
     const inFbCv   = (inputs[2] && inputs[2][0]) ? inputs[2][0] : null;
+    const inClock  = (inputs[3] && inputs[3][0]) ? inputs[3][0] : null;
 
     // k-rate params for this block
     const baseTime   = params.time[0];
@@ -87,6 +100,9 @@ class DelayProcessor extends AudioWorkletProcessor {
     const mode       = (params.mode[0] | 0) % 3;
     const timeCvAmt  = params.timeCvAmt[0]; // 0..1
     const fbCvAmt    = params.fbCvAmt[0];   // 0..1
+    const clocked    = params.clocked[0] >= 0.5;
+    const clockMult  = params.clockMult[0];
+    const dryMono    = params.dryMono[0] >= 0.5;
 
     // Update tone LPF coefficient once per block
     this.toneAlpha = 1 - Math.exp(-2 * Math.PI * Math.max(10, toneHz) / this.sr);
@@ -98,6 +114,15 @@ class DelayProcessor extends AudioWorkletProcessor {
     const timeSpan = (TIME_MAX - TIME_MIN) * 0.5;
     const fbSpan   = FB_MAX * 0.5;
 
+    // Determine clock-derived time (use period measured up to previous block)
+    let clockTimeSec = null;
+    if (clocked && this.clockPeriodSamples > 0) {
+      clockTimeSec = (this.clockPeriodSamples / this.sr) * Math.max(0, clockMult);
+      // clamp to safe bounds
+      if (clockTimeSec < TIME_MIN) clockTimeSec = TIME_MIN;
+      if (clockTimeSec > TIME_MAX) clockTimeSec = TIME_MAX;
+    }
+
     // We'll use equal-power mix (per-sample mixZ for accuracy when modulated)
     for (let i = 0; i < N; i++) {
       const xL = inL ? inL[i] : 0;
@@ -106,9 +131,12 @@ class DelayProcessor extends AudioWorkletProcessor {
       // audio-rate CV samples (expected -1..+1)
       const tCv = inTimeCv ? inTimeCv[i] : 0;
       const fCv = inFbCv   ? inFbCv[i]   : 0;
+      const cIn = inClock  ? inClock[i]  : 0;
 
       // effective targets with CV & hard clamp
-      let tEff  = baseTime + (tCv * timeCvAmt) * timeSpan;
+      let tEff  = clockTimeSec != null
+        ? clockTimeSec
+        : (baseTime + (tCv * timeCvAmt) * timeSpan);
       if (tEff < TIME_MIN) tEff = TIME_MIN;
       if (tEff > TIME_MAX) tEff = TIME_MAX;
 
@@ -175,12 +203,41 @@ class DelayProcessor extends AudioWorkletProcessor {
       const dry = Math.cos(this.mixZ * Math.PI * 0.5);
       const wet = Math.sin(this.mixZ * Math.PI * 0.5);
 
-      outL[i] = dry * xL + wet * yL;
-      outR[i] = dry * xR + wet * yR;
+      // If dryMono is enabled, use the mono sum for dry on both channels
+      if (dryMono) {
+        const xM = 0.5 * (xL + xR);
+        outL[i] = dry * xM + wet * yL;
+        outR[i] = dry * xM + wet * yR;
+      } else {
+        outL[i] = dry * xL + wet * yL;
+        outR[i] = dry * xR + wet * yR;
+      }
 
       // advance write index
       this.w++; if (this.w >= this.cap) this.w = 0;
+
+      // clock rising-edge detection for next block's period
+      // Consider threshold ~0.1 for generic pulses
+      if (inClock) {
+        const prev = this.clockLastVal;
+        const curr = cIn;
+        const th = 0.1;
+        if (prev < th && curr >= th) {
+          const edgeIdx = this.globalSampleIndex + i;
+          if (this.lastEdgeSampleIndex >= 0) {
+            const period = edgeIdx - this.lastEdgeSampleIndex;
+            if (period > 1) {
+              this.clockPeriodSamples = period;
+            }
+          }
+          this.lastEdgeSampleIndex = edgeIdx;
+        }
+        this.clockLastVal = curr;
+      }
     }
+
+    // advance global sample counter
+    this.globalSampleIndex += N;
 
     return true;
   }

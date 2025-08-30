@@ -12,8 +12,8 @@ export function usePort(meta: PortMeta, opts?: { audioNode?: AudioNode }) {
 
   useEffect(() => {
     const el = ref.current; if (!el) return;
-    registerPort(meta, el);
-    if (opts?.audioNode) registerAudioNode(meta.portId, opts.audioNode as any);
+    registerPort(meta.portId, { el, direction: meta.direction, kind: meta.kind, moduleId: meta.portId.split("-").slice(0, -2).join("-") || meta.portId });
+    if (opts?.audioNode) registerAudioNode(meta.portId, opts.audioNode as any, meta.direction);
     return () => unregisterPort(meta.portId);
   }, [meta.portId]);
 
@@ -53,8 +53,8 @@ export function usePort(meta: PortMeta, opts?: { audioNode?: AudioNode }) {
   }, [meta.portId]);
 
   useEffect(() => {
-    if (opts?.audioNode) registerAudioNode(meta.portId, opts.audioNode as any)
-  }, [opts?.audioNode, meta.portId, registerAudioNode])
+    if (opts?.audioNode) registerAudioNode(meta.portId, opts.audioNode as any, meta.direction)
+  }, [opts?.audioNode, meta.portId, meta.direction, registerAudioNode])
 
 
   return {
@@ -63,3 +63,4 @@ export function usePort(meta: PortMeta, opts?: { audioNode?: AudioNode }) {
     "data-port-direction": meta.direction,
     "data-audio-kind": meta.kind,
   } as const;
+}

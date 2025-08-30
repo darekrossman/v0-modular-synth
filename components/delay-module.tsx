@@ -5,7 +5,10 @@ import { ModuleContainer } from "./module-container"
 import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
 import { Button } from "@/components/ui/button"
+import { ToggleSwitch } from "@/components/ui/toggle-switch"
 import { mapLinear } from "@/lib/utils"
+import { useConnections } from "@/components/connection-manager"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -33,6 +36,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
   const [fbCvAmtN,   setFbCvAmtN]   = useState([0])
 
   const [mode, setMode] = useState<Mode>(0)
+  const [clocked, setClocked] = useState(false)
 
   // Graph
   const acRef = useRef<AudioContext | null>(null)
@@ -47,11 +51,12 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
   // CV inputs
   const timeCvInRef = useRef<GainNode | null>(null)
   const fbCvInRef   = useRef<GainNode | null>(null)
+  const clockInRef  = useRef<GainNode | null>(null)
 
   const mergerRef = useRef<ChannelMergerNode | null>(null)
   const splitterRef = useRef<ChannelSplitterNode | null>(null)
 
-  const isInitRef = useRef(false)
+  const { connections } = useConnections()
 
   const setParam = (name: string, v: number, tSmooth = 0.02) => {
     const ac = acRef.current, w = workletRef.current
@@ -63,7 +68,8 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
   }
 
   const init = useCallback(async () => {
-    if (isInitRef.current) return
+    if (workletRef.current) return
+    
     const ac = getAudioContext()
     acRef.current = ac
 
@@ -78,15 +84,16 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     // CV inputs (pass straight into the worklet, audio-rate)
     timeCvInRef.current = ac.createGain(); timeCvInRef.current.gain.value = 1
     fbCvInRef.current   = ac.createGain(); fbCvInRef.current.gain.value = 1
+    clockInRef.current  = ac.createGain(); clockInRef.current.gain.value = 1
 
     // Merge L/R → stereo input 0
     const merger = ac.createChannelMerger(2); mergerRef.current = merger
     inLRef.current.connect(merger, 0, 0)
     inRRef.current.connect(merger, 0, 1)
 
-    // Worklet: 3 inputs (stereo audio, timeCV, fbCV), 1 stereo output
+    // Worklet: 4 inputs (stereo audio, timeCV, fbCV, clock), 1 stereo output
     const w = new AudioWorkletNode(ac, "delay-processor", {
-      numberOfInputs: 3,
+      numberOfInputs: 4,
       numberOfOutputs: 1,
       outputChannelCount: [2],
       channelCountMode: "explicit",
@@ -94,10 +101,11 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     })
     workletRef.current = w
 
-    // Wire inputs to inputs[0..2]
+    // Wire inputs to inputs[0..3]
     merger.connect(w, 0, 0)                        // stereo audio
     timeCvInRef.current.connect(w, 0, 1)           // time CV
     fbCvInRef.current.connect(w, 0, 2)             // feedback CV
+    clockInRef.current.connect(w, 0, 3)            // clock input
 
     // Split stereo output → two mono port nodes
     const splitter = ac.createChannelSplitter(2); splitterRef.current = splitter
@@ -113,22 +121,43 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     setParam("mode",      mode,                                     0.0)
     setParam("timeCvAmt", Math.max(0, Math.min(1, timeCvAmtN[0])), 0.02)
     setParam("fbCvAmt",   Math.max(0, Math.min(1, fbCvAmtN[0])),   0.02)
+    setParam("clocked",   clocked ? 1 : 0,                         0.0)
+    setParam("clockMult", Math.max(0, Math.min(1, timeN[0])),      0.02)
+    // Initial dryMono state based on current connections
+    const inLId = `${moduleId}-in-l`
+    const inRId = `${moduleId}-in-r`
+    const hasL = connections.some((e) => e.to === inLId)
+    const hasR = connections.some((e) => e.to === inRId)
+    const dryMono = (hasL && !hasR) || (!hasL && hasR)
+    setParam("dryMono", dryMono ? 1 : 0, 0.0)
 
-    isInitRef.current = true
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    console.log("[DELAY] initialized")
+  }, [mode, clocked, timeN, fbN, mixN, toneN, timeCvAmtN, fbCvAmtN, connections, moduleId])
 
-  // kick init
-  useEffect(() => { init() }, [init])
+  const { isReady, initError, retryInit } = useModuleInit(init, "DELAY")
 
   // push param updates
-  useEffect(() => { setParam("time",     mapLinear(timeN[0], TIME_MIN, TIME_MAX)) }, [timeN])
+  useEffect(() => {
+    setParam("time",     mapLinear(timeN[0], TIME_MIN, TIME_MAX))
+    setParam("clockMult", Math.max(0, Math.min(1, timeN[0])))
+  }, [timeN])
   useEffect(() => { setParam("feedback", mapLinear(fbN[0],   FB_MIN,   FB_MAX))   }, [fbN])
   useEffect(() => { setParam("mix",      Math.max(0, Math.min(1, mixN[0])))       }, [mixN])
   useEffect(() => { setParam("toneHz",   mapLinear(toneN[0], TONE_MIN, TONE_MAX)) }, [toneN])
   useEffect(() => { setParam("mode",     mode, 0.0)                                }, [mode])
   useEffect(() => { setParam("timeCvAmt",Math.max(0, Math.min(1, timeCvAmtN[0]))) }, [timeCvAmtN])
   useEffect(() => { setParam("fbCvAmt",  Math.max(0, Math.min(1, fbCvAmtN[0])))   }, [fbCvAmtN])
+  useEffect(() => { setParam("clocked",  clocked ? 1 : 0, 0.0)                     }, [clocked])
+  // Balance dry path when exactly one input is connected
+  useEffect(() => {
+    if (!workletRef.current) return
+    const inLId = `${moduleId}-in-l`
+    const inRId = `${moduleId}-in-r`
+    const hasL = connections.some((e) => e.to === inLId)
+    const hasR = connections.some((e) => e.to === inRId)
+    const dryMono = (hasL && !hasR) || (!hasL && hasR)
+    setParam("dryMono", dryMono ? 1 : 0, 0.0)
+  }, [connections, moduleId])
 
   // Patch save/load (expose physical values + mode)
   useEffect(() => {
@@ -142,6 +171,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
       mode,
       timeCvAmt: timeCvAmtN[0],
       fbCvAmt:   fbCvAmtN[0],
+      clocked,
     })
     el.setParameters = (p: any) => {
       if (p.time      !== undefined) setTimeN([ (p.time - TIME_MIN) / (TIME_MAX - TIME_MIN) ])
@@ -151,8 +181,9 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
       if (p.mode      !== undefined) setMode(Math.max(0, Math.min(2, Math.floor(p.mode))) as Mode)
       if (p.timeCvAmt !== undefined) setTimeCvAmtN([ Math.max(0, Math.min(1, p.timeCvAmt)) ])
       if (p.fbCvAmt   !== undefined) setFbCvAmtN([ Math.max(0, Math.min(1, p.fbCvAmt)) ])
+      if (p.clocked   !== undefined) setClocked(!!p.clocked)
     }
-  }, [moduleId, timeN, fbN, mixN, toneN, mode, timeCvAmtN, fbCvAmtN])
+  }, [moduleId, timeN, fbN, mixN, toneN, mode, timeCvAmtN, fbCvAmtN, clocked])
 
   return (
     <ModuleContainer title="Delay" moduleId={moduleId}>
@@ -176,7 +207,10 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
       </div>
 
       <div className="flex flex-col items-center gap-4 mt-2">
-        <Knob value={timeN} onValueChange={setTimeN} size="lg" label="Time" />
+        <Knob value={timeN} onValueChange={setTimeN} size="lg" label="Time" steps={clocked ? 16 : undefined} />
+        <div className="flex items-center gap-4">
+          <ToggleSwitch label="Clock" value={clocked} onValueChange={setClocked} />
+        </div>
         <div className="flex gap-3">
           <Knob value={fbN}   onValueChange={setFbN}   size="sm" label="Feedback" />
           <Knob value={mixN}  onValueChange={setMixN}  size="sm" label="Mix" />
@@ -195,14 +229,15 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
       {/* Ports */}
       <div className="flex flex-col gap-2">
         <div className="flex justify-between items-end gap-2">
+          <Port id={`${moduleId}-time-cv`} type="input" label="TIME" audioType="cv" audioNode={timeCvInRef.current ?? undefined} />
+          <Port id={`${moduleId}-fb-cv`}   type="input" label="FB"   audioType="cv" audioNode={fbCvInRef.current   ?? undefined} />
+          <Port id={`${moduleId}-clk`}     type="input" label="CLK"  audioType="cv" audioNode={clockInRef.current  ?? undefined} />
+        </div>
+        <div className="flex justify-between items-end gap-2">
           <Port id={`${moduleId}-in-l`}  type="input"  label="IN L"  audioType="audio" audioNode={inLRef.current  ?? undefined} />
           <Port id={`${moduleId}-in-r`}  type="input"  label="IN R"  audioType="audio" audioNode={inRRef.current  ?? undefined} />
           <Port id={`${moduleId}-out-l`} type="output" label="OUT L" audioType="audio" audioNode={outLRef.current ?? undefined} />
           <Port id={`${moduleId}-out-r`} type="output" label="OUT R" audioType="audio" audioNode={outRRef.current ?? undefined} />
-        </div>
-        <div className="flex justify-between items-end gap-2">
-          <Port id={`${moduleId}-time-cv`} type="input" label="TIME" audioType="cv" audioNode={timeCvInRef.current ?? undefined} />
-          <Port id={`${moduleId}-fb-cv`}   type="input" label="FB"   audioType="cv" audioNode={fbCvInRef.current   ?? undefined} />
         </div>
       </div>
     </ModuleContainer>

@@ -7,6 +7,7 @@ import { ToggleSwitch } from "@/components/ui/toggle-switch"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Knob } from "@/components/ui/knob"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -43,11 +44,9 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
   const trigInRef = useRef<GainNode | null>(null)
   const pitchOutRef = useRef<GainNode | null>(null)
   const keepAliveRef = useRef<GainNode | null>(null)
-  const initRef = useRef(false)
 
   const init = useCallback(async () => {
-    if (initRef.current) return
-    initRef.current = true
+    if (nodeRef.current) return
     const ac = getAudioContext(); acRef.current = ac
     await ac.audioWorklet.addModule("/quantizer-processor.js")
 
@@ -80,10 +79,13 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
     const scale = SCALES.find(s => s.id === "major") || SCALES[0]
     setMask12(scale.mask)
     node.port.postMessage({ type: 'scale', mask12: scale.mask })
-  }, [])
+
+    console.log("[QUANTIZER] initialized")
+  }, [keyIdx, hold, transpose, octave, scaleId, mask12])
+
+  const { isReady, initError, retryInit } = useModuleInit(init, "QUANTIZER")
 
   useEffect(() => {
-    init()
     return () => {
       try { nodeRef.current?.disconnect() } catch {}
       try { pitchInRef.current?.disconnect() } catch {}

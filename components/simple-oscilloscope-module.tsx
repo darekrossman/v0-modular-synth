@@ -6,6 +6,7 @@ import { Knob } from "@/components/ui/knob"
 import { Button } from "@/components/ui/button"
 import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -29,7 +30,6 @@ export function SimpleOscilloscopeModule({ moduleId }: { moduleId: string }) {
   const inputRef = useRef<GainNode | null>(null)
   const pullRef = useRef<GainNode | null>(null)
   const framePendingRef = useRef<boolean>(false)
-  const isInitializedRef = useRef<boolean>(false)
 
   // Canvas and data
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -55,72 +55,73 @@ export function SimpleOscilloscopeModule({ moduleId }: { moduleId: string }) {
     }
   }, [])
 
-  // Initialize audio + worklet once (guarded)
-  useEffect(() => {
-    if (isInitializedRef.current) return
-    isInitializedRef.current = true
+  // Initialize audio + worklet
+  const initAudioNodes = useCallback(async () => {
+    if (workletRef.current) return // Already initialized
+
     const ac = getAudioContext()
     acRef.current = ac
-      ; (async () => {
-        try {
-          await ac.audioWorklet.addModule("/simple-oscilloscope-processor.js")
-          const input = ac.createGain(); input.gain.value = 1
-          const node = new AudioWorkletNode(ac, "simple-oscilloscope-processor", {
-            numberOfInputs: 1,
-            numberOfOutputs: 1,
-            outputChannelCount: [1],
-            channelCount: 1,
-            channelCountMode: "explicit",
-            channelInterpretation: "speakers",
-          })
-          input.connect(node)
-          // Keep processor pulled by routing to silent gain -> destination
-          const pull = ac.createGain(); pull.gain.value = 0
-          node.connect(pull)
-          pull.connect(ac.destination)
-          workletRef.current = node
-          inputRef.current = input
-          pullRef.current = pull
 
-          node.port.onmessage = (e) => {
-            const d = e.data || {}
-            if (d.type === "frame") {
-              if (d.samplesMin && d.samplesMax) {
-                samplesMinRef.current = new Float32Array(d.samplesMin)
-                samplesMaxRef.current = new Float32Array(d.samplesMax)
-                samplesLineRef.current = null
-              } else if (d.samples) {
-                // Back-compat fallback to averaged line
-                samplesLineRef.current = new Float32Array(d.samples)
-                samplesMinRef.current = null
-                samplesMaxRef.current = null
-              }
-              // Schedule a draw on the next animation frame for smoother pacing
-              if (!framePendingRef.current) {
-                framePendingRef.current = true
-                requestAnimationFrame(() => { framePendingRef.current = false; drawRef.current() })
-              }
-            }
-          }
+    await ac.audioWorklet.addModule("/simple-oscilloscope-processor.js")
+    const input = ac.createGain(); input.gain.value = 1
+    const node = new AudioWorkletNode(ac, "simple-oscilloscope-processor", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+      channelCount: 1,
+      channelCountMode: "explicit",
+      channelInterpretation: "speakers",
+    })
+    input.connect(node)
+    // Keep processor pulled by routing to silent gain -> destination
+    const pull = ac.createGain(); pull.gain.value = 0
+    node.connect(pull)
+    pull.connect(ac.destination)
+    workletRef.current = node
+    inputRef.current = input
+    pullRef.current = pull
 
-          // Initial visual config; parameters set below (use CSS pixels, not backing store)
-          {
-            const c = canvasRef.current
-            const rectW = c ? Math.max(100, Math.floor(c.getBoundingClientRect().width)) : 400
-            node.port.postMessage({ type: "config", outPixels: rectW })
-          }
-          const t = ac.currentTime
-          const winSec = mapLinear(timeDiv[0], 0.001, 2)
-          node.parameters.get("windowSec")?.setValueAtTime(winSec, t)
-          node.parameters.get("triggerEnabled")?.setValueAtTime(triggerEnabled ? 1 : 0, t)
-          node.parameters.get("triggerLevel")?.setValueAtTime(0, t)
-          // Default to AUTO behavior when trigger is enabled
-          node.parameters.get("autoMode")?.setValueAtTime(1, t)
-        } catch (err) {
-          console.error("[SimpleScope] init error", err)
+    node.port.onmessage = (e) => {
+      const d = e.data || {}
+      if (d.type === "frame") {
+        if (d.samplesMin && d.samplesMax) {
+          samplesMinRef.current = new Float32Array(d.samplesMin)
+          samplesMaxRef.current = new Float32Array(d.samplesMax)
+          samplesLineRef.current = null
+        } else if (d.samples) {
+          // Back-compat fallback to averaged line
+          samplesLineRef.current = new Float32Array(d.samples)
+          samplesMinRef.current = null
+          samplesMaxRef.current = null
         }
-      })()
+        // Schedule a draw on the next animation frame for smoother pacing
+        if (!framePendingRef.current) {
+          framePendingRef.current = true
+          requestAnimationFrame(() => { framePendingRef.current = false; drawRef.current() })
+        }
+      }
+    }
 
+    // Initial visual config; parameters set below (use CSS pixels, not backing store)
+    {
+      const c = canvasRef.current
+      const rectW = c ? Math.max(100, Math.floor(c.getBoundingClientRect().width)) : 400
+      node.port.postMessage({ type: "config", outPixels: rectW })
+    }
+    const t = ac.currentTime
+    const winSec = mapLinear(timeDiv[0], 0.001, 2)
+    node.parameters.get("windowSec")?.setValueAtTime(winSec, t)
+    node.parameters.get("triggerEnabled")?.setValueAtTime(triggerEnabled ? 1 : 0, t)
+    node.parameters.get("triggerLevel")?.setValueAtTime(0, t)
+    // Default to AUTO behavior when trigger is enabled
+    node.parameters.get("autoMode")?.setValueAtTime(1, t)
+  }, [timeDiv, triggerEnabled])
+
+  // Use the module initialization hook
+  const { isReady, initError, retryInit } = useModuleInit(initAudioNodes, "SCOPE")
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       try { workletRef.current?.disconnect() } catch { }
       try { inputRef.current?.disconnect() } catch { }

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode, useRef } from "react"
 import { useConnections } from "./connection-manager"
 
 // -------- Types aligned with the new connection system --------
@@ -8,8 +8,10 @@ export interface PatchModule {
   id: string
   type: string
   parameters: Record<string, any>
-  x?: number
-  y?: number
+  position?: {
+    x: number
+    y: number
+  }
 }
 
 export interface PatchConnection {
@@ -31,6 +33,10 @@ export interface Patch {
   }
 }
 
+// Module registration callback types
+type ModuleSaveCallback = () => Record<string, any>
+type ModulePositionCallback = () => { x: number; y: number } | undefined
+
 interface PatchContextType {
   currentPatch: Patch | null
   availablePatches: Patch[]
@@ -44,6 +50,9 @@ interface PatchContextType {
   createNewPatch: () => void
   duplicatePatch: (patch: Patch, newName: string) => Patch
   loadDefaultPatch: () => void
+  registerModule: (moduleId: string, onSave: ModuleSaveCallback, onGetPosition?: ModulePositionCallback) => void
+  unregisterModule: (moduleId: string) => void
+  getInitialParameters: (moduleId: string) => Record<string, any> | undefined
 }
 
 const PatchContext = createContext<PatchContextType | null>(null)
@@ -52,6 +61,26 @@ export function usePatchManager() {
   const context = useContext(PatchContext)
   if (!context) throw new Error("usePatchManager must be used within PatchProvider")
   return context
+}
+
+// Hook for modules to register themselves and get initial parameters
+export function useModulePatch(
+  moduleId: string,
+  onSave: ModuleSaveCallback,
+  onGetPosition?: ModulePositionCallback
+) {
+  const { registerModule, unregisterModule, getInitialParameters } = usePatchManager()
+
+  // Get initial parameters (only once on mount)
+  const [initialParameters] = useState(() => getInitialParameters(moduleId))
+
+  // Register on mount, unregister on unmount
+  useEffect(() => {
+    registerModule(moduleId, onSave, onGetPosition)
+    return () => unregisterModule(moduleId)
+  }, [moduleId, onSave, onGetPosition, registerModule, unregisterModule])
+
+  return { initialParameters }
 }
 
 // ---------- Default patch (uses new {from,to,kind} shape) ----------
@@ -140,7 +169,7 @@ const savePatchesToStorage = (patches: Patch[]) => {
   try {
     if (typeof window === "undefined") return
     localStorage.setItem(STORAGE_KEY, JSON.stringify(patches))
-  } catch {}
+  } catch { }
 }
 
 // -------------------- Provider --------------------
@@ -148,6 +177,15 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
   const [currentPatch, setCurrentPatch] = useState<Patch | null>(null)
   const [availablePatches, setAvailablePatches] = useState<Patch[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
+
+  // Module registry for save callbacks
+  const moduleCallbacksRef = useRef<Map<string, {
+    onSave: ModuleSaveCallback
+    onGetPosition?: ModulePositionCallback
+  }>>(new Map())
+
+  // Temporary storage for initial parameters when loading a patch
+  const initialParametersRef = useRef<Record<string, Record<string, any>>>({})
 
   // NEW connection APIs
   const {
@@ -174,54 +212,21 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
     if (isInitialized) savePatchesToStorage(availablePatches)
   }, [availablePatches, isInitialized])
 
-  // Capture UI parameters from DOM (kept from your original)
+  // Get current state by calling all registered module callbacks
   const getCurrentState = useCallback((): Patch => {
-    const moduleParameters: Record<string, Record<string, any>> = {}
+    // Build modules with parameters from registered callbacks
+    const modulesForExport = modules.map((m) => {
+      const callbacks = moduleCallbacksRef.current.get(m.id)
+      const parameters = callbacks?.onSave() || {}
+      const position = callbacks?.onGetPosition?.()
 
-    modules.forEach((module) => {
-      const parameters: Record<string, any> = {}
-      const moduleElement = document.querySelector(`[data-module-id="${module.id}"]`)
-
-      if (moduleElement) {
-        if ((moduleElement as any).getParameters) {
-          Object.assign(parameters, (moduleElement as any).getParameters())
-        } else {
-          const sliders = moduleElement.querySelectorAll('input[type="range"]')
-          sliders.forEach((slider) => {
-            const input = slider as HTMLInputElement
-            const paramName = input.getAttribute("data-param") || input.id
-            if (paramName) parameters[paramName] = Number.parseFloat(input.value)
-          })
-          const selects = moduleElement.querySelectorAll("select")
-          selects.forEach((select) => {
-            const paramName = select.getAttribute("data-param") || select.id
-            if (paramName) parameters[paramName] = (select as HTMLSelectElement).value
-          })
-          const buttonGroups: Record<string, string> = {}
-          const buttons = moduleElement.querySelectorAll("button[data-param]")
-          buttons.forEach((button) => {
-            const paramName = button.getAttribute("data-param")
-            const dataValue = button.getAttribute("data-value")
-            if (paramName && dataValue) {
-              const isSelected =
-                button.classList.contains("bg-primary") ||
-                button.getAttribute("data-state") === "on" ||
-                button.getAttribute("aria-pressed") === "true" ||
-                !button.classList.contains("border-input")
-              if (isSelected) buttonGroups[paramName] = dataValue
-            }
-          })
-          Object.assign(parameters, buttonGroups)
-        }
+      return {
+        id: m.id,
+        type: m.type,
+        parameters,
+        ...(position && { position })
       }
-
-      moduleParameters[module.id] = parameters
     })
-
-    // Build modules (with parameters) for the provider’s export
-    const modulesForExport = modules.map((m) => ({
-      id: m.id, type: m.type, parameters: moduleParameters[m.id] || {},
-    }))
 
     const { connections: edges } = exportPatchJSON(modulesForExport)
     return {
@@ -267,61 +272,24 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
     setCurrentPatch(updated)
   }, [currentPatch, getCurrentState])
 
-  const restoreModuleParameters = useCallback((patch: Patch) => {
-    patch.modules.forEach((module) => {
-      const moduleElement = document.querySelector(`[data-module-id="${module.id}"]`)
-      if (!moduleElement) return
-
-      if ((moduleElement as any).setParameters) {
-        ;(moduleElement as any).setParameters(module.parameters)
-      } else {
-        Object.entries(module.parameters).forEach(([param, value]) => {
-          const selectors = [
-            `[data-param="${param}"]`,
-            `#${param}`,
-            `input[name="${param}"]`,
-            `select[name="${param}"]`,
-            `button[data-param="${param}"][data-value="${value}"]`,
-            `button[data-param="${param}"]`,
-          ]
-          let input: HTMLElement | null = null
-          for (const sel of selectors) { input = moduleElement.querySelector(sel); if (input) break }
-          if (!input) return
-
-          if (input instanceof HTMLInputElement || input instanceof HTMLSelectElement) {
-            input.value = String(value)
-            input.dispatchEvent(new Event("change", { bubbles: true }))
-            input.dispatchEvent(new Event("input", { bubbles: true }))
-          } else if (input instanceof HTMLButtonElement) {
-            const val = input.getAttribute("data-value")
-            if (val === String(value)) input.click()
-            else {
-              const correct = moduleElement.querySelector(`button[data-param="${param}"][data-value="${value}"]`)
-              if (correct instanceof HTMLButtonElement) correct.click()
-            }
-          }
-          // Notify app-level handler too
-          onParameterChange(module.id, param, value)
-        })
-      }
-    })
-  }, [onParameterChange])
-
   const loadPatch = useCallback((patchLike: Patch) => {
     const patch = normalizePatch(patchLike) as Patch
     if (!patch) return
 
-    // 1) update modules list (render first)
+    // 1) Store initial parameters for modules to retrieve
+    initialParametersRef.current = {}
+    patch.modules.forEach(m => {
+      initialParametersRef.current[m.id] = m.parameters || {}
+    })
+
+    // 2) Update modules list (will trigger re-render with new parameters)
     const moduleInstances = patch.modules.map((m) => ({ id: m.id, type: m.type as any }))
     onModulesChange(moduleInstances)
 
-    // 2) restore params after render tick
-    requestAnimationFrame(() => restoreModuleParameters(patch))
-
-    // 3) hand connections to the provider (auto-binds as ports/nodes register)
+    // 3) Load connections
     loadPatchJSON({ modules: patch.modules, connections: patch.connections })
     setCurrentPatch(patch)
-  }, [onModulesChange, restoreModuleParameters, loadPatchJSON])
+  }, [onModulesChange, loadPatchJSON])
 
   const exportPatch = useCallback((patch: Patch): string => JSON.stringify(patch, null, 2), [])
 
@@ -385,6 +353,25 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
     return dup
   }, [])
 
+  // Register a module with its save callback
+  const registerModule = useCallback((
+    moduleId: string,
+    onSave: ModuleSaveCallback,
+    onGetPosition?: ModulePositionCallback
+  ) => {
+    moduleCallbacksRef.current.set(moduleId, { onSave, onGetPosition })
+  }, [])
+
+  // Unregister a module
+  const unregisterModule = useCallback((moduleId: string) => {
+    moduleCallbacksRef.current.delete(moduleId)
+  }, [])
+
+  // Get initial parameters for a module
+  const getInitialParameters = useCallback((moduleId: string): Record<string, any> | undefined => {
+    return initialParametersRef.current[moduleId]
+  }, [])
+
   return (
     <PatchContext.Provider
       value={{
@@ -400,6 +387,9 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
         createNewPatch,
         duplicatePatch,
         loadDefaultPatch,
+        registerModule,
+        unregisterModule,
+        getInitialParameters,
       }}
     >
       {children}

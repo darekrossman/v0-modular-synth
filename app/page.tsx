@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback, useMemo, memo } from "react"
 import * as motion from "motion/react"
 const { Reorder, useDragControls } = motion
 import { OscillatorModule } from "@/components/oscillator-module"
@@ -15,6 +15,7 @@ import { ClockModule } from "@/components/clock-module"
 import { SimpleOscilloscopeModule } from "@/components/simple-oscilloscope-module"
 import { SequencerModule } from "@/components/sequencer-module"
 import { DelayModule } from "@/components/delay-module"
+import { ReverbModule } from "@/components/reverb-module"
 import { QuantizerModule } from "@/components/quantizer-module"
 
 import { ConnectionProvider, useConnections } from "@/components/connection-manager"
@@ -67,6 +68,7 @@ const availableModules = [
   { type: "sequencer" as ModuleType, name: "Sequencer", description: "Step sequencer for patterns" },
   { type: "lfo" as ModuleType, name: "LFO", description: "Low-frequency oscillator" },
   { type: "delay" as ModuleType, name: "Delay", description: "Delay effect module" },
+  { type: "reverb" as ModuleType, name: "Reverb", description: "Stereo reverb effect" },
   { type: "quantizer" as ModuleType, name: "Quantizer", description: "Pitch CV quantizer" },
 ]
 
@@ -77,8 +79,46 @@ interface SynthPlaygroundContentProps {
   removeModule: (moduleId: string) => void
 }
 
+// Memoized module renderer to prevent re-renders
+const ModuleRenderer = memo(({ module }: { module: ModuleInstance }) => {
+  switch (module.type) {
+    case "oscillator":
+      return <OscillatorModule moduleId={module.id} />
+    case "lfo":
+      return <LFOModule moduleId={module.id} />
+    case "output":
+      return <OutputModule moduleId={module.id} />
+    case "lowpass-filter":
+      return <LowPassFilterModule moduleId={module.id} />
+    case "keyboard-cv":
+      return <KeyboardCVModule moduleId={module.id} />
+    case "adsr":
+      return <ADSRModule moduleId={module.id} />
+    case "vca":
+      return <VCAModule moduleId={module.id} />
+    case "random":
+      return <RandomModule moduleId={module.id} />
+    case "clock":
+      return <ClockModule moduleId={module.id} />
+    case "simple-oscilloscope":
+      return <SimpleOscilloscopeModule moduleId={module.id} />
+    case "sequencer":
+      return <SequencerModule moduleId={module.id} />
+    case "delay":
+      return <DelayModule moduleId={module.id} />
+    case "reverb":
+      return <ReverbModule moduleId={module.id} />
+    case "quantizer":
+      return <QuantizerModule moduleId={module.id} />
+    default:
+      return null
+  }
+})
+
+ModuleRenderer.displayName = 'ModuleRenderer'
+
 // Wrapper component for each draggable module
-function DraggableModuleItem({ module, index, rackModules, children }: any) {
+const DraggableModuleItem = memo(({ module, index, rackModules, onDelete }: any) => {
   const controls = useDragControls()
   
   return (
@@ -92,22 +132,38 @@ function DraggableModuleItem({ module, index, rackModules, children }: any) {
       className="relative h-full"
       style={{ marginRight: index < rackModules.length - 1 ? '0.25rem' : 0 }}
     >
-      <div 
-        className="h-full"
-        onPointerDown={(e) => {
-          // Only start drag if clicking on the header area
-          const target = e.target as HTMLElement
-          const header = target.closest('.module-header')
-          if (header) {
-            controls.start(e)
-          }
-        }}
-      >
-        {children}
-      </div>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div 
+            className="h-full"
+            onPointerDown={(e) => {
+              // Only start drag if clicking on the header area
+              const target = e.target as HTMLElement
+              const header = target.closest('.module-header')
+              if (header) {
+                controls.start(e)
+              }
+            }}
+          >
+            <ModuleRenderer module={module} />
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            variant="destructive"
+            onClick={() => onDelete(module.id)}
+            className="flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </Reorder.Item>
   )
-}
+})
+
+DraggableModuleItem.displayName = 'DraggableModuleItem'
 
 function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }: SynthPlaygroundContentProps) {
   const { loadDefaultPatch } = usePatchManager()
@@ -118,7 +174,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
     //loadDefaultPatch()
   }, [loadDefaultPatch])
 
-  const handleDeleteModule = (moduleId: string) => {
+  const handleDeleteModule = useCallback((moduleId: string) => {
     connections.forEach((connection) => {
       if (connection.from.startsWith(moduleId) || connection.to.startsWith(moduleId)) {
         removeConnection(connection.id)
@@ -126,71 +182,44 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
     })
 
     removeModule(moduleId)
-  }
-
-  const renderModule = (module: ModuleInstance, index: number, rackModules: ModuleInstance[]) => {
-    const key = module.id
-    const ModuleComponent = (() => {
-      switch (module.type) {
-        case "oscillator":
-          return <OscillatorModule key={key} moduleId={module.id} />
-        case "lfo":
-          return <LFOModule key={key} moduleId={module.id} />
-        case "output":
-          return <OutputModule key={key} moduleId={module.id} />
-        case "lowpass-filter":
-          return <LowPassFilterModule key={key} moduleId={module.id} />
-        case "keyboard-cv":
-          return <KeyboardCVModule key={key} moduleId={module.id} />
-        case "adsr":
-          return <ADSRModule key={key} moduleId={module.id} />
-        case "vca":
-          return <VCAModule key={key} moduleId={module.id} />
-        case "random":
-          return <RandomModule key={key} moduleId={module.id} />
-        case "clock":
-          return <ClockModule key={key} moduleId={module.id} />
-        case "simple-oscilloscope":
-          return <SimpleOscilloscopeModule key={key} moduleId={module.id} />
-        case "sequencer":
-          return <SequencerModule key={key} moduleId={module.id} />
-        case "delay":
-          return <DelayModule key={key} moduleId={module.id} />
-        case "quantizer":
-          return <QuantizerModule key={key} moduleId={module.id} />
-        default:
-          return null
-      }
-    })()
-
-    return (
-      <div key={key} className="relative h-full">
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <div className="h-full">{ModuleComponent}</div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem
-              variant="destructive"
-              onClick={() => handleDeleteModule(module.id)}
-              className="flex items-center gap-2"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      </div>
-    )
-  }
+  }, [connections, removeConnection, removeModule])
 
   // Rack assignment: Sequencer and Quantizer always in rack 2
-  const rack1Modules = modules.filter(
-    (m: ModuleInstance) => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer"
+  const rack1Modules = useMemo(() => 
+    modules.filter(
+      (m: ModuleInstance) => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer"
+    ),
+    [modules]
   )
-  const rack2Modules = modules.filter(
-    (m: ModuleInstance) => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer"
+  
+  const rack2Modules = useMemo(() => 
+    modules.filter(
+      (m: ModuleInstance) => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer"
+    ),
+    [modules]
   )
+
+  const handleRack1Reorder = useCallback((newOrder: ModuleInstance[]) => {
+    setModules(prev => {
+      const rack2 = prev.filter(m => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer")
+      return [...newOrder, ...rack2]
+    })
+    // Trigger geometry update for wires
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 0)
+  }, [setModules])
+
+  const handleRack2Reorder = useCallback((newOrder: ModuleInstance[]) => {
+    setModules(prev => {
+      const rack1 = prev.filter(m => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer")
+      return [...rack1, ...newOrder]
+    })
+    // Trigger geometry update for wires
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 0)
+  }, [setModules])
 
   return (
     <main className="h-screen bg-background flex flex-col relative">
@@ -239,16 +268,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
           <Reorder.Group 
             axis="x" 
             values={rack1Modules}
-            onReorder={(newOrder) => {
-              setModules(prev => {
-                const rack2 = prev.filter(m => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer")
-                return [...newOrder, ...rack2]
-              })
-              // Trigger geometry update for wires
-              setTimeout(() => {
-                window.dispatchEvent(new Event('resize'))
-              }, 0)
-            }}
+            onReorder={handleRack1Reorder}
             className="flex overflow-x-auto relative items-stretch h-full"
           >
             {rack1Modules.map((module: ModuleInstance, index: number) => (
@@ -257,9 +277,8 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
                 module={module}
                 index={index}
                 rackModules={rack1Modules}
-              >
-                {renderModule(module, index, rack1Modules)}
-              </DraggableModuleItem>
+                onDelete={handleDeleteModule}
+              />
             ))}
           </Reorder.Group>
         </div>
@@ -268,16 +287,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
           <Reorder.Group 
             axis="x" 
             values={rack2Modules}
-            onReorder={(newOrder) => {
-              setModules(prev => {
-                const rack1 = prev.filter(m => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer")
-                return [...rack1, ...newOrder]
-              })
-              // Trigger geometry update for wires
-              setTimeout(() => {
-                window.dispatchEvent(new Event('resize'))
-              }, 0)
-            }}
+            onReorder={handleRack2Reorder}
             className="flex overflow-x-auto relative items-stretch h-full"
           >
             {rack2Modules.map((module: ModuleInstance, index: number) => (
@@ -286,9 +296,8 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
                 module={module}
                 index={index}
                 rackModules={rack2Modules}
-              >
-                {renderModule(module, index, rack2Modules)}
-              </DraggableModuleItem>
+                onDelete={handleDeleteModule}
+              />
             ))}
           </Reorder.Group>
         </div>

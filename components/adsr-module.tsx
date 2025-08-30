@@ -9,6 +9,8 @@ import { TextLabel } from "@/components/text-label"
 import { Port } from "./port"
 import { Knob } from "@/components/ui/knob"
 import { mapLinear } from "@/lib/utils"
+import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -18,34 +20,44 @@ function getAudioContext(): AudioContext {
 }
 
 // Ranges for mapping 0..1 -> seconds
-const ATTACK_MIN = 0.001,
-  ATTACK_MAX = 2.0
-const DECAY_MIN = 0.001,
-  DECAY_MAX = 2.0
-const SUSTAIN_MIN = 0.0,
-  SUSTAIN_MAX = 1.0
-const RELEASE_MIN = 0.001,
-  RELEASE_MAX = 5.0
-const MAXV_MIN = 0.0,
-  MAXV_MAX = 10.0
+const ATTACK_MIN = 0.001
+const ATTACK_MAX = 2.0
+const DECAY_MIN = 0.001
+const DECAY_MAX = 2.0
+const SUSTAIN_MIN = 0.0
+const SUSTAIN_MAX = 1.0
+const RELEASE_MIN = 0.001
+const RELEASE_MAX = 5.0
+const MAXV_MIN = 0.0
+const MAXV_MAX = 10.0
 
-// Defaults (normalized 0..1) chosen to yield ~0.1s / 0.2s / 0.7 / 0.3s
 const DEFAULT_ATTACK_N = (0.001 - ATTACK_MIN) / (ATTACK_MAX - ATTACK_MIN)
 const DEFAULT_DECAY_N = (0.2 - DECAY_MIN) / (DECAY_MAX - DECAY_MIN)
 const DEFAULT_SUSTAIN_N = 1
-const DEFAULT_RELEASE_N = (0.1 - RELEASE_MIN) / (RELEASE_MAX - RELEASE_MIN) // ≈ 0.0598
+const DEFAULT_RELEASE_N = (0.1 - RELEASE_MIN) / (RELEASE_MAX - RELEASE_MIN)
 
 export function ADSRModule({ moduleId }: { moduleId: string }) {
-  // Normalized UI state (0..1 for each slider)
-  const [attackN, setAttackN] = useState<number[]>([DEFAULT_ATTACK_N])
-  const [decayN, setDecayN] = useState<number[]>([DEFAULT_DECAY_N])
-  const [sustainN, setSustainN] = useState<number[]>([DEFAULT_SUSTAIN_N])
-  const [releaseN, setReleaseN] = useState<number[]>([DEFAULT_RELEASE_N])
-  const [maxVN, setMaxVN] = useState<number[]>([1])
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    attackN: attackN[0],
+    decayN: decayN[0],
+    sustainN: sustainN[0],
+    releaseN: releaseN[0],
+    maxVN: maxVN[0],
+    retrig,
+    longMode,
+    linearShape,
+  }))
 
-  const [retrig, setRetrig] = useState(true)
-  const [longMode, setLongMode] = useState(false)
-  const [linearShape, setLinearShape] = useState(false)
+  // Normalized UI state (0..1 for each slider) - initialized from saved values or defaults
+  const [attackN, setAttackN] = useState<number[]>([initialParameters?.attackN ?? DEFAULT_ATTACK_N])
+  const [decayN, setDecayN] = useState<number[]>([initialParameters?.decayN ?? DEFAULT_DECAY_N])
+  const [sustainN, setSustainN] = useState<number[]>([initialParameters?.sustainN ?? DEFAULT_SUSTAIN_N])
+  const [releaseN, setReleaseN] = useState<number[]>([initialParameters?.releaseN ?? DEFAULT_RELEASE_N])
+  const [maxVN, setMaxVN] = useState<number[]>([initialParameters?.maxVN ?? 1])
+  const [retrig, setRetrig] = useState(initialParameters?.retrig ?? true)
+  const [longMode, setLongMode] = useState(initialParameters?.longMode ?? false)
+  const [linearShape, setLinearShape] = useState(initialParameters?.linearShape ?? false)
   const [isTriggered, setIsTriggered] = useState(false)
 
   // Audio graph
@@ -56,7 +68,6 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
   const invOutRef = useRef<GainNode | null>(null) // exposed inverted ENV output
   const nodeRef = useRef<AudioWorkletNode | null>(null) // adsr-processor worklet
   const keepAliveRef = useRef<GainNode | null>(null)
-  const isInitializedRef = useRef(false)
 
   // Helpers: map normalized slider values to real units
   const mapAttack = (n: number) => mapLinear(n, ATTACK_MIN, ATTACK_MAX)
@@ -67,7 +78,8 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
 
   // One-time init
   const initAudioNodes = useCallback(async () => {
-    if (isInitializedRef.current) return
+    if (nodeRef.current) return // Already initialized
+
     const ac = getAudioContext()
     audioContextRef.current = ac
 
@@ -117,14 +129,13 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
     keepAliveRef.current.gain.value = 0
     envOutRef.current.connect(keepAliveRef.current)
     keepAliveRef.current.connect(ac.destination)
+  }, [attackN, decayN, sustainN, releaseN, retrig, longMode, linearShape, maxVN])
 
-    isInitializedRef.current = true
-    // eslint-disable-next-line no-console
-    console.log("[ADSR] initialized (worklet + mapped params)")
-  }, [moduleId])
+  // Use the module initialization hook
+  const { isReady, initError, retryInit } = useModuleInit(initAudioNodes, "ADSR")
 
+  // Cleanup on unmount
   useEffect(() => {
-    initAudioNodes()
     return () => {
       try {
         nodeRef.current?.disconnect()
@@ -135,7 +146,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
         keepAliveRef.current?.disconnect()
       } catch { }
     }
-  }, [initAudioNodes])
+  }, [])
 
   // Push mapped values to AudioParams (timeline-accurate)
   useEffect(() => {
@@ -202,35 +213,6 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
     }
   }
 
-  // Optional programmatic API (returns mapped/real values)
-  const getParameters = () => ({
-    attack: mapAttack(attackN[0]),
-    decay: mapDecay(decayN[0]),
-    sustain: mapSustain(sustainN[0]),
-    release: mapRelease(releaseN[0]),
-    retrig,
-    longMode,
-    linearShape,
-    maxv: mapMaxV(maxVN[0]),
-  })
-  const setParameters = (p: Record<string, any>) => {
-    if (p.attack !== undefined) setAttackN([(p.attack - ATTACK_MIN) / (ATTACK_MAX - ATTACK_MIN)])
-    if (p.decay !== undefined) setDecayN([(p.decay - DECAY_MIN) / (DECAY_MAX - DECAY_MIN)])
-    if (p.sustain !== undefined) setSustainN([(p.sustain - SUSTAIN_MIN) / (SUSTAIN_MAX - SUSTAIN_MIN)])
-    if (p.release !== undefined) setReleaseN([(p.release - RELEASE_MIN) / (RELEASE_MAX - RELEASE_MIN)])
-    if (p.retrig !== undefined) setRetrig(!!p.retrig)
-    if (p.longMode !== undefined) setLongMode(!!p.longMode)
-    if (p.linearShape !== undefined) setLinearShape(!!p.linearShape)
-    if (p.maxv !== undefined) setMaxVN([(p.maxv - MAXV_MIN) / (MAXV_MAX - MAXV_MIN)])
-  }
-
-  useEffect(() => {
-    const el = document.querySelector(`[data-module-id="${moduleId}"]`)
-    if (el) {
-      ; (el as any).getParameters = getParameters
-        ; (el as any).setParameters = setParameters
-    }
-  }, [attackN, decayN, sustainN, releaseN, retrig, longMode, linearShape, maxVN, moduleId])
 
   return (
     <ModuleContainer moduleId={moduleId} title="ADSR">

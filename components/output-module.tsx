@@ -5,6 +5,7 @@ import { ModuleContainer } from "./module-container"
 import { Button } from "@/components/ui/button"
 import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
+import { useModuleInit } from "@/hooks/use-module-init"
 
 // Shared AudioContext helper
 function getAudioContext(): AudioContext {
@@ -84,12 +85,13 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
   const synthToLine = 0.25 // headroom
 
   const initGraph = useCallback(async () => {
-    if (acRef.current && leftInRef.current && rightInRef.current) return
+    if (meterNodeRef.current || leftAnalyserRef.current) return // Already initialized
+
     const ac = getAudioContext()
     acRef.current = ac
 
     // Try to load meter worklet
-    try { await ac.audioWorklet.addModule("/output-meter-processor.js") } catch {}
+    await ac.audioWorklet.addModule("/output-meter-processor.js")
 
     const leftIn = ac.createGain(), rightIn = ac.createGain()
     leftInRef.current = leftIn; rightInRef.current = rightIn
@@ -114,7 +116,7 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     outMergerRef.current = outMerger
 
     const master = ac.createGain()
-    master.gain.value = isPlaying ? 1 : 0
+    master.gain.value = 0 // Start muted, will be controlled by start/stop functions
     masterGainRef.current = master
 
     // Meter path: worklet or analyser fallback
@@ -144,7 +146,11 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
         leftAnalyserRef.current = aL; rightAnalyserRef.current = aR
         f32L.current = new Float32Array(aL.fftSize)
         f32R.current = new Float32Array(aR.fftSize)
-        meterMerger.connect(aL, 0, 0); meterMerger.connect(aR, 0, 0)
+        // Create splitter to separate L/R channels for analysers
+        const splitter = ac.createChannelSplitter(2)
+        meterMerger.connect(splitter)
+        splitter.connect(aL, 0, 0) // Left channel to left analyser
+        splitter.connect(aR, 1, 0) // Right channel to right analyser
       }
     } else {
       const aL = ac.createAnalyser(), aR = ac.createAnalyser()
@@ -153,16 +159,17 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
       leftAnalyserRef.current = aL; rightAnalyserRef.current = aR
       f32L.current = new Float32Array(aL.fftSize)
       f32R.current = new Float32Array(aR.fftSize)
-      meterMerger.connect(aL, 0, 0); meterMerger.connect(aR, 0, 0)
+      // Create splitter to separate L/R channels for analysers
+      const splitter = ac.createChannelSplitter(2)
+      meterMerger.connect(splitter)
+      splitter.connect(aL, 0, 0) // Left channel to left analyser
+      splitter.connect(aR, 1, 0) // Right channel to right analyser
     }
 
-    // Audio routing
-    const applyTrim = () => {
-      const g = knobToGain(volume) * synthToLine
-      leftTrim.gain.setTargetAtTime(g, ac.currentTime, 0.01)
-      rightTrim.gain.setTargetAtTime(g, ac.currentTime, 0.01)
-    }
-    applyTrim()
+    // Audio routing - set initial gain to current volume
+    const initialGain = knobToGain(0.75) * synthToLine // Use default volume
+    leftTrim.gain.setTargetAtTime(initialGain, ac.currentTime, 0.01)
+    rightTrim.gain.setTargetAtTime(initialGain, ac.currentTime, 0.01)
 
     leftIn.connect(leftTrim); rightIn.connect(rightTrim)
     leftTrim.connect(leftDC); rightTrim.connect(rightDC)
@@ -180,8 +187,13 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     master.connect(ac.destination)
 
     setNodesReadyTick(t => t + 1)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, volume, knobToGain])
+    
+    // eslint-disable-next-line no-console
+    console.log("[OUTPUT] initialized")
+  }, [knobToGain, synthToLine])
+
+  // Use the module initialization hook
+  const { isReady, initError, retryInit } = useModuleInit(initGraph, "OUTPUT")
 
   // Volume smoothing
   useEffect(() => {
@@ -219,8 +231,8 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
       // Fallback analyser compute (RMS + peak + simple 2× inter-sample check)
       if (leftAnalyserRef.current && rightAnalyserRef.current && f32L.current && f32R.current) {
         const L = f32L.current, R = f32R.current
-        leftAnalyserRef.current.getFloatTimeDomainData(L)
-        rightAnalyserRef.current.getFloatTimeDomainData(R)
+        leftAnalyserRef.current.getFloatTimeDomainData(L as any)
+        rightAnalyserRef.current.getFloatTimeDomainData(R as any)
         let accL = 0, accR = 0, pL = 0, pR = 0
         let prevL = 0, prevR = 0
         const N = L.length
@@ -272,8 +284,12 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
 
   // init + cleanup
   useEffect(() => {
-    initGraph()
-    rAF.current = requestAnimationFrame(meterLoop)
+    const init = async () => {
+      await initGraph()
+      // Start meter loop after initialization completes
+      rAF.current = requestAnimationFrame(meterLoop)
+    }
+    init()
     return () => {
       if (rAF.current) cancelAnimationFrame(rAF.current)
       try {
@@ -290,10 +306,9 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
         rightDCRef.current?.disconnect()
         if (meterNodeRef.current?.port) (meterNodeRef.current.port.onmessage as any) = null
         meterNodeRef.current?.disconnect()
-      } catch {}
+      } catch { }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [initGraph, meterLoop])
 
   const getLevelColor = (level: number) => (level > 0.9 ? "bg-red-500" : "bg-green-500")
 
@@ -337,7 +352,7 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
         <div className="flex justify-center mb-12">
           <Button
             onClick={() => (isPlaying ? stop() : start())}
-            size="md"
+            size="sm"
             className={`w-[110px] py-2 text-xs font-semibold ${!isPlaying ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}
           >
             {isPlaying ? "Disable Audio" : "Enable Audio"}

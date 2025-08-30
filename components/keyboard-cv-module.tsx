@@ -77,6 +77,8 @@ export function KeyboardCVModule({ moduleId }: { moduleId: string }) {
 
   const initAudioNodes = useCallback(() => {
     if (isInitializedRef.current) return
+    // Set init guard BEFORE any potential async operations to prevent duplicate init
+    isInitializedRef.current = true
 
     const audioContext = getAudioContext()
     audioContextRef.current = audioContext
@@ -99,8 +101,7 @@ export function KeyboardCVModule({ moduleId }: { moduleId: string }) {
     pitchOutputRef.current.connect(pitchGainRef.current)
     pitchOutputRef.current.start()
 
-    console.log("[v0] Keyboard CV: Audio nodes initialized and registered")
-    isInitializedRef.current = true
+    console.log("[KEYBOARD-CV] initialized")
   }, [moduleId])
 
   const handleKeyDown = useCallback(
