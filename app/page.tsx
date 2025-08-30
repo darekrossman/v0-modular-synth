@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
+import * as motion from "motion/react"
+const { Reorder, useDragControls } = motion
 import { OscillatorModule } from "@/components/oscillator-module"
 import { LFOModule } from "@/components/lfo-module"
 import { OutputModule } from "@/components/output-module"
@@ -49,6 +51,7 @@ interface ModuleInstance {
   id: string
   type: ModuleType
   rack?: number
+  order?: number
 }
 
 const availableModules = [
@@ -69,11 +72,44 @@ const availableModules = [
 
 interface SynthPlaygroundContentProps {
   modules: ModuleInstance[]
+  setModules: React.Dispatch<React.SetStateAction<ModuleInstance[]>>
   addModule: (type: ModuleType) => void
   removeModule: (moduleId: string) => void
 }
 
-function SynthPlaygroundContent({ modules, addModule, removeModule }: SynthPlaygroundContentProps) {
+// Wrapper component for each draggable module
+function DraggableModuleItem({ module, index, rackModules, children }: any) {
+  const controls = useDragControls()
+  
+  return (
+    <Reorder.Item 
+      key={module.id} 
+      value={module}
+      dragControls={controls}
+      dragListener={false}
+      whileDrag={{ zIndex: 1 }}
+      transition={{ duration: 0.15 }}
+      className="relative h-full"
+      style={{ marginRight: index < rackModules.length - 1 ? '0.25rem' : 0 }}
+    >
+      <div 
+        className="h-full"
+        onPointerDown={(e) => {
+          // Only start drag if clicking on the header area
+          const target = e.target as HTMLElement
+          const header = target.closest('.module-header')
+          if (header) {
+            controls.start(e)
+          }
+        }}
+      >
+        {children}
+      </div>
+    </Reorder.Item>
+  )
+}
+
+function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }: SynthPlaygroundContentProps) {
   const { loadDefaultPatch } = usePatchManager()
   const { connections, removeConnection } = useConnections()
   const { open } = useSettings()
@@ -200,15 +236,61 @@ function SynthPlaygroundContent({ modules, addModule, removeModule }: SynthPlayg
 
       <div className="flex-1 flex flex-col">
         <div className="p-1 border-b border-border h-[550px] bg-neutral-900">
-          <div className="flex gap-1 overflow-x-auto relative items-stretch h-full">
-            {rack1Modules.map((module: ModuleInstance, index: number) => renderModule(module, index, rack1Modules))}
-          </div>
+          <Reorder.Group 
+            axis="x" 
+            values={rack1Modules}
+            onReorder={(newOrder) => {
+              setModules(prev => {
+                const rack2 = prev.filter(m => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer")
+                return [...newOrder, ...rack2]
+              })
+              // Trigger geometry update for wires
+              setTimeout(() => {
+                window.dispatchEvent(new Event('resize'))
+              }, 0)
+            }}
+            className="flex overflow-x-auto relative items-stretch h-full"
+          >
+            {rack1Modules.map((module: ModuleInstance, index: number) => (
+              <DraggableModuleItem
+                key={module.id}
+                module={module}
+                index={index}
+                rackModules={rack1Modules}
+              >
+                {renderModule(module, index, rack1Modules)}
+              </DraggableModuleItem>
+            ))}
+          </Reorder.Group>
         </div>
 
         <div className="p-1 border-b border-border min-h-64 bg-neutral-900">
-          <div className="flex gap-1 overflow-x-auto relative items-stretch h-full">
-            {rack2Modules.map((module: ModuleInstance, index: number) => renderModule(module, index, rack2Modules))}
-          </div>
+          <Reorder.Group 
+            axis="x" 
+            values={rack2Modules}
+            onReorder={(newOrder) => {
+              setModules(prev => {
+                const rack1 = prev.filter(m => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer")
+                return [...rack1, ...newOrder]
+              })
+              // Trigger geometry update for wires
+              setTimeout(() => {
+                window.dispatchEvent(new Event('resize'))
+              }, 0)
+            }}
+            className="flex overflow-x-auto relative items-stretch h-full"
+          >
+            {rack2Modules.map((module: ModuleInstance, index: number) => (
+              <DraggableModuleItem
+                key={module.id}
+                module={module}
+                index={index}
+                rackModules={rack2Modules}
+              >
+                {renderModule(module, index, rack2Modules)}
+              </DraggableModuleItem>
+            ))}
+          </Reorder.Group>
         </div>
 
         <div className="flex-1 p-4 flex items-center justify-center text-muted-foreground min-h-16">
@@ -255,7 +337,7 @@ export default function SynthPlayground() {
             )}
           onParameterChange={handleParameterChange}
         >
-          <SynthPlaygroundContent modules={modules} addModule={addModule} removeModule={removeModule} />
+          <SynthPlaygroundContent modules={modules} setModules={setModules} addModule={addModule} removeModule={removeModule} />
           <SettingsDialog />
         </PatchProvider>
       </ConnectionProvider>
