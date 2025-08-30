@@ -36,14 +36,27 @@ export function SettingsDialog() {
               <div className="text-xs text-muted-foreground w-28">Cable Opacity</div>
               <div className="flex-1">
                 <SettingsSlider
-                  value={[typeof settings.wireOpacity === 'number' ? settings.wireOpacity : 0.5]}
+                  value={[typeof settings.wireOpacity === 'number' ? settings.wireOpacity : 0.7]}
                   onValueChange={(v) => setSettings((prev) => ({ ...prev, wireOpacity: Math.max(0, Math.min(1, v[0] ?? 0)) }))}
                   min={0}
                   max={1}
                   step={0.01}
                 />
               </div>
-              <div className="w-10 text-right text-xs tabular-nums">{((settings.wireOpacity as number ?? 0.5).toFixed(2))}</div>
+              <div className="w-10 text-right text-xs tabular-nums">{((settings.wireOpacity as number ?? 0.7).toFixed(2))}</div>
+            </div>
+            <div className="flex items-center justify-between gap-3 mt-3">
+              <div className="text-xs text-muted-foreground w-28">Cable Thickness</div>
+              <div className="flex-1">
+                <SettingsSlider
+                  value={[typeof settings.wireThickness === 'number' ? (settings.wireThickness as number) : 6]}
+                  onValueChange={(v) => setSettings((prev) => ({ ...prev, wireThickness: Math.max(1, Math.min(10, v[0] ?? 6)) }))}
+                  min={1}
+                  max={10}
+                  step={0.1}
+                />
+              </div>
+              <div className="w-10 text-right text-xs tabular-nums">{(Number(settings.wireThickness ?? 6)).toFixed(1)}</div>
             </div>
           </div>
         </div>

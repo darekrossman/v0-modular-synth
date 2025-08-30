@@ -54,7 +54,8 @@ export function WireCanvas() {
   const tempPathRef = useRef<SVGPathElement | null>(null)
   const { settings } = useSettings()
   const droopRef = useRef(0.5)
-  const opacityRef = useRef(0.5)
+  const opacityRef = useRef(0.7)
+  const thicknessRef = useRef(6)
   const sagPathRef = useRef<(a: { x: number; y: number }, b: { x: number; y: number }) => string>(() => "")
 
   // Keep latest droop and path factory without re-registering handlers
@@ -67,9 +68,15 @@ export function WireCanvas() {
 
   // Keep latest opacity in a ref for rAF-driven draws
   useEffect(() => {
-    const o = Number(settings.wireOpacity ?? 0.5)
-    opacityRef.current = isFinite(o) ? Math.max(0, Math.min(1, o)) : 0.5
+    const o = Number(settings.wireOpacity ?? 0.7)
+    opacityRef.current = isFinite(o) ? Math.max(0, Math.min(1, o)) : 0.7
   }, [settings.wireOpacity])
+
+  // Keep latest thickness in a ref for rAF-driven draws
+  useEffect(() => {
+    const t = Number(settings.wireThickness ?? 6)
+    thicknessRef.current = isFinite(t) ? Math.max(1, Math.min(10, t)) : 6
+  }, [settings.wireThickness])
 
   const groupMap = useRef(new Map<string, SVGGElement>())
   const pathMap = useRef(new Map<string, SVGPathElement>())
@@ -145,18 +152,20 @@ export function WireCanvas() {
     const p = document.createElementNS("http://www.w3.org/2000/svg", "path")
     p.setAttribute("fill", "none")
     p.setAttribute("stroke-width", "6")
-    p.setAttribute("stroke-opacity", "1")
+    p.setAttribute("stroke-opacity", String(opacityRef.current))
     p.setAttribute("vector-effect", "non-scaling-stroke")
     // safe default so wire is never invisible
     p.setAttribute("stroke", "#888")
 
     const ca = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    ca.setAttribute("r", "3.5")
+    ca.setAttribute("r", "6")
     ca.setAttribute("fill", "#888")
+    ca.setAttribute("fill-opacity", "1")
 
     const cb = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    cb.setAttribute("r", "3.5")
+    cb.setAttribute("r", "6")
     cb.setAttribute("fill", "#888")
+    cb.setAttribute("fill-opacity", "1")
 
     g.appendChild(p)
     g.appendChild(ca)
@@ -207,8 +216,10 @@ export function WireCanvas() {
     p.setAttribute("d", d)
     p.setAttribute("stroke", safeColor)
     const opacity = opacityRef.current
-    // Apply opacity at the group level so path and endpoints fade together
-    g.setAttribute("opacity", String(opacity))
+    // Apply opacity only to the path, keep endpoints opaque
+    p.setAttribute("stroke-opacity", String(opacity))
+    // Apply current thickness
+    p.setAttribute("stroke-width", String(thicknessRef.current))
     ca.setAttribute("cx", String(a.x))
     ca.setAttribute("cy", String(a.y))
     ca.setAttribute("fill", safeColor)
@@ -245,7 +256,7 @@ export function WireCanvas() {
     settleUntil.current = performance.now() + 400
     if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geometryVersion, settings.wireDroop, settings.wireOpacity])
+  }, [geometryVersion, settings.wireDroop, settings.wireOpacity, settings.wireThickness])
 
   useEffect(() => {
     return () => {
@@ -276,9 +287,9 @@ export function WireCanvas() {
       <path
         ref={tempPathRef}
         stroke="#fff"
-        strokeWidth="4"
+        strokeWidth={Math.max(1, Math.min(10, Number(settings.wireThickness ?? 6)))}
         fill="none"
-        strokeOpacity={Number(settings.wireOpacity ?? 0.5)}
+        strokeOpacity={Number(settings.wireOpacity ?? 0.7)}
         vectorEffect="non-scaling-stroke"
       />
 
