@@ -9,6 +9,7 @@ import { ToggleSwitch } from "@/components/ui/toggle-switch"
 import { mapLinear } from "@/lib/utils"
 import { useConnections } from "@/components/connection-manager"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -19,24 +20,71 @@ function getAudioContext(): AudioContext {
 
 // Physical ranges (knobs are 0..1 → use mapLinear)
 const TIME_MIN = 0.01, TIME_MAX = 2.0
-const FB_MIN   = 0.0,  FB_MAX   = 0.95
-const TONE_MIN = 500,  TONE_MAX = 12000
+const FB_MIN = 0.0, FB_MAX = 0.95
+const TONE_MIN = 500, TONE_MAX = 12000
+
+// Note division labels for tempo sync
+const NOTE_DIVISIONS = [
+  "1/64",
+  "1/32T",
+  "1/32",
+  "1/16T",
+  "1/16",
+  "1/8T",
+  "1/8",
+  "1/4T",
+  "1/4",
+  "1/2T",
+  "1/2",
+  "1T",
+  "1/1",
+  "2/1",
+  "4/1",
+  "8/1",
+]
 
 type Mode = 0 | 1 | 2 // 0=Mono, 1=Stereo, 2=PingPong
 
 export function DelayModule({ moduleId }: { moduleId: string }) {
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    time: clocked ? clockDivIdx : mapLinear(timeN[0], TIME_MIN, TIME_MAX),
+    feedback: mapLinear(fbN[0], FB_MIN, FB_MAX),
+    mix: Math.max(0, Math.min(1, mixN[0])),
+    toneHz: mapLinear(toneN[0], TONE_MIN, TONE_MAX),
+    mode,
+    timeCvAmt: timeCvAmtN[0],
+    fbCvAmt: fbCvAmtN[0],
+    clocked,
+  }))
+
+  // Clock division index for tempo sync
+  const [clockDivIdx, setClockDivIdx] = useState(
+    initialParameters?.clocked && typeof initialParameters?.time === 'number'
+      ? Math.round(initialParameters.time)
+      : 8 // Default to 1/4 note
+  )
+
   // Normalized UI state (0..1)
-  const [timeN, setTimeN] = useState([0.25 / (TIME_MAX - TIME_MIN)]) // visually fine; actual mapped each push
-  const [fbN,   setFbN]   = useState([0.3 / FB_MAX])
-  const [mixN,  setMixN]  = useState([0.5])
-  const [toneN, setToneN] = useState([ (8000 - TONE_MIN) / (TONE_MAX - TONE_MIN) ])
+  const [timeN, setTimeN] = useState([
+    !initialParameters?.clocked && initialParameters?.time !== undefined
+      ? (initialParameters.time - TIME_MIN) / (TIME_MAX - TIME_MIN)
+      : 0.25 / (TIME_MAX - TIME_MIN)
+  ])
+  const [fbN, setFbN] = useState([
+    initialParameters?.feedback !== undefined ? initialParameters.feedback / FB_MAX : 0.3 / FB_MAX
+  ])
+  const [mixN, setMixN] = useState([initialParameters?.mix ?? 0.5])
+  const [toneN, setToneN] = useState([
+    initialParameters?.toneHz !== undefined ? (initialParameters.toneHz - TONE_MIN) / (TONE_MAX - TONE_MIN) : (8000 - TONE_MIN) / (TONE_MAX - TONE_MIN)
+  ])
 
   // CV depths (0..1) used inside worklet
-  const [timeCvAmtN, setTimeCvAmtN] = useState([0])
-  const [fbCvAmtN,   setFbCvAmtN]   = useState([0])
+  const [timeCvAmtN, setTimeCvAmtN] = useState([initialParameters?.timeCvAmt ?? 1])
+  const [fbCvAmtN, setFbCvAmtN] = useState([initialParameters?.fbCvAmt ?? 1])
 
-  const [mode, setMode] = useState<Mode>(0)
-  const [clocked, setClocked] = useState(false)
+  const [mode, setMode] = useState<Mode>(initialParameters?.mode ?? 0)
+  const [clocked, setClocked] = useState(initialParameters?.clocked ?? false)
 
   // Graph
   const acRef = useRef<AudioContext | null>(null)
@@ -50,8 +98,8 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
 
   // CV inputs
   const timeCvInRef = useRef<GainNode | null>(null)
-  const fbCvInRef   = useRef<GainNode | null>(null)
-  const clockInRef  = useRef<GainNode | null>(null)
+  const fbCvInRef = useRef<GainNode | null>(null)
+  const clockInRef = useRef<GainNode | null>(null)
 
   const mergerRef = useRef<ChannelMergerNode | null>(null)
   const splitterRef = useRef<ChannelSplitterNode | null>(null)
@@ -69,7 +117,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
 
   const init = useCallback(async () => {
     if (workletRef.current) return
-    
+
     const ac = getAudioContext()
     acRef.current = ac
 
@@ -83,8 +131,8 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
 
     // CV inputs (pass straight into the worklet, audio-rate)
     timeCvInRef.current = ac.createGain(); timeCvInRef.current.gain.value = 1
-    fbCvInRef.current   = ac.createGain(); fbCvInRef.current.gain.value = 1
-    clockInRef.current  = ac.createGain(); clockInRef.current.gain.value = 1
+    fbCvInRef.current = ac.createGain(); fbCvInRef.current.gain.value = 1
+    clockInRef.current = ac.createGain(); clockInRef.current.gain.value = 1
 
     // Merge L/R → stereo input 0
     const merger = ac.createChannelMerger(2); mergerRef.current = merger
@@ -114,15 +162,15 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     splitter.connect(outRRef.current, 1)
 
     // Initial params (map knobs 0..1 → physical)
-    setParam("time",      mapLinear(timeN[0], TIME_MIN, TIME_MAX), 0.01)
-    setParam("feedback",  mapLinear(fbN[0],   FB_MIN,   FB_MAX),   0.02)
-    setParam("mix",       Math.max(0, Math.min(1, mixN[0])),       0.02)
-    setParam("toneHz",    mapLinear(toneN[0], TONE_MIN, TONE_MAX), 0.02)
-    setParam("mode",      mode,                                     0.0)
+    setParam("time", mapLinear(timeN[0], TIME_MIN, TIME_MAX), 0.01)
+    setParam("feedback", mapLinear(fbN[0], FB_MIN, FB_MAX), 0.02)
+    setParam("mix", Math.max(0, Math.min(1, mixN[0])), 0.02)
+    setParam("toneHz", mapLinear(toneN[0], TONE_MIN, TONE_MAX), 0.02)
+    setParam("mode", mode, 0.0)
     setParam("timeCvAmt", Math.max(0, Math.min(1, timeCvAmtN[0])), 0.02)
-    setParam("fbCvAmt",   Math.max(0, Math.min(1, fbCvAmtN[0])),   0.02)
-    setParam("clocked",   clocked ? 1 : 0,                         0.0)
-    setParam("clockMult", Math.max(0, Math.min(1, timeN[0])),      0.02)
+    setParam("fbCvAmt", Math.max(0, Math.min(1, fbCvAmtN[0])), 0.02)
+    setParam("clocked", clocked ? 1 : 0, 0.0)
+    setParam("clockDiv", clockDivIdx, 0.0)
     // Initial dryMono state based on current connections
     const inLId = `${moduleId}-in-l`
     const inRId = `${moduleId}-in-r`
@@ -138,16 +186,28 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
 
   // push param updates
   useEffect(() => {
-    setParam("time",     mapLinear(timeN[0], TIME_MIN, TIME_MAX))
-    setParam("clockMult", Math.max(0, Math.min(1, timeN[0])))
-  }, [timeN])
-  useEffect(() => { setParam("feedback", mapLinear(fbN[0],   FB_MIN,   FB_MAX))   }, [fbN])
-  useEffect(() => { setParam("mix",      Math.max(0, Math.min(1, mixN[0])))       }, [mixN])
-  useEffect(() => { setParam("toneHz",   mapLinear(toneN[0], TONE_MIN, TONE_MAX)) }, [toneN])
-  useEffect(() => { setParam("mode",     mode, 0.0)                                }, [mode])
-  useEffect(() => { setParam("timeCvAmt",Math.max(0, Math.min(1, timeCvAmtN[0]))) }, [timeCvAmtN])
-  useEffect(() => { setParam("fbCvAmt",  Math.max(0, Math.min(1, fbCvAmtN[0])))   }, [fbCvAmtN])
-  useEffect(() => { setParam("clocked",  clocked ? 1 : 0, 0.0)                     }, [clocked])
+    if (!clocked) {
+      setParam("time", mapLinear(timeN[0], TIME_MIN, TIME_MAX))
+    }
+  }, [timeN, clocked])
+
+  useEffect(() => {
+    if (clocked) {
+      setParam("clockDiv", clockDivIdx, 0.0)
+    }
+  }, [clockDivIdx, clocked])
+  useEffect(() => { setParam("feedback", mapLinear(fbN[0], FB_MIN, FB_MAX)) }, [fbN])
+  useEffect(() => { setParam("mix", Math.max(0, Math.min(1, mixN[0]))) }, [mixN])
+  useEffect(() => { setParam("toneHz", mapLinear(toneN[0], TONE_MIN, TONE_MAX)) }, [toneN])
+  useEffect(() => { setParam("mode", mode, 0.0) }, [mode])
+  useEffect(() => { setParam("timeCvAmt", Math.max(0, Math.min(1, timeCvAmtN[0]))) }, [timeCvAmtN])
+  useEffect(() => { setParam("fbCvAmt", Math.max(0, Math.min(1, fbCvAmtN[0]))) }, [fbCvAmtN])
+  useEffect(() => {
+    setParam("clocked", clocked ? 1 : 0, 0.0)
+    if (clocked) {
+      setParam("clockDiv", clockDivIdx, 0.0)
+    }
+  }, [clocked, clockDivIdx])
   // Balance dry path when exactly one input is connected
   useEffect(() => {
     if (!workletRef.current) return
@@ -159,31 +219,6 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     setParam("dryMono", dryMono ? 1 : 0, 0.0)
   }, [connections, moduleId])
 
-  // Patch save/load (expose physical values + mode)
-  useEffect(() => {
-    const el = document.querySelector(`[data-module-id="${moduleId}"]`) as any
-    if (!el) return
-    el.getParameters = () => ({
-      time:   mapLinear(timeN[0], TIME_MIN, TIME_MAX),
-      feedback: mapLinear(fbN[0], FB_MIN, FB_MAX),
-      mix:    Math.max(0, Math.min(1, mixN[0])),
-      toneHz: mapLinear(toneN[0], TONE_MIN, TONE_MAX),
-      mode,
-      timeCvAmt: timeCvAmtN[0],
-      fbCvAmt:   fbCvAmtN[0],
-      clocked,
-    })
-    el.setParameters = (p: any) => {
-      if (p.time      !== undefined) setTimeN([ (p.time - TIME_MIN) / (TIME_MAX - TIME_MIN) ])
-      if (p.feedback  !== undefined) setFbN([ p.feedback / FB_MAX ])
-      if (p.mix       !== undefined) setMixN([ Math.max(0, Math.min(1, p.mix)) ])
-      if (p.toneHz    !== undefined) setToneN([ (p.toneHz - TONE_MIN) / (TONE_MAX - TONE_MIN) ])
-      if (p.mode      !== undefined) setMode(Math.max(0, Math.min(2, Math.floor(p.mode))) as Mode)
-      if (p.timeCvAmt !== undefined) setTimeCvAmtN([ Math.max(0, Math.min(1, p.timeCvAmt)) ])
-      if (p.fbCvAmt   !== undefined) setFbCvAmtN([ Math.max(0, Math.min(1, p.fbCvAmt)) ])
-      if (p.clocked   !== undefined) setClocked(!!p.clocked)
-    }
-  }, [moduleId, timeN, fbN, mixN, toneN, mode, timeCvAmtN, fbCvAmtN, clocked])
 
   return (
     <ModuleContainer title="Delay" moduleId={moduleId}>
@@ -206,22 +241,33 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-4 mt-2">
-        <Knob value={timeN} onValueChange={setTimeN} size="lg" label="Time" steps={clocked ? 16 : undefined} />
-        <div className="flex items-center gap-4">
-          <ToggleSwitch label="Clock" value={clocked} onValueChange={setClocked} />
-        </div>
-        <div className="flex gap-3">
-          <Knob value={fbN}   onValueChange={setFbN}   size="sm" label="Feedback" />
-          <Knob value={mixN}  onValueChange={setMixN}  size="sm" label="Mix" />
-          <Knob value={toneN} onValueChange={setToneN} size="sm" label="Tone" />
+      <div className="flex flex-col items-center gap-0 mt-5">
+        {clocked ? (
+          <Knob
+            value={[clockDivIdx / (NOTE_DIVISIONS.length - 1)]}
+            onValueChange={(v) => setClockDivIdx(Math.round(v[0] * (NOTE_DIVISIONS.length - 1)))}
+            size="lg"
+            label="Time"
+            steps={NOTE_DIVISIONS.length}
+            tickLabels={NOTE_DIVISIONS.map((d) => "")}
+          />
+        ) : (
+          <Knob value={timeN} onValueChange={setTimeN} size="lg" label="Time" />
+        )}
+
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-11">
+            <Knob value={fbN} onValueChange={setFbN} size="md" label="Feedback" />
+            <Knob value={toneN} onValueChange={setToneN} size="md" label="Tone" />
+          </div>
+          <div className="flex items-end justify-between gap-11">
+            <div className="flex flex-col items-center w-15">
+              <ToggleSwitch label="Sync" value={clocked} onValueChange={setClocked} />
+            </div>
+            <Knob value={mixN} onValueChange={setMixN} size="md" label="Mix" />
+          </div>
         </div>
 
-        {/* CV depths */}
-        <div className="grid grid-cols-2 gap-2">
-          <Knob value={timeCvAmtN} onValueChange={setTimeCvAmtN} size="xs" label="Time CV" />
-          <Knob value={fbCvAmtN}   onValueChange={setFbCvAmtN}   size="xs" label="FB CV" />
-        </div>
       </div>
 
       <div className="flex-grow" />
@@ -229,13 +275,21 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
       {/* Ports */}
       <div className="flex flex-col gap-2">
         <div className="flex justify-between items-end gap-2">
-          <Port id={`${moduleId}-time-cv`} type="input" label="TIME" audioType="cv" audioNode={timeCvInRef.current ?? undefined} />
-          <Port id={`${moduleId}-fb-cv`}   type="input" label="FB"   audioType="cv" audioNode={fbCvInRef.current   ?? undefined} />
-          <Port id={`${moduleId}-clk`}     type="input" label="CLK"  audioType="cv" audioNode={clockInRef.current  ?? undefined} />
+          <Port id={`${moduleId}-clk`} type="input" label="CLK" audioType="cv" audioNode={clockInRef.current ?? undefined} />
+          <div className="w-11" />
+
+          <div className="flex flex-col items-center gap-2">
+            <Knob value={timeCvAmtN} onValueChange={setTimeCvAmtN} size="xs" />
+            <Port id={`${moduleId}-time-cv`} type="input" label="TIME" audioType="cv" audioNode={timeCvInRef.current ?? undefined} />
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <Knob value={fbCvAmtN} onValueChange={setFbCvAmtN} size="xs" />
+            <Port id={`${moduleId}-fb-cv`} type="input" label="FB" audioType="cv" audioNode={fbCvInRef.current ?? undefined} />
+          </div>
         </div>
         <div className="flex justify-between items-end gap-2">
-          <Port id={`${moduleId}-in-l`}  type="input"  label="IN L"  audioType="audio" audioNode={inLRef.current  ?? undefined} />
-          <Port id={`${moduleId}-in-r`}  type="input"  label="IN R"  audioType="audio" audioNode={inRRef.current  ?? undefined} />
+          <Port id={`${moduleId}-in-l`} type="input" label="IN L" audioType="audio" audioNode={inLRef.current ?? undefined} />
+          <Port id={`${moduleId}-in-r`} type="input" label="IN R" audioType="audio" audioNode={inRRef.current ?? undefined} />
           <Port id={`${moduleId}-out-l`} type="output" label="OUT L" audioType="audio" audioNode={outLRef.current ?? undefined} />
           <Port id={`${moduleId}-out-r`} type="output" label="OUT R" audioType="audio" audioNode={outRRef.current ?? undefined} />
         </div>

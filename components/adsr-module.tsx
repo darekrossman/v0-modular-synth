@@ -76,8 +76,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
   const mapRelease = (n: number) => mapLinear(n, RELEASE_MIN, RELEASE_MAX)
   const mapMaxV = (n: number) => mapLinear(n, MAXV_MIN, MAXV_MAX)
 
-  // One-time init
-  const initAudioNodes = useCallback(async () => {
+  useModuleInit(async () => {
     if (nodeRef.current) return // Already initialized
 
     const ac = getAudioContext()
@@ -129,24 +128,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
     keepAliveRef.current.gain.value = 0
     envOutRef.current.connect(keepAliveRef.current)
     keepAliveRef.current.connect(ac.destination)
-  }, [attackN, decayN, sustainN, releaseN, retrig, longMode, linearShape, maxVN])
-
-  // Use the module initialization hook
-  const { isReady, initError, retryInit } = useModuleInit(initAudioNodes, "ADSR")
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      try {
-        nodeRef.current?.disconnect()
-        gateInputRef.current?.disconnect()
-        manualGateRef.current?.disconnect()
-        envOutRef.current?.disconnect()
-        invOutRef.current?.disconnect()
-        keepAliveRef.current?.disconnect()
-      } catch { }
-    }
-  }, [])
+  }, moduleId)
 
   // Push mapped values to AudioParams (timeline-accurate)
   useEffect(() => {

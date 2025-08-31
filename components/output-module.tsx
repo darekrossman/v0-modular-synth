@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 // Shared AudioContext helper
 function getAudioContext(): AudioContext {
@@ -36,8 +37,13 @@ function makeSoftClipper(ctx: AudioContext) {
 }
 
 export function OutputModule({ moduleId }: { moduleId: string }) {
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [volume, setVolume] = useState(0.75)
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    volume,
+  }))
+
+  const [isPlaying, setIsPlaying] = useState(initialParameters?.isPlaying ?? false)
+  const [volume, setVolume] = useState(initialParameters?.volume ?? 0.75)
 
   // RMS bars (0..1.2 for headroom)
   const [leftLevel, setLeftLevel] = useState(0)
@@ -73,7 +79,6 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
   const f32R = useRef<Float32Array | null>(null)
   const rAF = useRef<number | null>(null)
   const lastMeterTs = useRef(0)
-  const [nodesReadyTick, setNodesReadyTick] = useState(0)
 
   // shadow refs to avoid setState spam
   const rmsLRef = useRef(0), rmsRRef = useRef(0)
@@ -81,10 +86,10 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
   const clipLDeadline = useRef(0), clipRDeadline = useRef(0)
 
   // Mapping: 0..1 knob → -48..0 dB → linear, then scaled
-  const knobToGain = useCallback((v: number) => (v <= 0 ? 0 : Math.pow(10, (-48 + v * 48) / 20)), [])
+  const knobToGain = (v: number) => (v <= 0 ? 0 : Math.pow(10, (-48 + v * 48) / 20))
   const synthToLine = 0.25 // headroom
 
-  const initGraph = useCallback(async () => {
+  useModuleInit(async () => {
     if (meterNodeRef.current || leftAnalyserRef.current) return // Already initialized
 
     const ac = getAudioContext()
@@ -167,7 +172,7 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     }
 
     // Audio routing - set initial gain to current volume
-    const initialGain = knobToGain(0.75) * synthToLine // Use default volume
+    const initialGain = knobToGain(volume) * synthToLine // Use saved volume
     leftTrim.gain.setTargetAtTime(initialGain, ac.currentTime, 0.01)
     rightTrim.gain.setTargetAtTime(initialGain, ac.currentTime, 0.01)
 
@@ -186,14 +191,9 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     lim.connect(master)
     master.connect(ac.destination)
 
-    setNodesReadyTick(t => t + 1)
-    
-    // eslint-disable-next-line no-console
-    console.log("[OUTPUT] initialized")
-  }, [knobToGain, synthToLine])
-
-  // Use the module initialization hook
-  const { isReady, initError, retryInit } = useModuleInit(initGraph, "OUTPUT")
+    // Start meter loop after initialization completes
+    rAF.current = requestAnimationFrame(meterLoop)
+  }, "OUTPUT")
 
   // Volume smoothing
   useEffect(() => {
@@ -223,7 +223,6 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     masterGainRef.current.gain.linearRampToValueAtTime(0, t + 0.02)
     setIsPlaying(false)
   }, [])
-  const toggle = () => (isPlaying ? stop() : start())
 
   // rAF meter loop (30fps throttle, peak-hold decay, clip-LED latch)
   const meterLoop = useCallback((ts: number) => {
@@ -282,34 +281,6 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     rAF.current = requestAnimationFrame(meterLoop)
   }, [])
 
-  // init + cleanup
-  useEffect(() => {
-    const init = async () => {
-      await initGraph()
-      // Start meter loop after initialization completes
-      rAF.current = requestAnimationFrame(meterLoop)
-    }
-    init()
-    return () => {
-      if (rAF.current) cancelAnimationFrame(rAF.current)
-      try {
-        masterGainRef.current?.disconnect()
-        limiterRef.current?.disconnect()
-        clipperRef.current?.disconnect()
-        outMergerRef.current?.disconnect()
-        meterMergerRef.current?.disconnect()
-        leftInRef.current?.disconnect()
-        rightInRef.current?.disconnect()
-        leftTrimRef.current?.disconnect()
-        rightTrimRef.current?.disconnect()
-        leftDCRef.current?.disconnect()
-        rightDCRef.current?.disconnect()
-        if (meterNodeRef.current?.port) (meterNodeRef.current.port.onmessage as any) = null
-        meterNodeRef.current?.disconnect()
-      } catch { }
-    }
-  }, [initGraph, meterLoop])
-
   const getLevelColor = (level: number) => (level > 0.9 ? "bg-red-500" : "bg-green-500")
 
   return (
@@ -362,7 +333,6 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
         {/* Ports – pass nodes so the connection layer can bind */}
         <div className="flex justify-center items-end gap-8">
           <Port
-            key={`L-${nodesReadyTick}`}
             id={`${moduleId}-left-in`}
             type="input"
             label="L"
@@ -370,7 +340,6 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
             audioNode={leftInRef.current ?? undefined}
           />
           <Port
-            key={`R-${nodesReadyTick}`}
             id={`${moduleId}-right-in`}
             type="input"
             label="R"

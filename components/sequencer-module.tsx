@@ -8,6 +8,7 @@ import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -38,15 +39,24 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
     false,
   ]
 
-  const [steps, setSteps] = useState<boolean[]>(defaultStepPattern)
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    steps: stepsRef.current,
+    pitches: pitchesRef.current,
+    octave: octaveRef.current[0],
+    clockDiv: clockDivRef.current[0],
+    gateRatio: gateRatioRef.current[0],
+  }))
+
+  const [steps, setSteps] = useState<boolean[]>(initialParameters?.steps ?? defaultStepPattern)
   const [currentStep, setCurrentStep] = useState(-1)
 
   // mirrors/refs
-  const stepsRef = useRef<boolean[]>(defaultStepPattern)
-  const pitchesRef = useRef<number[]>(new Array(STEPS).fill(0.5))
-  const octaveRef = useRef<number[]>([0.375]) // normalized; 0.375 → octave 3
-  const clockDivRef = useRef<number[]>([0]) // divider
-  const gateRatioRef = useRef<number[]>([0.25]) // 25% of step by default
+  const stepsRef = useRef<boolean[]>(initialParameters?.steps ?? defaultStepPattern)
+  const pitchesRef = useRef<number[]>(initialParameters?.pitches ?? new Array(STEPS).fill(0.5))
+  const octaveRef = useRef<number[]>([initialParameters?.octave ?? 0.375]) // normalized; 0.375 → octave 3
+  const clockDivRef = useRef<number[]>([initialParameters?.clockDiv ?? 0]) // divider
+  const gateRatioRef = useRef<number[]>([initialParameters?.gateRatio ?? 0.25]) // 25% of step by default
 
   // audio nodes
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -59,9 +69,7 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
   const lastDivIdxRef = useRef<number>(-1)
   const latestStepRef = useRef<number>(-1)
 
-  //
-
-  const initAudio = useCallback(async () => {
+  useModuleInit(async () => {
     if (nodeRef.current) return
     const ac = getAudioContext()
     audioContextRef.current = ac
@@ -122,25 +130,7 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
         latestStepRef.current = idx
       }
     }
-
-    console.log("[seq] initialized")
-  }, [moduleId, steps, octaveRef, clockDivRef, gateRatioRef])
-
-  const { isReady, initError, retryInit } = useModuleInit(initAudio, "SEQUENCER")
-
-  useEffect(() => {
-    return () => {
-      try {
-        nodeRef.current?.disconnect()
-        gateOutRef.current?.disconnect()
-        pitchOutRef.current?.disconnect()
-        clockInRef.current?.disconnect()
-        resetInRef.current?.disconnect()
-        keepAliveRefs.current.gate?.disconnect()
-        keepAliveRefs.current.pitch?.disconnect()
-      } catch { }
-    }
-  }, [])
+  }, moduleId)
 
   // Frame-synced step indicator: show the latest reported step once per rAF
   useEffect(() => {
@@ -295,7 +285,7 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
             >
               {idx + 1}
             </Toggle>
-            <Knob defaultValue={[0.5]} onValueChange={(v) => handlePitchChange(idx, v)} size="xs" />
+            <Knob defaultValue={[pitchesRef.current[idx]]} onValueChange={(v) => handlePitchChange(idx, v)} size="xs" />
           </div>
         ))}
       </div>

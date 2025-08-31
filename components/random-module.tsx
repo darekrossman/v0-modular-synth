@@ -6,6 +6,7 @@ import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -15,8 +16,13 @@ function getAudioContext(): AudioContext {
 }
 
 export function RandomModule({ moduleId }: { moduleId: string }) {
-  const [atten, setAtten] = useState([[1], [1], [1], [1], [1], [1]] as number[][])
-  const [offset, setOffset] = useState([[0.5], [0.5], [0.5], [0.5], [0.5], [0.5]] as number[][])
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    atten,
+    offset,
+  }))
+
+  const [atten, setAtten] = useState(initialParameters?.atten ?? [[1], [1], [1], [1], [1], [1]] as number[][])
+  const [offset, setOffset] = useState(initialParameters?.offset ?? [[0.5], [0.5], [0.5], [0.5], [0.5], [0.5]] as number[][])
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const workletRef = useRef<AudioWorkletNode | null>(null)
@@ -41,7 +47,7 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
   const paramName = (kind: "atten" | "offset", idx: number) => `${kind}${idx + 1}` as const
 
   const setAttenIdx = (idx: number) => (v: number[]) => {
-    setAtten((prev) => {
+    setAtten((prev: number[][]) => {
       const next = [...prev]
       next[idx] = v
       return next
@@ -56,7 +62,7 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
   const setOffsetIdx = (idx: number) => (v: number[]) => {
     // map 0..1 -> -5..+5
     const volts = mapLinear(v[0] ?? 0, -5, 5)
-    setOffset((prev) => {
+    setOffset((prev: number[][]) => {
       const next = [...prev]
       next[idx] = v
       return next
@@ -68,7 +74,7 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
     }
   }
 
-  const init = useCallback(async () => {
+  useModuleInit(async () => {
     if (workletRef.current) return
     const ac = getAudioContext()
     audioContextRef.current = ac
@@ -120,21 +126,7 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
     sink.gain.value = 0
     cvOut[0].current!.connect(sink)
     sink.connect(ac.destination)
-  }, [moduleId, atten, offset])
-
-  const { isReady, initError, retryInit } = useModuleInit(init, "RANDOM")
-
-  useEffect(() => {
-    return () => {
-      try {
-        for (let i = 0; i < 6; i++) {
-          trigIn[i].current?.disconnect()
-          cvOut[i].current?.disconnect()
-        }
-        workletRef.current?.disconnect()
-      } catch {}
-    }
-  }, [])
+  }, moduleId)
 
   return (
     <ModuleContainer title="Random" moduleId={moduleId}>

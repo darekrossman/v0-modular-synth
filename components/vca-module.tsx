@@ -6,6 +6,7 @@ import { Knob } from "@/components/ui/knob"
 import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -15,6 +16,16 @@ function getAudioContext(): AudioContext {
 }
 
 export function VCAModule({ moduleId }: { moduleId: string }) {
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    cvAmount: cvAmount[0],
+    offset: offset[0],
+  }))
+
+  // UI knobs are 0..1
+  const [cvAmount, setCvAmount] = useState([initialParameters?.cvAmount ?? 1.0]) // 0..1 attenuator
+  const [offset, setOffset] = useState([initialParameters?.offset ?? 0.0]) // 0..1 base gain
+
   const audioContextRef = useRef<AudioContext | null>(null)
   const audioInRef = useRef<GainNode | null>(null)
   const cvInRef = useRef<GainNode | null>(null)
@@ -23,13 +34,9 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
   const audioOutRef = useRef<GainNode | null>(null)
   const keepAliveRef = useRef<GainNode | null>(null)
 
-  // UI knobs are 0..1
-  const [cvAmount, setCvAmount] = useState([1.0]) // 0..1 attenuator
-  const [offset, setOffset] = useState([0.0]) // 0..1 base gain
-
-  const initializeAudio = useCallback(async () => {
+  useModuleInit(async () => {
     if (vcaNodeRef.current) return // Already initialized
-    
+
     const ac = getAudioContext()
     audioContextRef.current = ac
 
@@ -74,10 +81,7 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
     keepAliveRef.current.connect(ac.destination)
 
     console.log("[VCA] initialized (linear, 10V=unity)")
-  }, [cvAmount, offset])
-
-  // Use the module initialization hook
-  const { isReady, initError, retryInit } = useModuleInit(initializeAudio, "VCA")
+  }, moduleId)
 
   useEffect(() => {
     const ac = audioContextRef.current,
@@ -90,19 +94,6 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
       node = vcaNodeRef.current
     if (ac && node) node.parameters.get("offset")?.setValueAtTime(mapLinear(offset[0], 0, 1), ac.currentTime)
   }, [offset])
-
-  useEffect(() => {
-    return () => {
-      try {
-        audioInRef.current?.disconnect()
-        cvInRef.current?.disconnect()
-        cvAmtInRef.current?.disconnect()
-        vcaNodeRef.current?.disconnect()
-        audioOutRef.current?.disconnect()
-        keepAliveRef.current?.disconnect()
-      } catch {}
-    }
-  }, [])
 
   return (
     <ModuleContainer title="VCA" moduleId={moduleId} data-module-id={moduleId}>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { mapLinear } from "@/lib/utils"
 import { useConnections } from "./connection-manager"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -24,20 +25,38 @@ const PRE_MIN = 0.0, PRE_MAX = 0.25
 type Algo = 0 | 1 | 2 // 0=Room, 1=Hall, 2=Plate
 
 export function ReverbModule({ moduleId }: { moduleId: string }) {
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    size: sizeN[0],
+    decay: decayN[0],
+    dampHz: mapLinear(dampN[0], DAMP_MIN, DAMP_MAX),
+    preDelay: mapLinear(preN[0], PRE_MIN, PRE_MAX),
+    mix: mixN[0],
+    algo,
+    sizeCvAmt: sizeCvAmtN[0],
+    dampCvAmt: dampCvAmtN[0],
+    decayCvAmt: decayCvAmtN[0],
+    mixCvAmt: mixCvAmtN[0],
+  }))
+
   // Normalized UI state (0..1)
-  const [sizeN,  setSizeN]  = useState([0.6])
-  const [decayN, setDecayN] = useState([0.7])
-  const [dampN,  setDampN]  = useState([0.6])
-  const [preN,   setPreN]   = useState([0.08 / (PRE_MAX - PRE_MIN)])
-  const [mixN,   setMixN]   = useState([0.35])
+  const [sizeN, setSizeN] = useState([initialParameters?.size ?? 0.6])
+  const [decayN, setDecayN] = useState([initialParameters?.decay ?? 0.7])
+  const [dampN, setDampN] = useState([
+    initialParameters?.dampHz !== undefined ? (initialParameters.dampHz - DAMP_MIN) / (DAMP_MAX - DAMP_MIN) : 0.6
+  ])
+  const [preN, setPreN] = useState([
+    initialParameters?.preDelay !== undefined ? (initialParameters.preDelay - PRE_MIN) / (PRE_MAX - PRE_MIN) : 0.08 / (PRE_MAX - PRE_MIN)
+  ])
+  const [mixN, setMixN] = useState([initialParameters?.mix ?? 0.35])
 
   // CV depths (0..1)
-  const [sizeCvAmtN,  setSizeCvAmtN]  = useState([0])
-  const [dampCvAmtN,  setDampCvAmtN]  = useState([0])
-  const [decayCvAmtN, setDecayCvAmtN] = useState([0])
-  const [mixCvAmtN,   setMixCvAmtN]   = useState([0])
+  const [sizeCvAmtN, setSizeCvAmtN] = useState([initialParameters?.sizeCvAmt ?? 1])
+  const [dampCvAmtN, setDampCvAmtN] = useState([initialParameters?.dampCvAmt ?? 1])
+  const [decayCvAmtN, setDecayCvAmtN] = useState([initialParameters?.decayCvAmt ?? 1])
+  const [mixCvAmtN, setMixCvAmtN] = useState([initialParameters?.mixCvAmt ?? 1])
 
-  const [algo, setAlgo] = useState<Algo>(1)
+  const [algo, setAlgo] = useState<Algo>(initialParameters?.algo ?? 1)
 
   // Graph
   const acRef = useRef<AudioContext | null>(null)
@@ -50,10 +69,10 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
   const outRRef = useRef<GainNode | null>(null)
 
   // CV inputs
-  const sizeCvInRef  = useRef<GainNode | null>(null)
-  const dampCvInRef  = useRef<GainNode | null>(null)
+  const sizeCvInRef = useRef<GainNode | null>(null)
+  const dampCvInRef = useRef<GainNode | null>(null)
   const decayCvInRef = useRef<GainNode | null>(null)
-  const mixCvInRef   = useRef<GainNode | null>(null)
+  const mixCvInRef = useRef<GainNode | null>(null)
 
   const mergerRef = useRef<ChannelMergerNode | null>(null)
   const splitterRef = useRef<ChannelSplitterNode | null>(null)
@@ -70,7 +89,7 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
 
   const init = useCallback(async () => {
     if (workletRef.current) return // Already initialized
-    
+
     const ac = getAudioContext()
     acRef.current = ac
     await ac.audioWorklet.addModule("/reverb-processor.js")
@@ -82,10 +101,10 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
     outRRef.current = ac.createGain(); outRRef.current.gain.value = 1
 
     // CV inputs
-    sizeCvInRef.current  = ac.createGain(); sizeCvInRef.current.gain.value = 1
-    dampCvInRef.current  = ac.createGain(); dampCvInRef.current.gain.value = 1
+    sizeCvInRef.current = ac.createGain(); sizeCvInRef.current.gain.value = 1
+    dampCvInRef.current = ac.createGain(); dampCvInRef.current.gain.value = 1
     decayCvInRef.current = ac.createGain(); decayCvInRef.current.gain.value = 1
-    mixCvInRef.current   = ac.createGain(); mixCvInRef.current.gain.value = 1
+    mixCvInRef.current = ac.createGain(); mixCvInRef.current.gain.value = 1
 
     // Merge L/R → stereo input 0
     const merger = ac.createChannelMerger(2); mergerRef.current = merger
@@ -116,16 +135,16 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
     splitter.connect(outRRef.current, 1)
 
     // Initial params
-    setParam("size",      Math.max(0, Math.min(1, sizeN[0])),       0.02)
-    setParam("decay",     Math.max(0, Math.min(1, decayN[0])),      0.02)
-    setParam("dampHz",    mapLinear(dampN[0], DAMP_MIN, DAMP_MAX),  0.02)
-    setParam("preDelay",  mapLinear(preN[0],  PRE_MIN,  PRE_MAX),   0.02)
-    setParam("mix",       Math.max(0, Math.min(1, mixN[0])),        0.02)
-    setParam("type",      algo,                                      0.0)
-    setParam("sizeCvAmt", Math.max(0, Math.min(1, sizeCvAmtN[0])),  0.02)
-    setParam("dampCvAmt", Math.max(0, Math.min(1, dampCvAmtN[0])),  0.02)
-    setParam("decayCvAmt",Math.max(0, Math.min(1, decayCvAmtN[0])), 0.02)
-    setParam("mixCvAmt",  Math.max(0, Math.min(1, mixCvAmtN[0])),   0.02)
+    setParam("size", Math.max(0, Math.min(1, sizeN[0])), 0.02)
+    setParam("decay", Math.max(0, Math.min(1, decayN[0])), 0.02)
+    setParam("dampHz", mapLinear(dampN[0], DAMP_MIN, DAMP_MAX), 0.02)
+    setParam("preDelay", mapLinear(preN[0], PRE_MIN, PRE_MAX), 0.02)
+    setParam("mix", Math.max(0, Math.min(1, mixN[0])), 0.02)
+    setParam("type", algo, 0.0)
+    setParam("sizeCvAmt", Math.max(0, Math.min(1, sizeCvAmtN[0])), 0.02)
+    setParam("dampCvAmt", Math.max(0, Math.min(1, dampCvAmtN[0])), 0.02)
+    setParam("decayCvAmt", Math.max(0, Math.min(1, decayCvAmtN[0])), 0.02)
+    setParam("mixCvAmt", Math.max(0, Math.min(1, mixCvAmtN[0])), 0.02)
 
     // dryMono based on connections
     const inLId = `${moduleId}-in-l`
@@ -142,17 +161,17 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
   const { isReady, initError, retryInit } = useModuleInit(init, "REVERB")
 
   // Push updates
-  useEffect(() => { setParam("size",  Math.max(0, Math.min(1, sizeN[0]))) }, [sizeN])
+  useEffect(() => { setParam("size", Math.max(0, Math.min(1, sizeN[0]))) }, [sizeN])
   useEffect(() => { setParam("decay", Math.max(0, Math.min(1, decayN[0]))) }, [decayN])
-  useEffect(() => { setParam("dampHz",mapLinear(dampN[0], DAMP_MIN, DAMP_MAX)) }, [dampN])
+  useEffect(() => { setParam("dampHz", mapLinear(dampN[0], DAMP_MIN, DAMP_MAX)) }, [dampN])
   useEffect(() => { setParam("preDelay", mapLinear(preN[0], PRE_MIN, PRE_MAX)) }, [preN])
-  useEffect(() => { setParam("mix",   Math.max(0, Math.min(1, mixN[0]))) }, [mixN])
-  useEffect(() => { setParam("type",  algo, 0.0) }, [algo])
+  useEffect(() => { setParam("mix", Math.max(0, Math.min(1, mixN[0]))) }, [mixN])
+  useEffect(() => { setParam("type", algo, 0.0) }, [algo])
 
-  useEffect(() => { setParam("sizeCvAmt",  Math.max(0, Math.min(1, sizeCvAmtN[0]))) }, [sizeCvAmtN])
-  useEffect(() => { setParam("dampCvAmt",  Math.max(0, Math.min(1, dampCvAmtN[0]))) }, [dampCvAmtN])
+  useEffect(() => { setParam("sizeCvAmt", Math.max(0, Math.min(1, sizeCvAmtN[0]))) }, [sizeCvAmtN])
+  useEffect(() => { setParam("dampCvAmt", Math.max(0, Math.min(1, dampCvAmtN[0]))) }, [dampCvAmtN])
   useEffect(() => { setParam("decayCvAmt", Math.max(0, Math.min(1, decayCvAmtN[0]))) }, [decayCvAmtN])
-  useEffect(() => { setParam("mixCvAmt",   Math.max(0, Math.min(1, mixCvAmtN[0]))) }, [mixCvAmtN])
+  useEffect(() => { setParam("mixCvAmt", Math.max(0, Math.min(1, mixCvAmtN[0]))) }, [mixCvAmtN])
 
   // dry mono whenever connection changes
   useEffect(() => {
@@ -163,35 +182,6 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
     setParam("dryMono", hasL !== hasR ? 1 : 0, 0.0)
   }, [connections, moduleId])
 
-  // Patch save/load
-  useEffect(() => {
-    const el = document.querySelector(`[data-module-id="${moduleId}"]`) as any
-    if (!el) return
-    el.getParameters = () => ({
-      size:  sizeN[0],
-      decay: decayN[0],
-      dampHz: mapLinear(dampN[0], DAMP_MIN, DAMP_MAX),
-      preDelay: mapLinear(preN[0], PRE_MIN, PRE_MAX),
-      mix: mixN[0],
-      algo,
-      sizeCvAmt:  sizeCvAmtN[0],
-      dampCvAmt:  dampCvAmtN[0],
-      decayCvAmt: decayCvAmtN[0],
-      mixCvAmt:   mixCvAmtN[0],
-    })
-    el.setParameters = (p: any) => {
-      if (p.size     !== undefined) setSizeN([ Math.max(0, Math.min(1, p.size)) ])
-      if (p.decay    !== undefined) setDecayN([ Math.max(0, Math.min(1, p.decay)) ])
-      if (p.dampHz   !== undefined) setDampN([ (p.dampHz - DAMP_MIN) / (DAMP_MAX - DAMP_MIN) ])
-      if (p.preDelay !== undefined) setPreN([ (p.preDelay - PRE_MIN) / (PRE_MAX - PRE_MIN) ])
-      if (p.mix      !== undefined) setMixN([ Math.max(0, Math.min(1, p.mix)) ])
-      if (p.algo     !== undefined) setAlgo(Math.max(0, Math.min(2, Math.floor(p.algo))) as Algo)
-      if (p.sizeCvAmt!== undefined) setSizeCvAmtN([ Math.max(0, Math.min(1, p.sizeCvAmt)) ])
-      if (p.dampCvAmt!== undefined) setDampCvAmtN([ Math.max(0, Math.min(1, p.dampCvAmt)) ])
-      if (p.decayCvAmt!==undefined) setDecayCvAmtN([ Math.max(0, Math.min(1, p.decayCvAmt)) ])
-      if (p.mixCvAmt !== undefined) setMixCvAmtN([ Math.max(0, Math.min(1, p.mixCvAmt)) ])
-    }
-  }, [moduleId, sizeN, decayN, dampN, preN, mixN, algo, sizeCvAmtN, dampCvAmtN, decayCvAmtN, mixCvAmtN])
 
   return (
     <ModuleContainer title="Reverb" moduleId={moduleId}>
@@ -214,21 +204,17 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-4 mt-2">
-        <div className="flex gap-3">
-          <Knob value={sizeN}  onValueChange={setSizeN}  size="sm" label="Size" />
-          <Knob value={decayN} onValueChange={setDecayN} size="sm" label="Decay" />
-          <Knob value={dampN}  onValueChange={setDampN}  size="sm" label="Tone" />
-          <Knob value={preN}   onValueChange={setPreN}   size="sm" label="Pre" />
-          <Knob value={mixN}   onValueChange={setMixN}   size="sm" label="Mix" />
-        </div>
-
-        {/* CV depths */}
-        <div className="grid grid-cols-4 gap-2">
-          <Knob value={sizeCvAmtN}  onValueChange={setSizeCvAmtN}  size="xs" label="Size CV" />
-          <Knob value={dampCvAmtN}  onValueChange={setDampCvAmtN}  size="xs" label="Tone CV" />
-          <Knob value={decayCvAmtN} onValueChange={setDecayCvAmtN} size="xs" label="Decay CV" />
-          <Knob value={mixCvAmtN}   onValueChange={setMixCvAmtN}   size="xs" label="Mix CV" />
+      <div className="flex flex-col items-center gap-0 mt-5">
+        <Knob value={sizeN} onValueChange={setSizeN} size="lg" label="Size" />
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-11">
+            <Knob value={decayN} onValueChange={setDecayN} size="md" label="Decay" />
+            <Knob value={preN} onValueChange={setPreN} size="md" label="Pre" />
+          </div>
+          <div className="flex gap-11">
+            <Knob value={dampN} onValueChange={setDampN} size="md" label="Tone" />
+            <Knob value={mixN} onValueChange={setMixN} size="md" label="Mix" />
+          </div>
         </div>
       </div>
 
@@ -237,14 +223,26 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
       {/* Ports */}
       <div className="flex flex-col gap-2">
         <div className="flex justify-between items-end gap-2">
-          <Port id={`${moduleId}-size-cv`}  type="input" label="SIZE"  audioType="cv" audioNode={sizeCvInRef.current  ?? undefined} />
-          <Port id={`${moduleId}-damp-cv`}  type="input" label="TONE"  audioType="cv" audioNode={dampCvInRef.current  ?? undefined} />
-          <Port id={`${moduleId}-decay-cv`} type="input" label="DECAY" audioType="cv" audioNode={decayCvInRef.current ?? undefined} />
-          <Port id={`${moduleId}-mix-cv`}   type="input" label="MIX"   audioType="cv" audioNode={mixCvInRef.current   ?? undefined} />
+          <div className="flex flex-col items-center gap-2">
+            <Knob value={sizeCvAmtN} onValueChange={setSizeCvAmtN} size="xs" />
+            <Port id={`${moduleId}-size-cv`} type="input" label="SIZE" audioType="cv" audioNode={sizeCvInRef.current ?? undefined} />
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <Knob value={dampCvAmtN} onValueChange={setDampCvAmtN} size="xs" />
+            <Port id={`${moduleId}-damp-cv`} type="input" label="TONE" audioType="cv" audioNode={dampCvInRef.current ?? undefined} />
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <Knob value={decayCvAmtN} onValueChange={setDecayCvAmtN} size="xs" />
+            <Port id={`${moduleId}-decay-cv`} type="input" label="DECAY" audioType="cv" audioNode={decayCvInRef.current ?? undefined} />
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <Knob value={mixCvAmtN} onValueChange={setMixCvAmtN} size="xs" />
+            <Port id={`${moduleId}-mix-cv`} type="input" label="MIX" audioType="cv" audioNode={mixCvInRef.current ?? undefined} />
+          </div>
         </div>
         <div className="flex justify-between items-end gap-2">
-          <Port id={`${moduleId}-in-l`}  type="input"  label="IN L"  audioType="audio" audioNode={inLRef.current  ?? undefined} />
-          <Port id={`${moduleId}-in-r`}  type="input"  label="IN R"  audioType="audio" audioNode={inRRef.current  ?? undefined} />
+          <Port id={`${moduleId}-in-l`} type="input" label="IN L" audioType="audio" audioNode={inLRef.current ?? undefined} />
+          <Port id={`${moduleId}-in-r`} type="input" label="IN R" audioType="audio" audioNode={inRRef.current ?? undefined} />
           <Port id={`${moduleId}-out-l`} type="output" label="OUT L" audioType="audio" audioNode={outLRef.current ?? undefined} />
           <Port id={`${moduleId}-out-r`} type="output" label="OUT R" audioType="audio" audioNode={outRRef.current ?? undefined} />
         </div>

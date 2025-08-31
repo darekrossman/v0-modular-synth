@@ -13,6 +13,7 @@ class LadderFilterProcessor extends AudioWorkletProcessor {
       { name: 'resonance', defaultValue: 0.0,  minValue: 0.0,  maxValue: 1.0,   automationRate: 'k-rate' }, // 0..1 -> K≈0..4
       { name: 'resComp',   defaultValue: 1.00, minValue: 0.0,  maxValue: 1.0,   automationRate: 'k-rate' }, // set to 1.0 for max hold
       { name: 'postGain',  defaultValue: 1.30, minValue: 0.5,  maxValue: 2.0,   automationRate: 'k-rate' },
+      { name: 'cvAmount',  defaultValue: 1.0,  minValue: 0.0,  maxValue: 1.0,   automationRate: 'k-rate' }, // CV attenuation
     ]
   }
 
@@ -63,6 +64,8 @@ class LadderFilterProcessor extends AudioWorkletProcessor {
 
   process(inputs, outputs, params) {
     const xIn  = inputs[0] && inputs[0][0] ? inputs[0][0] : null
+    const cutoffCv = inputs[1] && inputs[1][0] ? inputs[1][0] : null
+    const resCv = inputs[2] && inputs[2][0] ? inputs[2][0] : null
     const yOut = outputs[0][0]
     const n = yOut.length
     if (!xIn) { yOut.fill(0); return true }
@@ -71,6 +74,7 @@ class LadderFilterProcessor extends AudioWorkletProcessor {
     const resP  = params.resonance
     const compP = params.resComp
     const postP = params.postGain
+    const cvAmtP = params.cvAmount
 
     // Helper
     const clamp01 = (x) => Math.max(0, Math.min(1, x))
@@ -81,15 +85,40 @@ class LadderFilterProcessor extends AudioWorkletProcessor {
 
     for (let i = 0; i < n; i++) {
       // k-rate fetch
-      const fc   = Math.max(10, Math.min(this.fs * 0.49, cutP.length  > 1 ? cutP[i]  : cutP[0]))
-      const r    = clamp01(resP.length  > 1 ? resP[i]  : resP[0])
+      let fc   = Math.max(10, Math.min(this.fs * 0.49, cutP.length  > 1 ? cutP[i]  : cutP[0]))
+      let r    = clamp01(resP.length  > 1 ? resP[i]  : resP[0])
       const resC = clamp01(compP.length > 1 ? compP[i] : compP[0])
       const post = Math.max(0.25, Math.min(2.0, postP.length > 1 ? postP[i] : postP[0]))
+      const cvAmt = clamp01(cvAmtP.length > 1 ? cvAmtP[i] : cvAmtP[0])
+      
+      // Apply CV modulation with stability safeguards
+      // CV input is -5V to +5V (in our -5.0 to 5.0 domain)
+      // We want 1V/octave tracking, so 10V range = 10 octaves = 20Hz to 20kHz
+      if (cutoffCv && cutoffCv[i]) {
+        // CV in volts (assuming ±5V = ±5.0 in our system)
+        // Clamp CV input to prevent extreme modulation
+        const cvVolts = Math.max(-5, Math.min(5, cutoffCv[i]))
+        // Limit the octave range to prevent instability
+        const octaveShift = cvVolts * cvAmt
+        const clampedShift = Math.max(-4, Math.min(4, octaveShift)) // Limit to ±4 octaves
+        // Convert to frequency multiplier: 1V = 1 octave = 2x frequency
+        const cvMultiplier = Math.pow(2, clampedShift)
+        fc = Math.max(20, Math.min(this.fs * 0.45, fc * cvMultiplier)) // More conservative limits
+      }
+      
+      // Resonance CV (simpler - just adds to resonance)
+      if (resCv && resCv[i]) {
+        // CV adds to resonance, scaled by cvAmount
+        const resAdd = resCv[i] * 0.2 * cvAmt // Scale down CV effect on resonance
+        r = clamp01(r + resAdd)
+      }
 
       const norm = fc / this.ny
 
-      // Prewarp
-      const g = Math.tan(Math.PI * fc / this.fs)
+      // Prewarp with stability checks
+      const gRaw = Math.tan(Math.PI * fc / this.fs)
+      // Clamp g to prevent numerical instability
+      const g = Math.max(0.001, Math.min(100, gRaw))
       if (!Number.isFinite(g)) { yOut.fill(0); return true }
 
       // Resonance mapping (gentle guards)
@@ -101,10 +130,17 @@ class LadderFilterProcessor extends AudioWorkletProcessor {
       const KmaxFc = 4.0 - 0.8 * (norm * norm) // ~4 → ~3.2 near top
       if (K > KmaxFc) K = KmaxFc
 
-      // ZDF step
-      const xin = xIn[i] || 0
+      // ZDF step with input limiting
+      const xin = Math.max(-10, Math.min(10, xIn[i] || 0)) // Limit input to ±10V
       const { y1, y2, y3, y4, A, alpha0 } = this._stepZDF(xin, g, K)
       let y = Number.isFinite(y4) ? y4 : 0
+      
+      // Additional stability check
+      if (Math.abs(y) > 10) {
+        // Reset filter state if output becomes unstable
+        this.s1 = this.s2 = this.s3 = this.s4 = 0
+        y = 0
+      }
 
       // -------- Compensation strategy ---------------------------------------
       // 1) α0 post-comp (stronger near the top octave)

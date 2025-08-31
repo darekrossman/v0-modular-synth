@@ -197,29 +197,30 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             ref={ref}
             className={cn(
               "relative rounded-full cursor-pointer select-none",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              "transition-colors",
+              "focus-visible:outline-none",
+              "shadow-[0px_3px_1px_0px_rgba(0,0,0,0.2)]",
+              // "bg-radial-[at_50%_20%] from-neutral-700 to-neutral-900 to-85%",
               sizeClasses[size],
               skirtSizeClass[size],
               disabled && "opacity-50 cursor-not-allowed",
             )}
+            style={{
+              background: "conic-gradient(from 180deg at 50% 50%, var(--color-neutral-900), var(--color-neutral-900), var(--color-neutral-400), var(--color-neutral-900), var(--color-neutral-900))",
+            }}
             onMouseDown={handleMouseDown}
             tabIndex={0}
             role="slider"
             aria-valuemin={0}
             aria-valuemax={1}
             aria-valuenow={currentValue}
-            style={{
-              background: "linear-gradient(0deg, rgb(0, 0, 0) 60% 0%, rgb(69 69 69) 100%)",
-            }}
             {...props}
           >
             <div
-              className={`relative w-full h-full rounded-full bg-neutral-900 border-t ${size === "xs" ? "border-t-white/30" : "border-t-white/20"} border-b border-b-black shadow-[0px_2px_0px_0px_rgba(0,0,0,0.2)]`}
+              className={`relative w-full h-full rounded-full`}
             >
               <div className="absolute inset-0 flex items-center justify-center">
                 <div
-                  className="absolute w-0.5 bg-primary rounded-full"
+                  className="absolute w-0.5 rounded-full"
                   style={{
                     height: "50%",
                     transform: `rotate(${rotation}deg)`,
@@ -228,10 +229,12 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
                     left: "50%",
                     marginLeft: "-1px",
                   }}
-                />
+                >
+                  <div className="h-[10%] w-full bg-white rounded-full" />
+                </div>
               </div>
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className={cn("rounded-full bg-neutral-900 w-[50%] h-[50%]")} />
+                <div className="w-[47%] h-[47%] rounded-full bg-gradient-to-b from-neutral-800 to-neutral-600 to-85% shadow-[inset_0_-1px_1px_rgba(255,255,255,0.2),inset_0_1px_0px_rgba(0,0,0,0.0)]" />
               </div>
             </div>
           </div>

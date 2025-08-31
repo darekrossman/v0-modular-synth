@@ -43,16 +43,16 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
     morphCvAmt: morphCvAmt[0],
   }))
 
-  const [tune, setTune] = useState([initialParameters?.tune ?? 0])
-  const [octave, setOctave] = useState([initialParameters?.octave ?? 0])
-  const [phase, setPhase] = useState([initialParameters?.phase ?? 0])
+  const [tune, setTune] = useState<number[]>([initialParameters?.tune ?? 0])
+  const [octave, setOctave] = useState<number[]>([initialParameters?.octave ?? 0])
+  const [phase, setPhase] = useState<number[]>([initialParameters?.phase ?? 0])
   const [waveType, setWaveType] = useState<WaveType>(initialParameters?.waveType ?? "square")
-  const [pulseWidth, setPulseWidth] = useState([initialParameters?.pulseWidth ?? 0.5])
-  const [syncAmount, setSyncAmount] = useState([initialParameters?.syncAmount ?? 0])
-  const [waveformMorph, setWaveformMorph] = useState([initialParameters?.waveformMorph ?? 0])
-  const [fmAmount, setFmAmount] = useState([initialParameters?.fmAmount ?? 0])      // FM depth
-  const [pwmCvAmt, setPwmCvAmt] = useState([initialParameters?.pwmCvAmt ?? 1])      // PW CV attenuator
-  const [morphCvAmt, setMorphCvAmt] = useState([initialParameters?.morphCvAmt ?? 1])  // NEW: Morph CV attenuator
+  const [pulseWidth, setPulseWidth] = useState<number[]>([initialParameters?.pulseWidth ?? 0.5])
+  const [syncAmount, setSyncAmount] = useState<number[]>([initialParameters?.syncAmount ?? 0])
+  const [waveformMorph, setWaveformMorph] = useState<number[]>([initialParameters?.waveformMorph ?? 0])
+  const [fmAmount, setFmAmount] = useState<number[]>([initialParameters?.fmAmount ?? 0])
+  const [pwmCvAmt, setPwmCvAmt] = useState<number[]>([initialParameters?.pwmCvAmt ?? 1])
+  const [morphCvAmt, setMorphCvAmt] = useState<number[]>([initialParameters?.morphCvAmt ?? 1])
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const workletNodeRef = useRef<AudioWorkletNode | null>(null)

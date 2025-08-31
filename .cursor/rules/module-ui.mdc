@@ -8,19 +8,73 @@ Conventions
 - Must be client components when using Web Audio (`"use client"`).
 - Use `module-wrapper` and `module-container` for layout.
 
-Worklet lifecycle
+State & persistence
+- Use the patch manager hooks to persist and restore module UI state.
+  - Register with `useModulePatch(moduleId, onSave, onGetPosition?)` (built on `usePatchManager`).
+  - Implement `onSave` to return a plain object of the module's current parameters (normalized UI values are fine if you map when pushing to DSP).
+  - Read `initialParameters` from `useModulePatch` to seed local React state on first render.
+  - Keep React state as the source of truth; the provider will call `onSave` when saving/duplicating patches.
+
+-Worklet lifecycle
 - Ensure `audioContext.audioWorklet.addModule('/{name}-processor.js')` is awaited before constructing `AudioWorkletNode`.
-- Do not create multiple `AudioContext` instances; obtain the shared context from connection/manager utilities.
+- Use a shared singleton `AudioContext` (e.g., cached on `window`) and `resume()` it if suspended; never create multiple contexts.
+- Initialize audio nodes exactly once using `useModuleInit(initAudioNodes, FriendlyName)` and a memoized `initAudioNodes`:
+  - Guard against double initialization by early-returning if your `nodeRef.current` is already set.
+  - Create and store nodes in refs (`AudioWorkletNode`, `GainNode`, `ConstantSourceNode`, etc.), start any `ConstantSourceNode`s, and wire internal connections.
+  - Optionally add a zero-gain "keep-alive" sink to prevent the graph from being culled when idle.
 
 Ports & patching
 - Expose inputs/outputs via `Port` and coordinate connections with `lib/use-port.tsx` and `components/connection-manager.tsx`.
 - Input/output names should match the processor's expectations for clarity in the patch UI.
+- Port IDs must be stable and globally unique, typically `${moduleId}-{name}-in` / `${moduleId}-{name}-out`.
+- Provide the concrete `audioNode` to each `Port` so the connection manager can wire the graph immediately on connection.
 
 Controls
 - Use `components/ui/knob.tsx` for continuous params and standard UI primitives from `components/ui`.
     - The knob value ranges from 0.0 - 1.0. The values must be mapped to the proper values if the associated audio worklet parameter expects a different range. 
 - Keep React state as the single source of truth; push changes to the `AudioWorkletNode` parameters and/or `port.postMessage`.
+- Map normalized UI values to processor units (e.g., seconds, Hz, volts) through helpers before pushing.
+- Push parameter updates with timeline accuracy inside `useEffect` handlers: `param.setValueAtTime(mappedValue, audioContext.currentTime)`.
+- For momentary actions (e.g., gate/trig), use a `ConstantSourceNode` and set its `offset` in pointer handlers.
+
+Cleanup
+- Do not add any cleanup 
 
 Performance
 - Debounce/throttle high-frequency UI updates to prevent React re-renders from interfering with audio.
 - Offload heavy DSP to the processor; keep UI light and responsive.
+
+Example pattern (abridged)
+```tsx
+// "use client"
+// inside {name}-module.tsx
+
+// Register with patch manager and seed state
+const { initialParameters } = useModulePatch(moduleId, () => ({
+  attackN: attackN[0],
+  // ...other UI params
+}))
+
+// Memoized, guarded init
+const initAudioNodes = useCallback(async () => {
+  if (nodeRef.current) return
+  const ac = getAudioContext()
+  await ac.audioWorklet.addModule('/{name}-processor.js')
+  const node = new AudioWorkletNode(ac, '{name}-processor', { parameterData: {/* mapped from state */} })
+  nodeRef.current = node
+  // connect IO, start constants, keep-alive, etc.
+}, [/* state used for initial parameterData */])
+
+// Initialize safely
+useModuleInit(initAudioNodes, 'FriendlyName')
+
+// Push mapped values reactively
+useEffect(() => {
+  const ac = audioContextRef.current
+  const node = nodeRef.current
+  if (ac && node) node.parameters.get('attack')?.setValueAtTime(mapAttack(attackN[0]), ac.currentTime)
+}, [attackN])
+
+// Ports use stable IDs and concrete WebAudio nodes
+<Port id={`${moduleId}-env-out`} type="output" label="Env Out" audioType="cv" audioNode={envOutRef.current ?? undefined} />
+```

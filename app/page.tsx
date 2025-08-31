@@ -14,6 +14,7 @@ import { RandomModule } from "@/components/random-module"
 import { ClockModule } from "@/components/clock-module"
 import { SimpleOscilloscopeModule } from "@/components/simple-oscilloscope-module"
 import { SequencerModule } from "@/components/sequencer-module"
+import { EuclidModule } from "@/components/euclid-module"
 import { DelayModule } from "@/components/delay-module"
 import { ReverbModule } from "@/components/reverb-module"
 import { QuantizerModule } from "@/components/quantizer-module"
@@ -47,6 +48,7 @@ type ModuleType =
   | "sequencer"
   | "random"
   | "quantizer"
+  | "euclid"
 
 interface ModuleInstance {
   id: string
@@ -66,6 +68,7 @@ const availableModules = [
   { type: "clock" as ModuleType, name: "Clock", description: "Timing and trigger generator" },
   { type: "simple-oscilloscope" as ModuleType, name: "Scope", description: "Single-channel oscilloscope" },
   { type: "sequencer" as ModuleType, name: "Sequencer", description: "Step sequencer for patterns" },
+  { type: "euclid" as ModuleType, name: "Euclid", description: "Euclidean rhythm sequencer" },
   { type: "lfo" as ModuleType, name: "LFO", description: "Low-frequency oscillator" },
   { type: "delay" as ModuleType, name: "Delay", description: "Delay effect module" },
   { type: "reverb" as ModuleType, name: "Reverb", description: "Stereo reverb effect" },
@@ -104,6 +107,8 @@ const ModuleRenderer = memo(({ module }: { module: ModuleInstance }) => {
       return <SimpleOscilloscopeModule moduleId={module.id} />
     case "sequencer":
       return <SequencerModule moduleId={module.id} />
+    case "euclid":
+      return <EuclidModule moduleId={module.id} />
     case "delay":
       return <DelayModule moduleId={module.id} />
     case "reverb":
@@ -187,14 +192,14 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
   // Rack assignment: Sequencer and Quantizer always in rack 2
   const rack1Modules = useMemo(() => 
     modules.filter(
-      (m: ModuleInstance) => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer"
+      (m: ModuleInstance) => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid"
     ),
     [modules]
   )
   
   const rack2Modules = useMemo(() => 
     modules.filter(
-      (m: ModuleInstance) => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer"
+      (m: ModuleInstance) => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
     ),
     [modules]
   )
@@ -316,7 +321,7 @@ export default function SynthPlayground() {
   const addModule = (type: ModuleType) => {
     const existingCount = modules.filter((m) => m.type === type).length
     const newId = `${type}-${existingCount + 1}`
-    const rack = (type === "sequencer" || type === "quantizer") ? 2 : 1
+    const rack = (type === "sequencer" || type === "quantizer" || type === "euclid") ? 2 : 1
     setModules((prev) => [...prev, { id: newId, type, rack }])
   }
 
@@ -341,7 +346,7 @@ export default function SynthPlayground() {
               m.map((x) => ({
                 id: x.id,
                 type: x.type as ModuleType,
-                rack: (x.type === "sequencer" || x.type === "quantizer") ? 2 : 1,
+                rack: (x.type === "sequencer" || x.type === "quantizer" || x.type === "euclid") ? 2 : 1,
               }))
             )}
           onParameterChange={handleParameterChange}

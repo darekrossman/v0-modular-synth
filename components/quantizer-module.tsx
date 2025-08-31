@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Knob } from "@/components/ui/knob"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -28,15 +29,25 @@ const SCALES: { id: string; name: string; mask: number }[] = [
   { id: "mixolydian", name: "Mixolydian", mask: parseInt("101011010110", 2) },
 ]
 
-const KEYS = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+const KEYS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 export function QuantizerModule({ moduleId }: { moduleId: string }) {
-  const [scaleId, setScaleId] = useState<string>("major")
-  const [keyIdx, setKeyIdx] = useState<number>(0)
-  const [hold, setHold] = useState<boolean>(false)
-  const [transpose, setTranspose] = useState<number>(0) // semitones -12..+12
-  const [octave, setOctave] = useState<number>(0) // octaves -4..+4
-  const [mask12, setMask12] = useState<number>(() => (SCALES.find(s => s.id === "major")?.mask ?? 0xFFF))
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    scaleId,
+    keyIdx,
+    hold,
+    transpose,
+    octave,
+    mask12,
+  }))
+
+  const [scaleId, setScaleId] = useState<string>(initialParameters?.scaleId ?? "major")
+  const [keyIdx, setKeyIdx] = useState<number>(initialParameters?.keyIdx ?? 0)
+  const [hold, setHold] = useState<boolean>(initialParameters?.hold ?? false)
+  const [transpose, setTranspose] = useState<number>(initialParameters?.transpose ?? 0) // semitones -12..+12
+  const [octave, setOctave] = useState<number>(initialParameters?.octave ?? 0) // octaves -4..+4
+  const [mask12, setMask12] = useState<number>(initialParameters?.mask12 ?? (SCALES.find(s => s.id === (initialParameters?.scaleId ?? "major"))?.mask ?? 0xFFF))
 
   const acRef = useRef<AudioContext | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
@@ -45,7 +56,7 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
   const pitchOutRef = useRef<GainNode | null>(null)
   const keepAliveRef = useRef<GainNode | null>(null)
 
-  const init = useCallback(async () => {
+  useModuleInit(async () => {
     if (nodeRef.current) return
     const ac = getAudioContext(); acRef.current = ac
     await ac.audioWorklet.addModule("/quantizer-processor.js")
@@ -71,29 +82,16 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
     pitchOutRef.current.connect(keepAliveRef.current)
     keepAliveRef.current.connect(ac.destination)
 
-    // Initial params (defaults)
+    // Set initial params from saved state
     const t = ac.currentTime
-    node.parameters.get("key")?.setValueAtTime(0, t)
-    node.parameters.get("hold")?.setValueAtTime(0, t)
-    node.parameters.get("transpose")?.setValueAtTime(0, t)
-    const scale = SCALES.find(s => s.id === "major") || SCALES[0]
-    setMask12(scale.mask)
-    node.port.postMessage({ type: 'scale', mask12: scale.mask })
+    node.parameters.get("key")?.setValueAtTime(keyIdx, t)
+    node.parameters.get("hold")?.setValueAtTime(hold ? 1 : 0, t)
+    const total = Math.max(-96, Math.min(96, transpose + octave * 12))
+    node.parameters.get("transpose")?.setValueAtTime(total, t)
+    node.port.postMessage({ type: 'scale', mask12: mask12 })
 
     console.log("[QUANTIZER] initialized")
-  }, [keyIdx, hold, transpose, octave, scaleId, mask12])
-
-  const { isReady, initError, retryInit } = useModuleInit(init, "QUANTIZER")
-
-  useEffect(() => {
-    return () => {
-      try { nodeRef.current?.disconnect() } catch {}
-      try { pitchInRef.current?.disconnect() } catch {}
-      try { trigInRef.current?.disconnect() } catch {}
-      try { pitchOutRef.current?.disconnect() } catch {}
-      try { keepAliveRef.current?.disconnect() } catch {}
-    }
-  }, [])
+  }, moduleId)
 
   useEffect(() => {
     const ac = acRef.current, node = nodeRef.current
@@ -142,18 +140,18 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
           <div className="flex items-center gap-4">
             <ToggleSwitch label="Trig Only" value={hold} onValueChange={setHold} />
             <Knob
-              value={[ (transpose + 12) / 24 ]}
+              value={[(transpose + 12) / 24]}
               onValueChange={(v) => setTranspose(Math.round(v[0] * 24 - 12))}
               size="sm"
               label="Trans"
-              tickLabels={["-12","-6","0","+6","+12"]}
+              tickLabels={["-12", "-6", "0", "+6", "+12"]}
             />
             <Knob
-              value={[ (octave + 4) / 8 ]}
+              value={[(octave + 4) / 8]}
               onValueChange={(v) => setOctave(Math.round(v[0] * 8 - 4))}
               size="sm"
               label="Oct"
-              tickLabels={["-4","-2","0","+2","+4"]}
+              tickLabels={["-4", "-2", "0", "+2", "+4"]}
             />
           </div>
           <div className="flex items-center gap-3">
@@ -185,15 +183,14 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
           <div className="flex items-center gap-3">
             <div className="relative w-64 h-10 rounded-[2px] overflow-hidden">
               <div className="flex h-full">
-                {([0,2,4,5,7,9,11] as number[]).map((rotSemi) => {
+                {([0, 2, 4, 5, 7, 9, 11] as number[]).map((rotSemi) => {
                   const on = ((rotatedMask >> rotSemi) & 1) === 1
                   const isRoot = rotSemi === 0
                   return (
                     <div
                       key={rotSemi}
-                      className={`flex-1 border-r border-black/30 last:border-r-0 cursor-pointer select-none ${
-                        on ? (isRoot ? 'bg-green-300' : 'bg-blue-300') : 'bg-neutral-100 hover:bg-neutral-200'
-                      }`}
+                      className={`flex-1 border-r border-black/30 last:border-r-0 cursor-pointer select-none ${on ? (isRoot ? 'bg-green-300' : 'bg-blue-300') : 'bg-neutral-100 hover:bg-neutral-200'
+                        }`}
                       onClick={() => {
                         const baseIdx = (rotSemi - keyIdx + 12) % 12
                         setMask12((prev) => {
@@ -208,20 +205,19 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
               </div>
               <div className="absolute top-0 left-0 h-6 w-full pointer-events-none">
                 {([
-                  { rotSemi:1, pos:0.65 },
-                  { rotSemi:3, pos:1.7 },
-                  { rotSemi:6, pos:3.7 },
-                  { rotSemi:8, pos:4.7 },
-                  { rotSemi:10, pos:5.72 },
-                ] as {rotSemi:number; pos:number}[]).map(({rotSemi, pos}) => {
+                  { rotSemi: 1, pos: 0.65 },
+                  { rotSemi: 3, pos: 1.7 },
+                  { rotSemi: 6, pos: 3.7 },
+                  { rotSemi: 8, pos: 4.7 },
+                  { rotSemi: 10, pos: 5.72 },
+                ] as { rotSemi: number; pos: number }[]).map(({ rotSemi, pos }) => {
                   const on = ((rotatedMask >> rotSemi) & 1) === 1
                   const isRoot = rotSemi === 0
                   return (
                     <div
                       key={rotSemi}
-                      className={`absolute h-full pointer-events-auto cursor-pointer rounded-[2px] border ${
-                        on ? (isRoot ? 'bg-green-500 border-green-600' : 'bg-blue-500 border-blue-600') : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700'
-                      }`}
+                      className={`absolute h-full pointer-events-auto cursor-pointer rounded-[2px] border ${on ? (isRoot ? 'bg-green-500 border-green-600' : 'bg-blue-500 border-blue-600') : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700'
+                        }`}
                       style={{ left: `${(pos * 100) / 7}%`, width: `${(100 / 7) * 0.6}%` }}
                       onClick={() => {
                         const baseIdx = (rotSemi - keyIdx + 12) % 12

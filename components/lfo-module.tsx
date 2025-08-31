@@ -8,6 +8,7 @@ import { KnobV2 } from "@/components/ui/knob-v2"
 import { Button } from "@/components/ui/button"
 import { mapLinear } from "@/lib/utils"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -56,17 +57,31 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
   const DEFAULT_AMPAMT = 1   // NEW
   const DEFAULT_OFFAMT = 1   // NEW
 
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    shape,
+    freq: mapLinear(freq[0], FREQ_MIN, FREQ_MAX),
+    pw: mapLinear(pw[0], PW_MIN, PW_MAX),
+    amp: mapLinear(amp[0], AMP_MIN, AMP_MAX),
+    offset: mapLinear(offset[0], OFF_MIN, OFF_MAX),
+    slew: mapLinear(slew[0], SLEW_MIN, SLEW_MAX),
+    rateAmt: mapLinear(rateAmt[0], RATEAMT_MIN, RATEAMT_MAX),
+    pwAmt: mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX),
+    ampAmt: mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX),
+    offAmt: mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX),
+  }))
+
   // UI state (normalized 0..1)
-  const [shape, setShape] = useState<Shape>(0)
-  const [freq, setFreq] = useState([DEFAULT_FREQ])
-  const [pw, setPw] = useState([DEFAULT_PW])
-  const [amp, setAmp] = useState([DEFAULT_AMP])
-  const [offset, setOffset] = useState([DEFAULT_OFF])
-  const [slew, setSlew] = useState([DEFAULT_SLEW])
-  const [rateAmt, setRateAmt] = useState([DEFAULT_RATEAMT])
-  const [pwAmt, setPwAmt] = useState([DEFAULT_PWAMT])
-  const [ampAmt, setAmpAmt] = useState([DEFAULT_AMPAMT])
-  const [offAmt, setOffAmt] = useState([DEFAULT_OFFAMT])
+  const [shape, setShape] = useState<Shape>(initialParameters?.shape ?? 0)
+  const [freq, setFreq] = useState([invMapLinear(initialParameters?.freq ?? mapLinear(DEFAULT_FREQ, FREQ_MIN, FREQ_MAX), FREQ_MIN, FREQ_MAX)])
+  const [pw, setPw] = useState([invMapLinear(initialParameters?.pw ?? mapLinear(DEFAULT_PW, PW_MIN, PW_MAX), PW_MIN, PW_MAX)])
+  const [amp, setAmp] = useState([invMapLinear(initialParameters?.amp ?? mapLinear(DEFAULT_AMP, AMP_MIN, AMP_MAX), AMP_MIN, AMP_MAX)])
+  const [offset, setOffset] = useState([invMapLinear(initialParameters?.offset ?? mapLinear(DEFAULT_OFF, OFF_MIN, OFF_MAX), OFF_MIN, OFF_MAX)])
+  const [slew, setSlew] = useState([invMapLinear(initialParameters?.slew ?? mapLinear(DEFAULT_SLEW, SLEW_MIN, SLEW_MAX), SLEW_MIN, SLEW_MAX)])
+  const [rateAmt, setRateAmt] = useState([invMapLinear(initialParameters?.rateAmt ?? mapLinear(DEFAULT_RATEAMT, RATEAMT_MIN, RATEAMT_MAX), RATEAMT_MIN, RATEAMT_MAX)])
+  const [pwAmt, setPwAmt] = useState([invMapLinear(initialParameters?.pwAmt ?? mapLinear(DEFAULT_PWAMT, PWAMT_MIN, PWAMT_MAX), PWAMT_MIN, PWAMT_MAX)])
+  const [ampAmt, setAmpAmt] = useState([invMapLinear(initialParameters?.ampAmt ?? mapLinear(DEFAULT_AMPAMT, AMPAMT_MIN, AMPAMT_MAX), AMPAMT_MIN, AMPAMT_MAX)])
+  const [offAmt, setOffAmt] = useState([invMapLinear(initialParameters?.offAmt ?? mapLinear(DEFAULT_OFFAMT, OFFAMT_MIN, OFFAMT_MAX), OFFAMT_MIN, OFFAMT_MAX)])
 
   // graph
   const acRef = useRef<AudioContext | null>(null)
@@ -161,35 +176,6 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
   useEffect(() => { setParam('offCvAmt', mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX)) }, [offAmt])  // NEW
   useEffect(() => { setParam('slew', mapLinear(slew[0], SLEW_MIN, SLEW_MAX)) }, [slew])
 
-  // Patch save/load (use physical values)
-  useEffect(() => {
-    const el = document.querySelector(`[data-module-id="${moduleId}"]`) as any
-    if (!el) return
-    el.getParameters = () => ({
-      shape,
-      freq: mapLinear(freq[0], FREQ_MIN, FREQ_MAX),
-      pw: mapLinear(pw[0], PW_MIN, PW_MAX),
-      amp: mapLinear(amp[0], AMP_MIN, AMP_MAX),
-      offset: mapLinear(offset[0], OFF_MIN, OFF_MAX),
-      slew: mapLinear(slew[0], SLEW_MIN, SLEW_MAX),
-      rateAmt: mapLinear(rateAmt[0], RATEAMT_MIN, RATEAMT_MAX),
-      pwAmt: mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX),
-      ampAmt: mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX),   // NEW
-      offAmt: mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX),   // NEW
-    })
-    el.setParameters = (p: any) => {
-      if (p.shape !== undefined) setShape(p.shape)
-      if (p.freq !== undefined) setFreq([invMapLinear(p.freq, FREQ_MIN, FREQ_MAX)])
-      if (p.pw !== undefined) setPw([invMapLinear(p.pw, PW_MIN, PW_MAX)])
-      if (p.amp !== undefined) setAmp([invMapLinear(p.amp, AMP_MIN, AMP_MAX)])
-      if (p.offset !== undefined) setOffset([invMapLinear(p.offset, OFF_MIN, OFF_MAX)])
-      if (p.slew !== undefined) setSlew([invMapLinear(p.slew, SLEW_MIN, SLEW_MAX)])
-      if (p.rateAmt !== undefined) setRateAmt([invMapLinear(p.rateAmt, RATEAMT_MIN, RATEAMT_MAX)])
-      if (p.pwAmt !== undefined) setPwAmt([invMapLinear(p.pwAmt, PWAMT_MIN, PWAMT_MAX)])
-      if (p.ampAmt !== undefined) setAmpAmt([invMapLinear(p.ampAmt, AMPAMT_MIN, AMPAMT_MAX)]) // NEW
-      if (p.offAmt !== undefined) setOffAmt([invMapLinear(p.offAmt, OFFAMT_MIN, OFFAMT_MAX)]) // NEW
-    }
-  }, [moduleId, shape, freq, pw, amp, offset, slew, rateAmt, pwAmt, ampAmt, offAmt])
 
   return (
     <ModuleContainer title="LFO" moduleId={moduleId}>

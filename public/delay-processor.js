@@ -24,9 +24,9 @@ class DelayProcessor extends AudioWorkletProcessor {
       // CV depths (0..1). CV signals are expected in [-1..+1].
       { name: "timeCvAmt", defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
       { name: "fbCvAmt",   defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
-      // Clocked mode: if enabled, delay time follows measured clock period * clockMult
+      // Clocked mode: if enabled, delay time follows measured clock period * clockDiv
       { name: "clocked",   defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
-      { name: "clockMult", defaultValue: 1.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
+      { name: "clockDiv",  defaultValue: 0,    minValue: 0,        maxValue: 15,       automationRate: "k-rate" }, // Division index for synced times
       // Dry mono balance: when enabled, dry path uses mono sum for both channels
       { name: "dryMono",   defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
     ];
@@ -55,11 +55,33 @@ class DelayProcessor extends AudioWorkletProcessor {
 
     this.toneAlpha = 1 - Math.exp(-2 * Math.PI * 8000 / this.sr); // set each block
 
-    // Clock detection state
+    // Clock detection state (48 PPQ)
     this.clockLastVal = 0.0;
     this.lastEdgeSampleIndex = -1; // global sample index of last rising edge
-    this.clockPeriodSamples = 0;   // measured period in samples
+    this.clockPeriodSamples = 0;   // measured period in samples (one pulse)
+    this.quarterNoteSamples = 0;   // calculated quarter note in samples
     this.globalSampleIndex = 0;    // running sample counter across blocks
+    
+    // Note divisions for synced delays (index to multiplier of quarter note)
+    // 1/64, 1/32T, 1/32, 1/16T, 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1/1T, 1/1, 2/1, 4/1, 8/1
+    this.noteDivisions = [
+      1/16,     // 1/64 note
+      1/12,     // 1/32 triplet
+      1/8,      // 1/32 note
+      1/6,      // 1/16 triplet
+      1/4,      // 1/16 note
+      1/3,      // 1/8 triplet
+      1/2,      // 1/8 note
+      2/3,      // 1/4 triplet
+      1,        // 1/4 note (quarter)
+      4/3,      // 1/2 triplet
+      2,        // 1/2 note (half)
+      8/3,      // whole triplet
+      4,        // whole note
+      8,        // 2 bars
+      16,       // 4 bars
+      32,       // 8 bars
+    ]
   }
 
   // ring read with linear interpolation (pos can be fractional, relative to absolute write index)
@@ -101,7 +123,7 @@ class DelayProcessor extends AudioWorkletProcessor {
     const timeCvAmt  = params.timeCvAmt[0]; // 0..1
     const fbCvAmt    = params.fbCvAmt[0];   // 0..1
     const clocked    = params.clocked[0] >= 0.5;
-    const clockMult  = params.clockMult[0];
+    const clockDivIdx = Math.round(params.clockDiv[0]);
     const dryMono    = params.dryMono[0] >= 0.5;
 
     // Update tone LPF coefficient once per block
@@ -114,10 +136,14 @@ class DelayProcessor extends AudioWorkletProcessor {
     const timeSpan = (TIME_MAX - TIME_MIN) * 0.5;
     const fbSpan   = FB_MAX * 0.5;
 
-    // Determine clock-derived time (use period measured up to previous block)
+    // Determine clock-derived time from 48 PPQ
     let clockTimeSec = null;
-    if (clocked && this.clockPeriodSamples > 0) {
-      clockTimeSec = (this.clockPeriodSamples / this.sr) * Math.max(0, clockMult);
+    if (clocked && this.quarterNoteSamples > 0) {
+      // Get the note division multiplier
+      const divIdx = Math.max(0, Math.min(this.noteDivisions.length - 1, clockDivIdx));
+      const noteMultiplier = this.noteDivisions[divIdx];
+      // Calculate delay time based on quarter note and division
+      clockTimeSec = (this.quarterNoteSamples / this.sr) * noteMultiplier;
       // clamp to safe bounds
       if (clockTimeSec < TIME_MIN) clockTimeSec = TIME_MIN;
       if (clockTimeSec > TIME_MAX) clockTimeSec = TIME_MAX;
@@ -216,7 +242,7 @@ class DelayProcessor extends AudioWorkletProcessor {
       // advance write index
       this.w++; if (this.w >= this.cap) this.w = 0;
 
-      // clock rising-edge detection for next block's period
+      // clock rising-edge detection for 48 PPQ
       // Consider threshold ~0.1 for generic pulses
       if (inClock) {
         const prev = this.clockLastVal;
@@ -228,6 +254,8 @@ class DelayProcessor extends AudioWorkletProcessor {
             const period = edgeIdx - this.lastEdgeSampleIndex;
             if (period > 1) {
               this.clockPeriodSamples = period;
+              // With 48 PPQ, one quarter note = 48 pulses
+              this.quarterNoteSamples = period * 48;
             }
           }
           this.lastEdgeSampleIndex = edgeIdx;

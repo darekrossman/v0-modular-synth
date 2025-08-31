@@ -7,6 +7,7 @@ import { Port } from "@/components/port"
 import { useConnections } from "@/components/connection-manager"
 import * as utils from "@/lib/utils"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { useModulePatch } from "./patch-manager"
 
 // --- Shared AudioContext helper (same pattern as OutputModule) ---
 function getAudioContext(): AudioContext {
@@ -24,20 +25,30 @@ const MIN_CUTOFF = 20
 const MAX_CUTOFF = 20000
 
 export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
-  const [uiUpdateTrigger, setUiUpdateTrigger] = useState(0)
+  // Register with patch manager and get initial parameters
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    cutoff: cutoff[0],
+    resonance: resonance[0],
+    drive: drive[0],
+    resComp: resComp[0],
+    fbSat: fbSat[0],
+    input1Level: input1Level[0],
+    input2Level: input2Level[0],
+    input3Level: input3Level[0],
+    cvAttenuation: cvAttenuation[0],
+  }))
 
-  const paramsRef = useRef({
-    cutoff: 1.0,
-    resonance: 0.0,
-    drive: 0.0,
-    postGain: 1.1,
-    resComp: 0.6,
-    fbSat: 0.09,
-    input1Level: 1,
-    input2Level: 1,
-    input3Level: 1,
-    cvAttenuation: 1,
-  })
+  const [cutoff, setCutoff] = useState([initialParameters?.cutoff ?? 1.0])
+  const [resonance, setResonance] = useState([initialParameters?.resonance ?? 0.0])
+  const [drive, setDrive] = useState([initialParameters?.drive ?? 0.0])
+  const [resComp, setResComp] = useState([initialParameters?.resComp ?? 0.6])
+  const [fbSat, setFbSat] = useState([initialParameters?.fbSat ?? 0.09])
+  const [input1Level, setInput1Level] = useState([initialParameters?.input1Level ?? 1])
+  const [input2Level, setInput2Level] = useState([initialParameters?.input2Level ?? 1])
+  const [input3Level, setInput3Level] = useState([initialParameters?.input3Level ?? 1])
+  const [cvAttenuation, setCvAttenuation] = useState([initialParameters?.cvAttenuation ?? 1])
+
+  const [postGain] = useState(1.1) // Keeping as constant since it's calculated from drive
 
   const acRef = useRef<AudioContext | null>(null)
 
@@ -50,15 +61,9 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
 
   const cutoffCVInRef = useRef<GainNode | null>(null)
   const resCVInRef = useRef<GainNode | null>(null)
-  const cutoffAnalyserRef = useRef<AnalyserNode | null>(null)
-  const resAnalyserRef = useRef<AnalyserNode | null>(null)
 
   const workletRef = useRef<AudioWorkletNode | null>(null)
   const outRef = useRef<GainNode | null>(null)
-
-  const cvCutValRef = useRef(0)
-  const cvResValRef = useRef(0)
-  const rafRef = useRef<number | null>(null)
 
   const { registerAudioNode } = useConnections()
 
@@ -71,119 +76,72 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
     } catch { }
   }
 
-  const pushInputLevels = () => {
-    const t = acRef.current?.currentTime ?? 0
-    in1Ref.current?.gain.setTargetAtTime(paramsRef.current.input1Level, t, 0.01)
-    in2Ref.current?.gain.setTargetAtTime(paramsRef.current.input2Level, t, 0.01)
-    in3Ref.current?.gain.setTargetAtTime(paramsRef.current.input3Level, t, 0.01)
-  }
-
   const clamp01 = (x: number) => Math.max(0, Math.min(1, x))
 
-  const updateFilter = () => {
+  // Update parameters via useEffect like other modules
+  useEffect(() => {
     const ac = acRef.current
     const w = workletRef.current
     if (!ac || !w) return
-    const now = ac.currentTime
+    const cutHz = utils.mapExponential(cutoff[0], MIN_CUTOFF, MAX_CUTOFF)
+    w.parameters.get("cutoff")?.setTargetAtTime(cutHz, ac.currentTime, 0.05) // Slower for stability
+  }, [cutoff])
 
-    // Base cutoff from knob (0..1 → MIN..MAX)
-    const baseCut = utils.mapExponential(paramsRef.current.cutoff, MIN_CUTOFF, MAX_CUTOFF)
-
-    // CV mapping: -1..+1 (audio) ≈ -5..+5 V → full span scaled by cvAttenuation
-    const cv = cvCutValRef.current || 0
-    const amt = paramsRef.current.cvAttenuation || 0
-    const span = MAX_CUTOFF - MIN_CUTOFF
-    const cvOffset = ((cv + 1) / 2) * span * amt // normalize -1..+1 → 0..1
-    const cutHz = Math.max(MIN_CUTOFF, Math.min(MAX_CUTOFF, baseCut + cvOffset - (span * amt) / 2))
-
-    const tauCut = cutHz < 150 ? 0.045 : cutHz < 400 ? 0.03 : 0.02
-
-    // Resonance (0..1) + optional CV
-    const baseRes = clamp01(paramsRef.current.resonance || 0)
-    const RES_CV_SENS = 0.5
-    const resFromCV = clamp01((cvResValRef.current || 0) * RES_CV_SENS)
-    const resMix = clamp01(baseRes + resFromCV)
-    const resNorm = Math.min(0.995, Math.pow(resMix, 0.95))
-    const tauRes = resNorm > 0.5 ? 0.07 : 0.035
-
-    w.parameters.get("cutoff")?.setTargetAtTime(cutHz, now, tauCut)
-    w.parameters.get("resonance")?.setTargetAtTime(resNorm, now, tauRes)
-  }
-
-  const updateCvSnapshot = () => {
-    let c = 0, r = 0
-    if (cutoffAnalyserRef.current) {
-      const arr = new Float32Array(cutoffAnalyserRef.current.fftSize)
-      cutoffAnalyserRef.current.getFloatTimeDomainData(arr)
-      let sum = 0
-      for (let i = 0; i < arr.length; i++) sum += arr[i]
-      c = sum / arr.length
-    }
-    if (resAnalyserRef.current) {
-      const arr = new Float32Array(resAnalyserRef.current.fftSize)
-      resAnalyserRef.current.getFloatTimeDomainData(arr)
-      let sum = 0
-      for (let i = 0; i < arr.length; i++) sum += arr[i]
-      r = sum / arr.length
-    }
-    cvCutValRef.current = c
-    cvResValRef.current = r
-  }
-
-  const tick = () => {
-    updateCvSnapshot()
-    updateFilter()
-    pushInputLevels()
-    rafRef.current = requestAnimationFrame(tick)
-  }
-
-  // ---- UI handlers ----------------------------------------------------------
-  const onCutoff = (v: number[]) => {
-    paramsRef.current.cutoff = v[0]
-    updateFilter()
-    setUiUpdateTrigger((x) => x + 1)
-  }
-  const onRes = (v: number[]) => {
-    paramsRef.current.resonance = v[0]
-    updateFilter()
-    setUiUpdateTrigger((x) => x + 1)
-  }
-  const onDrive = (v: number[]) => {
-    paramsRef.current.drive = v[0]
+  useEffect(() => {
     const ac = acRef.current
     const w = workletRef.current
-    if (ac && w) {
-      w.parameters.get("drive")?.setTargetAtTime(v[0], ac.currentTime, 0.02)
-      const pg = paramsRef.current.postGain + 0.1 * v[0]
-      w.parameters.get("postGain")?.setTargetAtTime(pg, ac.currentTime, 0.02)
-    }
-    setUiUpdateTrigger((x) => x + 1)
-  }
-  const onResComp = (v: number[]) => {
-    paramsRef.current.resComp = v[0]
-    const ac = acRef.current
-    const w = workletRef.current
-    if (ac && w) w.parameters.get("resComp")?.setTargetAtTime(v[0], ac.currentTime, 0.02)
-    setUiUpdateTrigger((x) => x + 1)
-  }
-  const onFbSat = (v: number[]) => {
-    paramsRef.current.fbSat = v[0]
-    const ac = acRef.current
-    const w = workletRef.current
-    if (ac && w) w.parameters.get("fbSat")?.setTargetAtTime(v[0], ac.currentTime, 0.02)
-    setUiUpdateTrigger((x) => x + 1)
-  }
-  const onCvAmt = (v: number[]) => {
-    paramsRef.current.cvAttenuation = v[0]
-    updateFilter()
-    setUiUpdateTrigger((x) => x + 1)
-  }
-  const onIn1 = (v: number[]) => { paramsRef.current.input1Level = v[0]; pushInputLevels(); setUiUpdateTrigger((x) => x + 1) }
-  const onIn2 = (v: number[]) => { paramsRef.current.input2Level = v[0]; pushInputLevels(); setUiUpdateTrigger((x) => x + 1) }
-  const onIn3 = (v: number[]) => { paramsRef.current.input3Level = v[0]; pushInputLevels(); setUiUpdateTrigger((x) => x + 1) }
+    if (!ac || !w) return
+    const resNorm = Math.min(0.995, Math.pow(clamp01(resonance[0]), 0.95))
+    w.parameters.get("resonance")?.setTargetAtTime(resNorm, ac.currentTime, 0.05) // Slower for stability
+  }, [resonance])
 
-  // ---- mount ---------------------------------------------------------------
-  const initAudioNodes = useCallback(async () => {
+  useEffect(() => {
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
+    w.parameters.get("drive")?.setTargetAtTime(drive[0], ac.currentTime, 0.05)
+    const pg = postGain + 0.1 * drive[0]
+    w.parameters.get("postGain")?.setTargetAtTime(pg, ac.currentTime, 0.05)
+  }, [drive, postGain])
+
+  useEffect(() => {
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
+    w.parameters.get("resComp")?.setTargetAtTime(resComp[0], ac.currentTime, 0.05)
+  }, [resComp])
+
+  useEffect(() => {
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
+    w.parameters.get("fbSat")?.setTargetAtTime(fbSat[0], ac.currentTime, 0.05)
+  }, [fbSat])
+
+  useEffect(() => {
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
+    // CV attenuation is handled in the worklet
+    w.parameters.get("cvAmount")?.setTargetAtTime(cvAttenuation[0], ac.currentTime, 0.05)
+  }, [cvAttenuation])
+
+  useEffect(() => {
+    const t = acRef.current?.currentTime ?? 0
+    in1Ref.current?.gain.setTargetAtTime(input1Level[0], t, 0.03) // Slower for stability
+  }, [input1Level])
+
+  useEffect(() => {
+    const t = acRef.current?.currentTime ?? 0
+    in2Ref.current?.gain.setTargetAtTime(input2Level[0], t, 0.03) // Slower for stability
+  }, [input2Level])
+
+  useEffect(() => {
+    const t = acRef.current?.currentTime ?? 0
+    in3Ref.current?.gain.setTargetAtTime(input3Level[0], t, 0.03) // Slower for stability
+  }, [input3Level])
+
+  useModuleInit(async () => {
     if (workletRef.current) return // Already initialized
 
     const ac = getAudioContext()
@@ -192,30 +150,20 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
     await ac.audioWorklet.addModule("/ladder-filter-processor.js")
 
     // Inputs as ports (mono)
-    in1Ref.current = ac.createGain(); setMono(in1Ref.current); in1Ref.current.gain.value = paramsRef.current.input1Level
-    in2Ref.current = ac.createGain(); setMono(in2Ref.current); in2Ref.current.gain.value = paramsRef.current.input2Level
-    in3Ref.current = ac.createGain(); setMono(in3Ref.current); in3Ref.current.gain.value = paramsRef.current.input3Level
+    in1Ref.current = ac.createGain(); setMono(in1Ref.current); in1Ref.current.gain.value = input1Level[0]
+    in2Ref.current = ac.createGain(); setMono(in2Ref.current); in2Ref.current.gain.value = input2Level[0]
+    in3Ref.current = ac.createGain(); setMono(in3Ref.current); in3Ref.current.gain.value = input3Level[0]
 
     // Register inputs with new system
     registerAudioNode(`${moduleId}-audio-in-1`, in1Ref.current, "input")
     registerAudioNode(`${moduleId}-audio-in-2`, in2Ref.current, "input")
     registerAudioNode(`${moduleId}-audio-in-3`, in3Ref.current, "input")
 
-    // CV inputs (optional) + analysers for snapshots
+    // CV inputs - connect directly to worklet for audio-rate modulation
     cutoffCVInRef.current = ac.createGain(); cutoffCVInRef.current.gain.value = 1
     resCVInRef.current = ac.createGain(); resCVInRef.current.gain.value = 1
     registerAudioNode(`${moduleId}-cutoff-cv-in`, cutoffCVInRef.current, "input")
     registerAudioNode(`${moduleId}-resonance-cv-in`, resCVInRef.current, "input")
-
-    cutoffAnalyserRef.current = ac.createAnalyser()
-    cutoffAnalyserRef.current.fftSize = 1024
-    cutoffAnalyserRef.current.smoothingTimeConstant = 0.98
-    cutoffCVInRef.current.connect(cutoffAnalyserRef.current)
-
-    resAnalyserRef.current = ac.createAnalyser()
-    resAnalyserRef.current.fftSize = 1024
-    resAnalyserRef.current.smoothingTimeConstant = 0.98
-    resCVInRef.current.connect(resAnalyserRef.current)
 
     // Mixer (mono)
     mixRef.current = ac.createGain(); setMono(mixRef.current); mixRef.current.gain.value = 1
@@ -223,10 +171,10 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
     in2Ref.current.connect(mixRef.current)
     in3Ref.current.connect(mixRef.current)
 
-    // Worklet
-    const initCut = utils.mapExponential(paramsRef.current.cutoff, MIN_CUTOFF, MAX_CUTOFF)
+    // Worklet with CV inputs
+    const initCut = utils.mapExponential(cutoff[0], MIN_CUTOFF, MAX_CUTOFF)
     workletRef.current = new AudioWorkletNode(ac, "ladder-filter-processor", {
-      numberOfInputs: 1,
+      numberOfInputs: 3, // audio, cutoff CV, resonance CV
       numberOfOutputs: 1,
       outputChannelCount: [1],
       channelCount: 1,
@@ -234,69 +182,43 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
       channelInterpretation: "discrete",
       parameterData: {
         cutoff: initCut,
-        resonance: paramsRef.current.resonance,
-        drive: paramsRef.current.drive,
-        postGain: paramsRef.current.postGain,
-        // resComp: paramsRef.current.resComp,
-        // fbSat: paramsRef.current.fbSat,
+        resonance: clamp01(resonance[0]),
+        drive: drive[0],
+        postGain: postGain,
+        resComp: resComp[0],
+        fbSat: fbSat[0],
+        cvAmount: cvAttenuation[0],
       },
     } as any)
 
+    // Connect audio and CV inputs to worklet
+    mixRef.current.connect(workletRef.current!, 0, 0) // audio input
+    cutoffCVInRef.current.connect(workletRef.current!, 0, 1) // cutoff CV
+    resCVInRef.current.connect(workletRef.current!, 0, 2) // resonance CV
+
     // Output (mono) + register as port
     outRef.current = ac.createGain(); setMono(outRef.current); outRef.current.gain.value = 1
-    mixRef.current.connect(workletRef.current!)
     workletRef.current!.connect(outRef.current)
     registerAudioNode(`${moduleId}-audio-out`, outRef.current, "output")
+  }, moduleId)
 
-    // expose get/set if your host uses them
-    const el = document.querySelector(`[data-module-id="${moduleId}"]`)
-    if (el) { ; (el as any).getParameters = getParameters; (el as any).setParameters = setParameters }
-
-    // Prime & start rAF loop
-    updateCvSnapshot()
-    updateFilter()
-    pushInputLevels()
-    rafRef.current = requestAnimationFrame(function loop() { tick(); })
-  }, [moduleId, registerAudioNode])
-
-  // Use the module initialization hook
-  const { isReady, initError, retryInit } = useModuleInit(initAudioNodes, "FILTER")
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      try {
-        outRef.current?.disconnect()
-        workletRef.current?.disconnect()
-        mixRef.current?.disconnect()
-        in1Ref.current?.disconnect()
-        in2Ref.current?.disconnect()
-        in3Ref.current?.disconnect()
-        cutoffCVInRef.current?.disconnect()
-        resCVInRef.current?.disconnect()
-      } catch { }
-    }
-  }, [])
-
-  // ---- UI -------------------------------------------------------------------
   return (
     <ModuleContainer title="Filter" moduleId={moduleId}>
       <div className="flex flex-col items-center justify-center gap-3">
-        <Knob value={[paramsRef.current.cutoff]} onValueChange={onCutoff} size="lg" data-param="cutoff" label="Cutoff" />
+        <Knob value={cutoff} onValueChange={setCutoff} size="lg" data-param="cutoff" label="Cutoff" />
         <div className="flex gap-4">
-          <Knob value={[paramsRef.current.resonance]} onValueChange={onRes} size="md" data-param="resonance" label="Res" />
-          <Knob value={[paramsRef.current.drive]} /* onValueChange={onDrive} */ size="md" data-param="drive" label="Drive" />
+          <Knob value={resonance} onValueChange={setResonance} size="md" data-param="resonance" label="Res" />
+          <Knob value={drive} onValueChange={setDrive} size="md" data-param="drive" label="Drive" />
         </div>
         <div className="flex gap-2">
-          <Knob value={[paramsRef.current.cvAttenuation]} onValueChange={onCvAmt} size="sm" data-param="cvAttenuation" label="CV Amt" />
-          <Knob value={[paramsRef.current.resComp]} onValueChange={onResComp} size="sm" data-param="resComp" label="R Comp" />
-          <Knob value={[paramsRef.current.fbSat]} /* onValueChange={onFbSat} */ size="sm" data-param="fbSat" label="FB Sat" />
+          <Knob value={cvAttenuation} onValueChange={setCvAttenuation} size="sm" data-param="cvAttenuation" label="CV Amt" />
+          <Knob value={resComp} onValueChange={setResComp} size="sm" data-param="resComp" label="R Comp" />
+          <Knob value={fbSat} onValueChange={setFbSat} size="sm" data-param="fbSat" label="FB Sat" />
         </div>
         <div className="flex gap-2">
-          <Knob value={[paramsRef.current.input1Level]} onValueChange={onIn1} size="sm" data-param="input1Level" label="IN 1" />
-          <Knob value={[paramsRef.current.input2Level]} onValueChange={onIn2} size="sm" data-param="input2Level" label="IN 2" />
-          <Knob value={[paramsRef.current.input3Level]} onValueChange={onIn3} size="sm" data-param="input3Level" label="IN 3" />
+          <Knob value={input1Level} onValueChange={setInput1Level} size="sm" data-param="input1Level" label="IN 1" />
+          <Knob value={input2Level} onValueChange={setInput2Level} size="sm" data-param="input2Level" label="IN 2" />
+          <Knob value={input3Level} onValueChange={setInput3Level} size="sm" data-param="input3Level" label="IN 3" />
         </div>
       </div>
 
