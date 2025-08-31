@@ -33,10 +33,9 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
   const div3OutRef = useRef<GainNode | null>(null)
   const div4OutRef = useRef<GainNode | null>(null)
 
-
   const keepAliveRef = useRef<GainNode | null>(null)
 
-  const initAudio = useCallback(async () => {
+  useModuleInit(async () => {
     if (nodeRef.current) return
 
     const ac = getAudioContext()
@@ -91,7 +90,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
 
     node.port.postMessage({ type: "running", value: false })
     console.log("[clock] initialized")
-  }, [moduleId, bpm, div1, div2, div3, div4])
+  }, moduleId)
 
   const startClock = useCallback(() => {
     const node = nodeRef.current
@@ -142,23 +141,6 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
   const handleDiv3Change = useCallback(makeDivHandler("div3", setDiv3), [])
   const handleDiv4Change = useCallback(makeDivHandler("div4", setDiv4), [])
 
-  const { isReady, initError, retryInit } = useModuleInit(initAudio, "CLOCK")
-
-  useEffect(() => {
-    return () => {
-      try {
-        stopClock()
-        nodeRef.current?.disconnect()
-        ppq48OutRef.current?.disconnect()
-        div1OutRef.current?.disconnect()
-        div2OutRef.current?.disconnect()
-        div3OutRef.current?.disconnect()
-        div4OutRef.current?.disconnect()
-        keepAliveRef.current?.disconnect()
-      } catch { }
-    }
-  }, [stopClock])
-
   const defaultKnobValue = [120 / 300]
 
   return (
@@ -172,8 +154,8 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           <PushButton
             onClick={handleStartStop}
             className={`${isRunning
-                ? "bg-red-600 hover:bg-red-700 active:bg-red-800"
-                : "bg-green-600 hover:bg-green-700 active:bg-green-800"
+              ? "bg-red-600 hover:bg-red-700 active:bg-red-800"
+              : "bg-green-600 hover:bg-green-700 active:bg-green-800"
               }`}
             label={isRunning ? "Stop" : "Run"}
           />

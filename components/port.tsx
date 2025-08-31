@@ -19,30 +19,21 @@ export interface PortProps {
   indicator?: boolean
 }
 
-// Convert voltage (-5 to +5) to RGB color
 function voltageToColor(voltage: number): string {
-  // Clamp voltage to -5 to +5 range
-  const v = Math.max(-5, Math.min(5, voltage))
+
+  const v = Math.max(-10, Math.min(10, voltage))
 
   if (v > 0) {
-    // Positive voltage: gray to green (0 to +5)
-    const ratio = v / 5
-    const r = Math.round(128 * (1 - ratio))
-    const g = Math.round(128 + 127 * ratio)
-    const b = Math.round(128 * (1 - ratio))
-    return `rgb(${r}, ${g}, ${b})`
+    const ratio = v / 10
+    return `rgba(0, 255, 0, ${ratio})`
   } else {
-    // Negative voltage: gray to red (0 to -5)
-    const ratio = Math.abs(v) / 5
-    const r = Math.round(128 + 127 * ratio)
-    const g = Math.round(128 * (1 - ratio))
-    const b = Math.round(128 * (1 - ratio))
-    return `rgb(${r}, ${g}, ${b})`
+    const ratio = Math.abs(v) / 10
+    return `rgba(255, 0, 0, ${ratio})`
   }
 }
 
 export function Port({ id, type, label, audioType, audioNode, className, indicator = true }: PortProps) {
-  const { registerPort, unregisterPort, registerAudioNode, beginDrag, updateDrag, endDrag, getConnectedWireColor, connections } = useConnections()
+  const { registerPort, unregisterPort, registerAudioNode, beginDrag, updateDrag, endDrag, getConnectedWireColor, getDragColor, connections } = useConnections()
   const nodeRef = useRef<HTMLDivElement | null>(null)
   const [signalValue, setSignalValue] = useState(0)
   const [wireColor, setWireColor] = useState<string | null>(null)
@@ -52,11 +43,16 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
   // Force disable indicator for audio ports
   const showIndicator = indicator && audioType !== 'audio'
 
-  // Update wire color when connections change
+  // Update wire color when connections change or when dragging
   useEffect(() => {
-    const color = getConnectedWireColor(id)
-    setWireColor(color)
-  }, [id, getConnectedWireColor, connections])
+    const dragColor = getDragColor(id)
+    if (dragColor) {
+      setWireColor(dragColor)
+    } else {
+      const connectedColor = getConnectedWireColor(id)
+      setWireColor(connectedColor)
+    }
+  }, [id, getConnectedWireColor, getDragColor, connections])
 
   // ⬇️ map to connection-manager kind, treating "any" as "any"
   const kind: PortKind = useMemo(() => {
@@ -179,7 +175,7 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
   return (
     <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-2 pb-0.5 w-11 bg-neutral-400 rounded-sm relative", className)}>
       <TextLabel>{label}</TextLabel>
-      {showIndicator && (
+      {/* {showIndicator && (
         <div
           className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full shadow-sm"
           style={{
@@ -187,24 +183,30 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
             boxShadow: `0 0 3px ${voltageToColor(signalValue)}`
           }}
         />
-      )}
+      )} */}
       <div
         ref={setNodeRef}
         data-port-id={id}
         data-port-kind={kind}
         className={cn(
-          "w-5 h-5 shrink-0 rounded-full border-3 cursor-pointer hover:scale-110 select-none",
-          !wireColor ? "bg-neutral-300 border-neutral-900" : ""
+          "relative w-5 h-5 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-3 border-neutral-100",
         )}
-        style={wireColor ? {
-          backgroundColor: `${wireColor}33`,  // 20% opacity for fill (using hex)
-          borderColor: wireColor,
-          borderWidth: "3px"
-        } : {}}
+        // style={wireColor ? {
+        //   borderColor: wireColor,
+        //   borderWidth: !wireColor ? "4px" : "5px",
+        // } : {}}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-      />
+      >
+        {wireColor ? <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
+          style={{
+            backgroundColor: voltageToColor(signalValue),
+            boxShadow: `0 0 3px ${voltageToColor(signalValue)}`
+          }}
+        /> : <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-neutral-900" />}
+      </div>
     </div>
   )
 }

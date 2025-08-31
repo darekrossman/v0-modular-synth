@@ -3,39 +3,27 @@
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { v4 as uuid } from "uuid"
+import type { AudioKind, PortDirection, ConnectionEdge, PatchJson } from "@/lib/connection-types"
 
-// ---- Minimal shared types (keep local to this file)
-export type AudioKind = "audio" | "cv" | "any"
-type Direction = "input" | "output"
+// Re-export for components that import from here
+export type { AudioKind, ConnectionEdge, PatchJson }
 
-export type ConnectionEdge = {
-  id: string
-  from: string
-  to: string
-  kind: Exclude<AudioKind, "any">
-}
-
-export type PatchJson = {
-  modules: Array<{ id: string; type: string; parameters?: Record<string, any> }>
-  connections: ConnectionEdge[]
-}
+// Keep local alias for backward compatibility
+type Direction = PortDirection
 
 // ---- Utils
-const hashColor = (s: string) => {
-  // Always return a palette color, even for empty strings
-  const palette = ["#FF3B30", "#00D4AA", "#007AFF", "#34C759", "#FF9500", "#AF52DE", "#FFCC00"]
-  
-  if (!s || typeof s !== "string" || s.trim() === "") {
-    // Return first palette color for empty strings instead of gray
-    return palette[0]
-  }
+const WIRE_PALETTE = [
+  "#FF0040",  // Vibrant red/pink
+  "#0057ff",  // Vibrant blue
+  "#00FF94",  // Vibrant mint green
+  "#FF8000",  // Vibrant orange
+  "#9D00FF",  // Vibrant purple
+  "#FFD700",  // Vibrant gold
+]
+const GRAY_WIRE = "#808080"
 
-  let h = 2166136261 >>> 0
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return palette[h % palette.length]
+const getRandomPaletteColor = () => {
+  return WIRE_PALETTE[Math.floor(Math.random() * WIRE_PALETTE.length)]
 }
 
 const safeConnect = (outNode?: AudioNode, inNode?: AudioNode) => {
@@ -78,7 +66,7 @@ interface Ctx {
   cancelDrag: () => void
 
   // Manage connections
-  addConnection: (fromPortId: string, toPortId: string, kind: Exclude<AudioKind, "any">) => void
+  addConnection: (fromPortId: string, toPortId: string, kind: Exclude<AudioKind, "any">, color?: string) => void
   removeConnection: (id: string) => void
   clearAllConnections: () => void
   removeAllConnectionsForModule: (moduleId: string) => void // Added function to remove all connections for a specific module
@@ -94,7 +82,8 @@ interface Ctx {
   // Styling/geometry
   getPortColor: (portId: string) => string
   getConnectedWireColor: (portId: string) => string | null  // Get color of wire connected to this port
-  registerTempWireUpdater: (fn: (from: { x: number; y: number }, to: { x: number; y: number } | null) => void) => void
+  getDragColor: (portId: string) => string | null  // Get temp color if this port is being dragged from
+  registerTempWireUpdater: (fn: (from: { x: number; y: number }, to: { x: number; y: number } | null, color?: string) => void) => void
   getPortCenter: (portId: string) => { x: number; y: number }
 
   // Save/Load
@@ -120,17 +109,25 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
 
   // Version to trigger overlay re-render when geometry changes
   const [geometryVersion, setGeometryVersion] = useState(0)
+  // Track active drag for port color updates
+  const [activeDrag, setActiveDrag] = useState<{ from: string; color: string } | null>(null)
 
   // Drag state
-  const dragging = useRef<{ active: boolean; from?: string; pt?: { x: number; y: number } }>({ active: false })
+  const dragging = useRef<{
+    active: boolean;
+    from?: string;
+    fromDirection?: Direction;
+    tempColor?: string;
+    pt?: { x: number; y: number }
+  }>({ active: false })
 
   // Temp wire updater (imperative)
   const tempWireUpdater = useRef<
-    null | ((from: { x: number; y: number }, to: { x: number; y: number } | null) => void)
+    null | ((from: { x: number; y: number }, to: { x: number; y: number } | null, color?: string) => void)
   >(null)
 
   const registerTempWireUpdater = useCallback(
-    (fn: (from: { x: number; y: number }, to: { x: number; y: number } | null) => void) => {
+    (fn: (from: { x: number; y: number }, to: { x: number; y: number } | null, color?: string) => void) => {
       tempWireUpdater.current = fn
     },
     [],
@@ -299,7 +296,7 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
   }
 
   // ---- Public connection API ----
-  const addConnection: Ctx["addConnection"] = useCallback((fromId, toId, kind) => {
+  const addConnection: Ctx["addConnection"] = useCallback((fromId, toId, kind, color) => {
     // De-dupe identical edge
     for (const e of connectionsRef.current.values()) {
       if (e.from === fromId && e.to === toId && e.kind === kind) return
@@ -314,9 +311,21 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
       }
     }
 
+    // Determine color: use provided color, or get from existing output connections, or pick random
+    let wireColor = color
+    if (!wireColor) {
+      // Check if output port already has connections
+      const outputConnections = Array.from(connectionsRef.current.values()).filter(e => e.from === fromId)
+      if (outputConnections.length > 0) {
+        wireColor = outputConnections[0].color
+      } else {
+        wireColor = getRandomPaletteColor()
+      }
+    }
+
     // Add the new connection
     const id = uuid()
-    const edge: ConnectionEdge = { id, from: fromId, to: toId, kind }
+    const edge: ConnectionEdge = { id, from: fromId, to: toId, kind, color: wireColor }
     connectionsRef.current.set(id, edge)
 
     setConnections(Array.from(connectionsRef.current.values()))
@@ -375,7 +384,7 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
       return
     }
 
-    // Dragging from a connected input → detach and start from the source output
+    // Dragging from a connected input → detach and start from the source output with existing color
     if (startEntry.meta.direction === "input") {
       const hit = findConnectionIntoInput(fromPortId)
       if (hit) {
@@ -384,22 +393,57 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
         connectionsRef.current.delete(id)
         setConnections((xs) => xs.filter((c) => c.id !== id))
 
-        dragging.current = { active: true, from: edge.from, pt: { x: clientX, y: clientY } }
+        dragging.current = {
+          active: true,
+          from: edge.from,
+          fromDirection: "output",
+          tempColor: edge.color, // Use existing wire color
+          pt: { x: clientX, y: clientY }
+        }
+        // Set active drag state with existing color
+        setActiveDrag({ from: edge.from, color: edge.color })
 
         const fromCenter = portCenters.current.get(edge.from)
         if (fromCenter && tempWireUpdater.current) {
-          tempWireUpdater.current(fromCenter, { x: clientX, y: clientY })
+          tempWireUpdater.current(fromCenter, { x: clientX, y: clientY }, edge.color)
         }
         setGeometryVersion((v) => v + 1)
         return
       }
+
+      // Dragging from unconnected input - use gray for temp wire
+      dragging.current = {
+        active: true,
+        from: fromPortId,
+        fromDirection: "input",
+        tempColor: GRAY_WIRE,
+        pt: { x: clientX, y: clientY }
+      }
+      // Set active drag state for input port (gray)
+      setActiveDrag({ from: fromPortId, color: GRAY_WIRE })
+    } else {
+      // Dragging from output port
+      // Check if output has existing connections to inherit color
+      const existingConnections = Array.from(connectionsRef.current.values()).filter(e => e.from === fromPortId)
+      const tempColor = existingConnections.length > 0
+        ? existingConnections[0].color
+        : getRandomPaletteColor() // Pick new random color for unconnected output
+
+      dragging.current = {
+        active: true,
+        from: fromPortId,
+        fromDirection: "output",
+        tempColor,
+        pt: { x: clientX, y: clientY }
+      }
+
+      // Set active drag state to trigger port color update
+      setActiveDrag({ from: fromPortId, color: tempColor })
     }
 
-    // Normal start
-    dragging.current = { active: true, from: fromPortId, pt: { x: clientX, y: clientY } }
     const fromCenter = portCenters.current.get(fromPortId)
     if (fromCenter && tempWireUpdater.current) {
-      tempWireUpdater.current(fromCenter, { x: clientX, y: clientY })
+      tempWireUpdater.current(fromCenter, { x: clientX, y: clientY }, dragging.current.tempColor)
     }
   }, [])
 
@@ -407,37 +451,71 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     if (!dragging.current.active || !dragging.current.from) return
     dragging.current.pt = { x: clientX, y: clientY }
     const from = portCenters.current.get(dragging.current.from)
-    if (from && tempWireUpdater.current) tempWireUpdater.current(from, { x: clientX, y: clientY })
+    if (from && tempWireUpdater.current) tempWireUpdater.current(from, { x: clientX, y: clientY }, dragging.current.tempColor)
   }, [])
 
   const endDrag = useCallback(
     (maybeToPortId?: string) => {
       const from = dragging.current.from
+      const fromDirection = dragging.current.fromDirection
+      const tempColor = dragging.current.tempColor
       dragging.current = { active: false } as any
+      setActiveDrag(null) // Clear active drag state
 
       // Always clear temp wire
       tempWireUpdater.current?.({ x: 0, y: 0 }, null)
 
       if (!from || !maybeToPortId) return // dropped on empty space
 
-      const out = ports.current.get(from)
-      const inp = ports.current.get(maybeToPortId)
-      if (!out || !inp) return
-      if (out.meta.direction !== "output" || inp.meta.direction !== "input") return
+      const fromPort = ports.current.get(from)
+      const toPort = ports.current.get(maybeToPortId)
+      if (!fromPort || !toPort) return
 
-      const desired: Exclude<AudioKind, "any"> = out.meta.kind === "cv" || inp.meta.kind === "cv" ? "cv" : "audio"
+      // Support bidirectional dragging
+      let outputPortId: string
+      let inputPortId: string
+      let finalColor: string | undefined = tempColor
 
-      const outOk = out.meta.kind === desired || out.meta.kind === "any"
-      const inOk = inp.meta.kind === desired || inp.meta.kind === "any"
+      if (fromDirection === "output") {
+        // Dragging from output to input (normal)
+        if (toPort.meta.direction !== "input") return
+        outputPortId = from
+        inputPortId = maybeToPortId
+      } else {
+        // Dragging from input to output (reverse)
+        if (toPort.meta.direction !== "output") return
+        outputPortId = maybeToPortId
+        inputPortId = from
+
+        // When connecting to an output, check if it has existing connections
+        const existingOutputConnections = Array.from(connectionsRef.current.values()).filter(e => e.from === outputPortId)
+        if (existingOutputConnections.length > 0) {
+          // Use existing output color
+          finalColor = existingOutputConnections[0].color
+        } else if (tempColor === GRAY_WIRE) {
+          // Pick new random color since we were dragging from unconnected input
+          finalColor = getRandomPaletteColor()
+        }
+      }
+
+      const outPort = ports.current.get(outputPortId)
+      const inPort = ports.current.get(inputPortId)
+      if (!outPort || !inPort) return
+
+      const desired: Exclude<AudioKind, "any"> = outPort.meta.kind === "cv" || inPort.meta.kind === "cv" ? "cv" : "audio"
+
+      const outOk = outPort.meta.kind === desired || outPort.meta.kind === "any"
+      const inOk = inPort.meta.kind === desired || inPort.meta.kind === "any"
       if (!outOk || !inOk) return
 
-      addConnection(from, maybeToPortId, desired)
+      addConnection(outputPortId, inputPortId, desired, finalColor)
     },
     [addConnection],
   )
 
   const cancelDrag = useCallback(() => {
     dragging.current = { active: false } as any
+    setActiveDrag(null) // Clear active drag state
     tempWireUpdater.current?.({ x: 0, y: 0 }, null)
   }, [])
 
@@ -483,19 +561,24 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
       registerAudioNode,
 
       getPortColor: (portId) => {
-        // Not used by wire-canvas anymore, but kept for compatibility
-        return hashColor(portId)
+        // Deprecated - not used anymore
+        return ""
       },
       getConnectedWireColor: (portId) => {
-        // Find any connection that involves this port
-        // Use connections state array (not ref) so ports re-render when connections change
+        // Find any connection that involves this port and return its color
         for (const edge of connections) {
           if (edge.from === portId || edge.to === portId) {
-            // Wire color is ALWAYS based on source port ID hash
-            return hashColor(edge.from)
+            return edge.color
           }
         }
         return null  // No connection found
+      },
+      getDragColor: (portId) => {
+        // Return temp color if this port is being dragged from
+        if (activeDrag && activeDrag.from === portId) {
+          return activeDrag.color
+        }
+        return null
       },
       registerTempWireUpdater,
       getPortCenter,
@@ -506,6 +589,7 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     [
       connections,
       geometryVersion,
+      activeDrag,
       beginDrag,
       updateDrag,
       endDrag,

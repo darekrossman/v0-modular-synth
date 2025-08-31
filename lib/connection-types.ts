@@ -16,6 +16,7 @@ id: string; // uuid
 from: string; // portId (must be direction: output)
 to: string; // portId (must be direction: input)
 kind: Exclude<AudioKind, "any">; // "audio" | "cv"
+color: string; // wire color from palette
 }
 
 

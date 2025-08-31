@@ -20,17 +20,17 @@ export function SettingsDialog() {
           <div>
             <div className="text-foreground font-medium mb-2">Cables</div>
             <div className="flex items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground w-28">Cable Droop</div>
+              <div className="text-xs text-muted-foreground w-28">Cable Tension</div>
               <div className="flex-1">
                 <SettingsSlider
-                  value={[typeof settings.wireDroop === 'number' ? settings.wireDroop : 0.5]}
-                  onValueChange={(v) => setSettings((prev) => ({ ...prev, wireDroop: Math.max(0, Math.min(1, v[0] ?? 0)) }))}
+                  value={[typeof settings.wireTension === 'number' ? settings.wireTension : 0.5]}
+                  onValueChange={(v) => setSettings((prev) => ({ ...prev, wireTension: Math.max(0, Math.min(1, v[0] ?? 0)) }))}
                   min={0}
                   max={1}
                   step={0.01}
                 />
               </div>
-              <div className="w-10 text-right text-xs tabular-nums">{Math.round(((settings.wireDroop as number ?? 0.5) * 100))}%</div>
+              <div className="w-10 text-right text-xs tabular-nums">{Math.round(((settings.wireTension as number ?? 0.5) * 100))}%</div>
             </div>
             <div className="flex items-center justify-between gap-3 mt-3">
               <div className="text-xs text-muted-foreground w-28">Cable Opacity</div>
