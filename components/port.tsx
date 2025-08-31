@@ -42,14 +42,21 @@ function voltageToColor(voltage: number): string {
 }
 
 export function Port({ id, type, label, audioType, audioNode, className, indicator = true }: PortProps) {
-  const { registerPort, unregisterPort, registerAudioNode, beginDrag, updateDrag, endDrag } = useConnections()
+  const { registerPort, unregisterPort, registerAudioNode, beginDrag, updateDrag, endDrag, getConnectedWireColor, connections } = useConnections()
   const nodeRef = useRef<HTMLDivElement | null>(null)
   const [signalValue, setSignalValue] = useState(0)
+  const [wireColor, setWireColor] = useState<string | null>(null)
   const analyzerRef = useRef<AnalyserNode | null>(null)
   const animationFrameRef = useRef<number | null>(null)
 
   // Force disable indicator for audio ports
   const showIndicator = indicator && audioType !== 'audio'
+
+  // Update wire color when connections change
+  useEffect(() => {
+    const color = getConnectedWireColor(id)
+    setWireColor(color)
+  }, [id, getConnectedWireColor, connections])
 
   // ⬇️ map to connection-manager kind, treating "any" as "any"
   const kind: PortKind = useMemo(() => {
@@ -171,6 +178,7 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
 
   return (
     <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-2 pb-0.5 w-11 bg-neutral-400 rounded-sm relative", className)}>
+      <TextLabel>{label}</TextLabel>
       {showIndicator && (
         <div
           className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full shadow-sm"
@@ -184,12 +192,19 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
         ref={setNodeRef}
         data-port-id={id}
         data-port-kind={kind}
-        className="w-5 h-5 shrink-0 rounded-full border-3 bg-neutral-300 border-neutral-900 cursor-pointer hover:scale-110 select-none"
+        className={cn(
+          "w-5 h-5 shrink-0 rounded-full border-3 cursor-pointer hover:scale-110 select-none",
+          !wireColor ? "bg-neutral-300 border-neutral-900" : ""
+        )}
+        style={wireColor ? {
+          backgroundColor: `${wireColor}33`,  // 20% opacity for fill (using hex)
+          borderColor: wireColor,
+          borderWidth: "3px"
+        } : {}}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       />
-      <TextLabel>{label}</TextLabel>
     </div>
   )
 }

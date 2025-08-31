@@ -326,7 +326,7 @@ export function SimpleOscilloscopeModule({ moduleId }: { moduleId: string }) {
           </div>
 
           <Button
-            variant={triggerEnabled ? "secondary" : "default"}
+            variant={triggerEnabled ? "default" : "secondary"}
             size="xs"
             className="px-2"
             onClick={() => setTriggerEnabled((s) => !s)}

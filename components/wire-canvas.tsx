@@ -5,10 +5,14 @@ import { useSettings } from "@/components/settings-context"
 import { useConnections } from "./connection-manager"
 import type { ConnectionEdge } from "@/lib/connection-types"
 
-// Deterministic color fallback (FNV-like hash → palette)
+// Deterministic color (FNV-like hash → palette)
 function hashColor(s: string) {
+  // Always return a palette color, even for empty strings
+  const palette = ["#FF3B30", "#00D4AA", "#007AFF", "#34C759", "#FF9500", "#AF52DE", "#FFCC00"]
+  
   if (!s || typeof s !== "string" || s.trim() === "") {
-    return "#888888" // Safe fallback color
+    // Return first palette color for empty strings instead of gray
+    return palette[0]
   }
 
   let h = 2166136261 >>> 0
@@ -16,7 +20,6 @@ function hashColor(s: string) {
     h ^= s.charCodeAt(i)
     h = Math.imul(h, 16777619)
   }
-  const palette = ["#FF3B30", "#00D4AA", "#007AFF", "#34C759", "#FF9500", "#AF52DE", "#FFCC00"]
   return palette[h % palette.length]
 }
 
@@ -26,18 +29,43 @@ const cssEscape = (s: string) => {
   return s.replace(/[^a-zA-Z0-9_-]/g, "\\$&")
 }
 
-function makeSagPath(droop: number) {
+function makeSagPath(droop: number, shadowOffset: number = 0) {
   const d = Math.max(0, Math.min(1, droop))
-  const scale = 0.9 * d // 0..0.9 ; 0.5 -> 0.45
-  const cap = 260 * d   // 0..260 ; 0.5 -> 130
+
   return (a: { x: number; y: number }, b: { x: number; y: number }) => {
     const dx = b.x - a.x
     const dy = b.y - a.y
     const dist = Math.hypot(dx, dy)
-    const sag = Math.min(dist * scale, cap)
-    const mx = (a.x + b.x) / 2
-    const my = (a.y + b.y) / 2 + sag
-    return `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`
+
+    // More realistic catenary-like curve
+    // Sag increases with square root of distance (more natural physics)
+    // But capped to avoid excessive drooping
+    const baseSag = Math.sqrt(dist) * 8 * d  // Further increased for more dramatic sag
+    const maxSag = 600 * d  // Increased to 600px max for very dramatic drooping at max setting
+
+    // Account for horizontal vs vertical wires
+    // Horizontal wires sag more, vertical wires sag less
+    const horizontalFactor = Math.abs(dx) / (dist + 1)  // 0 for vertical, 1 for horizontal
+    const sagMultiplier = 0.3 + 0.7 * horizontalFactor  // Reduce sag for vertical wires
+
+    const sag = Math.min(baseSag * sagMultiplier, maxSag) + shadowOffset
+
+    // Use cubic bezier for more realistic curve shape
+    // Control points create a natural hanging curve
+    const cp1x = a.x + dx * 0.25
+    const cp1y = a.y + dy * 0.25 + sag * 0.7  // Increased from 0.5 for more pronounced curve
+    const cp2x = a.x + dx * 0.75
+    const cp2y = a.y + dy * 0.75 + sag * 0.7  // Increased from 0.5 for more pronounced curve
+
+    // For very short wires, use simpler quadratic curve
+    if (dist < 50) {
+      const mx = (a.x + b.x) / 2
+      const my = (a.y + b.y) / 2 + sag * 0.8  // Increased from 0.7 for more visible sag
+      return `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`
+    }
+
+    // For longer wires, use cubic bezier for more natural curve
+    return `M ${a.x} ${a.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${b.x} ${b.y}`
   }
 }
 
@@ -80,8 +108,6 @@ export function WireCanvas() {
 
   const groupMap = useRef(new Map<string, SVGGElement>())
   const pathMap = useRef(new Map<string, SVGPathElement>())
-  const aDotMap = useRef(new Map<string, SVGCircleElement>())
-  const bDotMap = useRef(new Map<string, SVGCircleElement>())
 
   const rafId = useRef<number | null>(null)
   const settleUntil = useRef<number>(0)
@@ -105,26 +131,9 @@ export function WireCanvas() {
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
   }
 
-  // Always return a valid color
+  // Always return a valid color based on source port
   const pickColor = (edge: ConnectionEdge) => {
-    // Prefer the source port's color, then the target's, then hash(edge.id)
-    if (getPortColor && edge.from && typeof edge.from === "string" && edge.from.trim()) {
-      const c1 = getPortColor(edge.from)
-      if (c1 && typeof c1 === "string" && c1.trim() && c1 !== "") {
-        return c1
-      }
-    }
-
-    if (getPortColor && edge.to && typeof edge.to === "string" && edge.to.trim()) {
-      const c2 = getPortColor(edge.to)
-      if (c2 && typeof c2 === "string" && c2.trim() && c2 !== "") {
-        return c2
-      }
-    }
-
-    // Final fallback using edge ID
-    const fallbackColor = hashColor(edge.id || "default")
-    return fallbackColor
+    return hashColor(edge.from)
   }
 
   // Imperative temp-wire drawer
@@ -141,41 +150,38 @@ export function WireCanvas() {
     })
   }, [registerTempWireUpdater])
 
+  const shadowPathMap = useRef(new Map<string, SVGPathElement>())
+
   const ensureEdgeDom = (edge: ConnectionEdge) => {
     const layer = staticLayerRef.current
     if (!layer || groupMap.current.has(edge.id)) return
 
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g")
-    g.setAttribute("filter", "url(#wireGlow)")
     g.setAttribute("data-edge-id", edge.id)
+
+    // Shadow path (rendered first, behind the main wire)
+    const shadowPath = document.createElementNS("http://www.w3.org/2000/svg", "path")
+    shadowPath.setAttribute("fill", "none")
+    shadowPath.setAttribute("stroke", "black")
+    shadowPath.setAttribute("stroke-width", String(thicknessRef.current))  // Same width as wire
+    shadowPath.setAttribute("stroke-opacity", "0.2")
+    shadowPath.setAttribute("vector-effect", "non-scaling-stroke")
+    shadowPath.setAttribute("filter", "url(#wireShadowBlur)")
 
     const p = document.createElementNS("http://www.w3.org/2000/svg", "path")
     p.setAttribute("fill", "none")
     p.setAttribute("stroke-width", "6")
     p.setAttribute("stroke-opacity", String(opacityRef.current))
     p.setAttribute("vector-effect", "non-scaling-stroke")
-    // safe default so wire is never invisible
-    p.setAttribute("stroke", "#888")
 
-    const ca = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    ca.setAttribute("r", "6")
-    ca.setAttribute("fill", "#888")
-    ca.setAttribute("fill-opacity", "1")
-
-    const cb = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    cb.setAttribute("r", "6")
-    cb.setAttribute("fill", "#888")
-    cb.setAttribute("fill-opacity", "1")
-
+    // Render order: shadow, then wire
+    g.appendChild(shadowPath)
     g.appendChild(p)
-    g.appendChild(ca)
-    g.appendChild(cb)
     layer.appendChild(g)
 
     groupMap.current.set(edge.id, g)
     pathMap.current.set(edge.id, p)
-    aDotMap.current.set(edge.id, ca)
-    bDotMap.current.set(edge.id, cb)
+    shadowPathMap.current.set(edge.id, shadowPath)
   }
 
   const pruneMissingEdges = (present: Set<string>) => {
@@ -186,46 +192,50 @@ export function WireCanvas() {
         } catch { }
         groupMap.current.delete(id)
         pathMap.current.delete(id)
-        aDotMap.current.delete(id)
-        bDotMap.current.delete(id)
+        shadowPathMap.current.delete(id)
       }
     }
   }
 
   const drawEdge = (edge: ConnectionEdge) => {
     const p = pathMap.current.get(edge.id)
+    const shadowPath = shadowPathMap.current.get(edge.id)
     const g = groupMap.current.get(edge.id)
-    const ca = aDotMap.current.get(edge.id)
-    const cb = bDotMap.current.get(edge.id)
-    if (!p || !ca || !cb || !g) return
+    if (!p || !shadowPath || !g) return
 
     const aScr = getScreenCenter(edge.from)
     const bScr = getScreenCenter(edge.to)
     if (!aScr || !bScr) {
       p.setAttribute("d", "")
+      shadowPath.setAttribute("d", "")
       return
     }
 
     const a = toSvg(aScr)
     const b = toSvg(bScr)
+    
+    // Wire goes directly to port centers
     const d = sagPathRef.current(a, b)
+
+    // Create shadow path with additional vertical offset
+    const dist = Math.hypot(b.x - a.x, b.y - a.y)
+    const shadowVerticalOffset = Math.min(15, dist * 0.05)  // 5% of distance, max 15px
+    const shadowSagPath = makeSagPath(droopRef.current, shadowVerticalOffset)
+    const shadowD = shadowSagPath(a, b)  // Same endpoints, but sags lower
+
     const color = pickColor(edge)
 
-    const safeColor = color && typeof color === "string" && color.trim() ? color : "#888888"
+    // Set shadow path
+    shadowPath.setAttribute("d", shadowD)
+    shadowPath.setAttribute("stroke-width", String(thicknessRef.current))  // Same thickness as wire
 
+    // Set main wire path
     p.setAttribute("d", d)
-    p.setAttribute("stroke", safeColor)
+    p.setAttribute("stroke", color)
     const opacity = opacityRef.current
-    // Apply opacity only to the path, keep endpoints opaque
     p.setAttribute("stroke-opacity", String(opacity))
     // Apply current thickness
     p.setAttribute("stroke-width", String(thicknessRef.current))
-    ca.setAttribute("cx", String(a.x))
-    ca.setAttribute("cy", String(a.y))
-    ca.setAttribute("fill", safeColor)
-    cb.setAttribute("cx", String(b.x))
-    cb.setAttribute("cy", String(b.y))
-    cb.setAttribute("fill", safeColor)
   }
 
   const tick = () => {
@@ -268,18 +278,17 @@ export function WireCanvas() {
       })
       groupMap.current.clear()
       pathMap.current.clear()
-      aDotMap.current.clear()
-      bDotMap.current.clear()
+      shadowPathMap.current.clear()
     }
   }, [])
 
   const items = useMemo(() => connections, [connections])
 
   return (
-    <svg ref={svgRef} className="pointer-events-none fixed inset-0 w-full h-full z-40" shapeRendering="optimizeSpeed">
+    <svg ref={svgRef} className="pointer-events-none fixed inset-0 w-full h-full z-40" shapeRendering="geometricPrecision">
       <defs>
-        <filter id="wireGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow stdDeviation="1.5" dx="0" dy="0" floodOpacity="0.7" />
+        <filter id="wireShadowBlur" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="1" />
         </filter>
       </defs>
 

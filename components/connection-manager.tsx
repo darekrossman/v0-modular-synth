@@ -22,8 +22,12 @@ export type PatchJson = {
 
 // ---- Utils
 const hashColor = (s: string) => {
+  // Always return a palette color, even for empty strings
+  const palette = ["#FF3B30", "#00D4AA", "#007AFF", "#34C759", "#FF9500", "#AF52DE", "#FFCC00"]
+  
   if (!s || typeof s !== "string" || s.trim() === "") {
-    return "#888888" // Safe fallback
+    // Return first palette color for empty strings instead of gray
+    return palette[0]
   }
 
   let h = 2166136261 >>> 0
@@ -31,7 +35,6 @@ const hashColor = (s: string) => {
     h ^= s.charCodeAt(i)
     h = Math.imul(h, 16777619)
   }
-  const palette = ["#FF3B30", "#00D4AA", "#007AFF", "#34C759", "#FF9500", "#AF52DE", "#FFCC00"]
   return palette[h % palette.length]
 }
 
@@ -90,6 +93,7 @@ interface Ctx {
 
   // Styling/geometry
   getPortColor: (portId: string) => string
+  getConnectedWireColor: (portId: string) => string | null  // Get color of wire connected to this port
   registerTempWireUpdater: (fn: (from: { x: number; y: number }, to: { x: number; y: number } | null) => void) => void
   getPortCenter: (portId: string) => { x: number; y: number }
 
@@ -479,11 +483,19 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
       registerAudioNode,
 
       getPortColor: (portId) => {
-        if (!portId || typeof portId !== "string" || portId.trim() === "") {
-          return "#888888"
+        // Not used by wire-canvas anymore, but kept for compatibility
+        return hashColor(portId)
+      },
+      getConnectedWireColor: (portId) => {
+        // Find any connection that involves this port
+        // Use connections state array (not ref) so ports re-render when connections change
+        for (const edge of connections) {
+          if (edge.from === portId || edge.to === portId) {
+            // Wire color is ALWAYS based on source port ID hash
+            return hashColor(edge.from)
+          }
         }
-        const color = hashColor(portId)
-        return color
+        return null  // No connection found
       },
       registerTempWireUpdater,
       getPortCenter,

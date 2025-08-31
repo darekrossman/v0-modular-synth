@@ -130,25 +130,28 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="Random" moduleId={moduleId}>
-      <div className="flex flex-col flex-1 justify-between gap-1">
+      <div className="flex flex-col flex-1 justify-between">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="flex items-center justify-between gap-3 p-1.5 rounded-xs bg-black/10">
-            <Port
-              id={`${moduleId}-trigger-in-${i + 1}`}
-              type="input"
-              label="Trig"
-              audioType="cv"
-              audioNode={trigIn[i].current ?? undefined}
-            />
-            <Knob defaultValue={atten[i]} onValueChange={setAttenIdx(i)} label="Level" size="sm" />
-            <Knob defaultValue={offset[i]} onValueChange={setOffsetIdx(i)} label="Offset" size="sm" />
-            <Port
-              id={`${moduleId}-cv-out-${i + 1}`}
-              type="output"
-              label={`CV${i + 1}`}
-              audioType="cv"
-              audioNode={cvOut[i].current ?? undefined}
-            />
+          <div className="contents" key={i} >
+            {i !== 0 && <div className="w-full h-0.5 bg-neutral-900 rounded-full" />}
+            <div className="flex items-center justify-between gap-3 rounded-xs">
+              <Port
+                id={`${moduleId}-trigger-in-${i + 1}`}
+                type="input"
+                label="Trig"
+                audioType="cv"
+                audioNode={trigIn[i].current ?? undefined}
+              />
+              <Knob defaultValue={atten[i]} onValueChange={setAttenIdx(i)} label="Level" size="sm" />
+              <Knob defaultValue={offset[i]} onValueChange={setOffsetIdx(i)} label="Offset" size="sm" />
+              <Port
+                id={`${moduleId}-cv-out-${i + 1}`}
+                type="output"
+                label={`out`}
+                audioType="cv"
+                audioNode={cvOut[i].current ?? undefined}
+              />
+            </div>
           </div>
         ))}
       </div>

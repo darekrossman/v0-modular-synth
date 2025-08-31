@@ -206,7 +206,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
           <div
             ref={ref}
             className={cn(
-              "relative rounded-full cursor-pointer select-none",
+              "bg-neutral-900 relative rounded-full cursor-pointer select-none",
               "focus-visible:outline-none",
               sizeClasses[size],
               skirtSizeClass[size],
@@ -221,7 +221,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             {...props}
           >
             {/* SVG for outer border arc */}
-            <svg
+            {/* <svg
               className="absolute inset-0 pointer-events-none"
               viewBox={`0 0 ${svgConfig[size].viewBox} ${svgConfig[size].viewBox}`}
               width="100%"
@@ -251,7 +251,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
                 strokeWidth={svgConfig[size].strokeWidth}
                 strokeLinecap="round"
               />
-            </svg>
+            </svg> */}
 
             <div
               className={`relative w-full h-full rounded-full`}
@@ -269,7 +269,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
                     marginLeft: size === 'xs' ? '-1.5px' : (smallStroke ? "-2px" : "-3px"),
                   }}
                 >
-                  <div className="w-full h-[85%] bg-neutral-900 rounded-full" style={{
+                  <div className="w-full h-[50%] bg-neutral-100 rounded-full" style={{
                     marginTop: size === 'xs' ? '2px' : '0px',
                   }} />
                 </div>
