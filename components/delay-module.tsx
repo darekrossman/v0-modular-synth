@@ -233,7 +233,6 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
             key={m}
             size="sm"
             variant={mode === m ? "default" : "secondary"}
-            className="h-8 px-2"
             onClick={() => setMode(m)}
           >
             {label}
@@ -241,7 +240,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-0 mt-5">
+      <div className="flex flex-col items-center gap-4 mt-6">
         {clocked ? (
           <Knob
             value={[clockDivIdx / (NOTE_DIVISIONS.length - 1)]}
@@ -255,7 +254,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
           <Knob value={timeN} onValueChange={setTimeN} size="lg" label="Time" />
         )}
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-6">
           <div className="flex gap-11">
             <Knob value={fbN} onValueChange={setFbN} size="md" label="Feedback" />
             <Knob value={toneN} onValueChange={setToneN} size="md" label="Tone" />

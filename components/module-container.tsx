@@ -18,7 +18,7 @@ export function ModuleContainer({ moduleId, title, children, className = "" }: M
           <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-40 transition-opacity">
             <GripVertical className="w-4 h-4" />
           </div>
-          <CardTitle className="text-sm text-black font-extrabold uppercase tracking-wide">{title}</CardTitle>
+          <CardTitle className="text-sm text-black font-extrabold lowercase font-mono tracking-wide">{title}</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col p-4 pt-1">{children}</CardContent>
       </Card>

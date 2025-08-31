@@ -196,7 +196,6 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
             key={a}
             size="sm"
             variant={algo === a ? "default" : "secondary"}
-            className="h-8 px-2"
             onClick={() => setAlgo(a)}
           >
             {label}
@@ -204,9 +203,9 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-0 mt-5">
+      <div className="flex flex-col items-center gap-4 mt-6">
         <Knob value={sizeN} onValueChange={setSizeN} size="lg" label="Size" />
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-6">
           <div className="flex gap-11">
             <Knob value={decayN} onValueChange={setDecayN} size="md" label="Decay" />
             <Knob value={preN} onValueChange={setPreN} size="md" label="Pre" />

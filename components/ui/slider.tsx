@@ -31,7 +31,7 @@ const sliderVariants = cva(
 )
 
 const trackVariants = cva(
-  "bg-black/20 rounded-xs relative grow border-t border-t-black/20 border-b border-b-white/20 overflow-hidden data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2",
+  "bg-neutral-900 rounded-full relative grow overflow-hidden data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2",
   {
     variants: {
       variant: {
@@ -48,11 +48,11 @@ const trackVariants = cva(
 )
 
 const thumbVariants = cva(
-  "flex! flex-col justify-center gap-[1px] px-1 border-primary rounded-xs bg-neutral-900 block shrink-0 hover:shadow-sm border-t border-t-white/20 focus-visible:ring-0 focus-visible:outline-hidden cursor-pointer",
+  "flex! flex-col justify-center gap-[1px] px-1 border-primary rounded-sm bg-neutral-300 border-3 border-neutral-900 block shrink-0 focus-visible:ring-0 focus-visible:outline-hidden cursor-pointer",
   {
     variants: {
       variant: {
-        default: "w-4 h-6",
+        default: "w-6 h-4",
         module: "size-3", // Smaller for module controls
         fine: "size-5", // Larger for precise control
         coarse: "size-3", // Smaller for simple controls
@@ -66,7 +66,7 @@ const thumbVariants = cva(
 
 export interface SliderProps
   extends React.ComponentProps<typeof SliderPrimitive.Root>,
-    VariantProps<typeof sliderVariants> {}
+  VariantProps<typeof sliderVariants> { }
 
 function Slider({ className, variant, size, defaultValue, value, min = 0, max = 100, step = 1, orientation = "horizontal", onValueChange, ...props }: SliderProps) {
   const _values = React.useMemo(
@@ -177,10 +177,10 @@ function Slider({ className, variant, size, defaultValue, value, min = 0, max = 
       className={cn(sliderVariants({ variant, size, className }))}
       {...props}
     >
-      <SliderPrimitive.Track ref={trackRef} data-slot="slider-track" className={cn(trackVariants({ variant }))} style={{boxShadow: 'inset 0px 0px 2px 0px rgba(0,0,0,0.4)'}}>
+      <SliderPrimitive.Track ref={trackRef} data-slot="slider-track" className={cn(trackVariants({ variant }))}>
         <SliderPrimitive.Range
           data-slot="slider-range"
-          className={cn("bg-black/10 absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full")}
+          className={cn("absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full")}
         />
       </SliderPrimitive.Track>
       {Array.from({ length: _values.length }, (_, index) => (
@@ -190,9 +190,6 @@ function Slider({ className, variant, size, defaultValue, value, min = 0, max = 
           className={cn(thumbVariants({ variant }))}
           onPointerDown={(e) => beginThumbDrag(index, e)}
         >
-          <div className="h-[2px] bg-white/20 border-b"/>
-          <div className="h-[2px] bg-white/25 border-b"/>
-          <div className="h-[2px] bg-white/20 border-b"/>
         </SliderPrimitive.Thumb>
       ))}
     </SliderPrimitive.Root>

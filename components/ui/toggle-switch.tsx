@@ -15,16 +15,15 @@ interface ToggleSwitchProps {
 const ToggleSwitch = React.forwardRef<HTMLButtonElement, ToggleSwitchProps>(
   ({ value, onValueChange, label, disabled = false, className }, ref) => {
     return (
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-2 w-9">
         <button
           ref={ref}
           className={cn(
-            "relative w-5 h-10 px-0.5 focus-visible:outline-none border-t border-t-black/20 border-b rounded-xs transition cursor-pointer",
-            value ? "bg-neutral-800/50 border-b-white/10 delay-50" : "bg-neutral-800/40 hover:bg-neutral-800/35 border-b-white/20 duration-0",
+            "relative w-6 h-10 px-0.5 focus-visible:outline-none rounded-sm transition cursor-pointer border-3",
+            value ? "bg-neutral-400/50 delay-50" : "duration-0",
             disabled && "opacity-50 cursor-not-allowed",
             className,
           )}
-          style={{boxShadow: 'inset 0px 0px 2px 0px rgba(0,0,0,0.3)'}}
           onClick={() => !disabled && onValueChange(!value)}
           disabled={disabled}
           role="switch"
@@ -33,14 +32,10 @@ const ToggleSwitch = React.forwardRef<HTMLButtonElement, ToggleSwitchProps>(
         >
           <div
             className={cn(
-              "flex flex-col gap-[1px] px-1 justify-center w-4 h-4 bg-neutral-900 shadow-[0_-0.5px_0_0_rgba(255,255,255,0.15)] rounded-xs transition",
-              value ? "translate-y-[-10px]" : "translate-y-[9px]",
+              "w-3.5 h-3.5 bg-neutral-900 rounded-xs transition",
+              value ? "translate-y-[-8px]" : "translate-y-[8px]",
             )}
-          >
-            <div className="h-[2px] bg-white/20 border-b"/>
-            <div className="h-[2px] bg-white/25 border-b"/>
-            <div className="h-[2px] bg-white/20 border-b"/>
-          </div>
+          />
         </button>
 
         {label && <TextLabel variant="control">{label}</TextLabel>}

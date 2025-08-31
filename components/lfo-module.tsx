@@ -109,7 +109,7 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
     if (workletRef.current) return // Already initialized
 
     const ac = getAudioContext()
-    acRef.current = ac 
+    acRef.current = ac
     await ac.audioWorklet.addModule("/lfo-processor.js")
 
     // inputs (CV ports)
@@ -180,13 +180,13 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
   return (
     <ModuleContainer title="LFO" moduleId={moduleId}>
       {/* Wave buttons */}
-      <div className="grid grid-cols-6 gap-1 mx-auto">
+      <div className="grid grid-cols-6 gap-0.5 mx-auto">
         {[0, 1, 2, 3, 4, 5].map((s) => (
           <Button
             key={s}
             size="sm"
-            variant={shape === s ? "secondary" : "default"}
-            className="h-8 w-8 px-2"
+            variant={shape === s ? "default" : "secondary"}
+            className="size-8 px-0"
             onClick={() => setShape(s as Shape)}
           >
             {icons[s as Shape]}
@@ -194,18 +194,18 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-5 mt-5">
+      <div className="flex flex-col items-center gap-6 mt-6">
         <Knob value={freq} onValueChange={setFreq} label="Freq" size="lg" />
-        <div className="flex flex-col gap-5">
-          <div className="flex gap-5">
-            <Knob value={amp} onValueChange={setAmp} label="Amp" size="sm" />
-            <Knob value={offset} onValueChange={setOffset} label="Offset" size="sm" />
-          </div>
-          <div className="flex gap-5">
-            <Knob value={pw} onValueChange={setPw} label="PWM" size="sm" />
-            <Knob value={slew} onValueChange={setSlew} label="Slew" size="sm" />
-          </div>
+
+        <div className="flex gap-5">
+          <Knob value={amp} onValueChange={setAmp} label="Amp" size="sm" />
+          <Knob value={offset} onValueChange={setOffset} label="Offset" size="sm" />
         </div>
+        <div className="flex gap-5">
+          <Knob value={pw} onValueChange={setPw} label="PWM" size="sm" />
+          <Knob value={slew} onValueChange={setSlew} label="Slew" size="sm" />
+        </div>
+
       </div>
 
       <div className="flex-1" />

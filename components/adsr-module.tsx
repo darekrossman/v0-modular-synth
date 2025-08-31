@@ -213,7 +213,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 data-param="attack"
               />
             </div>
-            <TextLabel variant="control">A</TextLabel>
+            <TextLabel variant="control" className="text-sm">A</TextLabel>
           </div>
 
           <div className="flex flex-col items-center h-full gap-2">
@@ -229,7 +229,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 data-param="decay"
               />
             </div>
-            <TextLabel variant="control">D</TextLabel>
+            <TextLabel variant="control" className="text-sm">D</TextLabel>
           </div>
 
           <div className="flex flex-col items-center h-full gap-2">
@@ -245,7 +245,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 data-param="sustain"
               />
             </div>
-            <TextLabel variant="control">S</TextLabel>
+            <TextLabel variant="control" className="text-sm">S</TextLabel>
           </div>
 
           <div className="flex flex-col items-center h-full gap-2">
@@ -261,15 +261,15 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 data-param="release"
               />
             </div>
-            <TextLabel variant="control">R</TextLabel>
+            <TextLabel variant="control" className="text-sm">R</TextLabel>
           </div>
         </div>
 
         <div className="flex flex-col justify-center items-center flex-1 gap-8">
           <div className="flex gap-4 items-center">
-            <ToggleSwitch label="Retrig" value={retrig} onValueChange={setRetrig} />
+            <ToggleSwitch label="Rtrig" value={retrig} onValueChange={setRetrig} />
             <ToggleSwitch label="Long" value={longMode} onValueChange={setLongMode} />
-            <ToggleSwitch label="Linear" value={linearShape} onValueChange={setLinearShape} />
+            <ToggleSwitch label="Lin" value={linearShape} onValueChange={setLinearShape} />
           </div>
           <div className="flex gap-6 items-center">
             <Knob size="sm" value={maxVN} onValueChange={setMaxVN} label="Lvl" />

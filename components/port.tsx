@@ -47,7 +47,7 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
   const [signalValue, setSignalValue] = useState(0)
   const analyzerRef = useRef<AnalyserNode | null>(null)
   const animationFrameRef = useRef<number | null>(null)
-  
+
   // Force disable indicator for audio ports
   const showIndicator = indicator && audioType !== 'audio'
 
@@ -170,7 +170,7 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
   }
 
   return (
-    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-2 pb-0.5 w-11 bg-neutral-700 rounded-xs relative", className)}>
+    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-2 pb-0.5 w-11 bg-neutral-400 rounded-sm relative", className)}>
       {showIndicator && (
         <div
           className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full shadow-sm"
@@ -183,8 +183,8 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
       <div
         ref={setNodeRef}
         data-port-id={id}
-        data-port-kind={kind}           // ⬅️ helpful in DevTools
-        className="w-5 h-5 rounded-full bg-neutral-900 border-2 border-neutral-400 shadow-[0_1px_0_0_rgba(0,0,0,0.3)] cursor-pointer hover:scale-110 select-none"
+        data-port-kind={kind}
+        className="w-5 h-5 shrink-0 rounded-full border-3 bg-neutral-300 border-neutral-900 cursor-pointer hover:scale-110 select-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

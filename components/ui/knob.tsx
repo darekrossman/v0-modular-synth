@@ -57,6 +57,14 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
       lg: "w-20 h-20",
     }
 
+    // SVG viewBox and radius configuration for each size
+    const svgConfig = {
+      xs: { viewBox: 24, radius: 10, strokeWidth: 3 },
+      sm: { viewBox: 32, radius: 14, strokeWidth: 3.5 },
+      md: { viewBox: 48, radius: 21, strokeWidth: 4 },
+      lg: { viewBox: 80, radius: 36, strokeWidth: 6 },
+    }
+
     const skirtSizeClass = {
       xs: "p-[0px]",
       sm: "p-[2px]",
@@ -65,17 +73,17 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     }
 
     const tickSizeClasses = {
-      xs: { length: "w-[2px] h-[2px]", radius: 14, fontSize: "text-[7px]" },
-      sm: { length: "w-[2px] h-[2px]", radius: 19, fontSize: "text-[7px]" },
-      md: { length: "w-[3px] h-[3px]", radius: 28, fontSize: "text-[7px]" },
-      lg: { length: "w-[4px] h-[4px]", radius: 45, fontSize: "text-[7px]" },
+      xs: { length: "w-[1px] h-[1px]", radius: 14, fontSize: "text-[7px]" },
+      sm: { length: "w-[1px] h-[2px]", radius: 19, fontSize: "text-[7px]" },
+      md: { length: "w-[2px] h-[3px]", radius: 28, fontSize: "text-[7px]" },
+      lg: { length: "w-[2px] h-[6px]", radius: 45, fontSize: "text-[7px]" },
     }
 
     const padSizeClasses = {
-      xs: "w-7 mt-1",
-      sm: "w-12 mt-1.5",
-      md: "w-[60px] mt-2",
-      lg: "w-[100px] mt-3",
+      xs: "w-7",
+      sm: "w-12",
+      md: "w-[60px]",
+      lg: "w-[100px]",
     }
 
     const smallStroke = size === "xs" || size === "sm"
@@ -154,7 +162,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
           <div key={i}>
             {/* Tick mark */}
             <div
-              className={cn("absolute bg-black/40 rounded-sm", tickSize.length)}
+              className={cn("absolute bg-neutral-900 rounded-sm", tickSize.length)}
               style={{
                 left: `calc(50% + ${tickX}px)`,
                 top: `calc(50% + ${tickY}px)`,
@@ -166,7 +174,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             {/* {tickLabels && tickLabels[i] != null && (
               <div
                 className={cn(
-                  "absolute text-neutral-800 font-mono select-none pointer-events-none leading-tight",
+                  "absolute text-neutral-900 font-mono select-none pointer-events-none leading-tight",
                   tickSize.fontSize,
                 )}
                 style={{
@@ -191,7 +199,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     const rotation = currentValue * rotationRange + rotationOffset
 
     return (
-      <div className={cn("flex flex-col items-center gap-2", padSizeClasses[size], className)}>
+      <div className={cn("flex flex-col items-center gap-1", padSizeClasses[size], className)}>
         <div className="relative">
           {showTicks && <div className="absolute inset-0 pointer-events-none">{renderTickMarks()}</div>}
 
@@ -200,7 +208,6 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             className={cn(
               "relative rounded-full cursor-pointer select-none",
               "focus-visible:outline-none",
-              size === 'xs' ? "shadow-[inset_0_0_0_3px_#000000]" : "shadow-[inset_0_0_0_4px_#000000]",
               sizeClasses[size],
               skirtSizeClass[size],
               disabled && "opacity-50 cursor-not-allowed",
@@ -213,32 +220,71 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             aria-valuenow={currentValue}
             {...props}
           >
+            {/* SVG for outer border arc */}
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              viewBox={`0 0 ${svgConfig[size].viewBox} ${svgConfig[size].viewBox}`}
+              width="100%"
+              height="100%"
+            >
+              <path
+                d={(() => {
+                  const config = svgConfig[size];
+                  const center = config.viewBox / 2;
+                  const radius = config.radius;
+
+                  // Convert angles to radians (top is -90 degrees in SVG)
+                  const startAngle = (-135 - 90) * Math.PI / 180;
+                  const endAngle = (135 - 90) * Math.PI / 180;
+
+                  // Calculate start and end points
+                  const startX = center + radius * Math.cos(startAngle);
+                  const startY = center + radius * Math.sin(startAngle);
+                  const endX = center + radius * Math.cos(endAngle);
+                  const endY = center + radius * Math.sin(endAngle);
+
+                  // Create arc path
+                  return `M ${startX} ${startY} A ${radius} ${radius} 0 1 1 ${endX} ${endY}`;
+                })()}
+                fill="none"
+                stroke="var(--color-neutral-900)"
+                strokeWidth={svgConfig[size].strokeWidth}
+                strokeLinecap="round"
+              />
+            </svg>
+
             <div
               className={`relative w-full h-full rounded-full`}
             >
               <div className="absolute inset-0 flex items-center justify-center">
                 <div
-                  className={`absolute ${smallStroke ? "w-1" : "w-1.5"} rounded-full`}
+                  className={`absolute rounded-full`}
                   style={{
-                    height: "50%",
+                    width: size === 'xs' ? '3px' : (size === 'sm' ? '4px' : (size === 'md' ? '5px' : '6px')),
+                    height: '50%',
                     transform: `rotate(${rotation}deg)`,
                     transformOrigin: "center bottom",
-                    top: "0",
+                    top: 0,
                     left: "50%",
-                    marginLeft: smallStroke ? "-2px" : "-3px",
+                    marginLeft: size === 'xs' ? '-1.5px' : (smallStroke ? "-2px" : "-3px"),
                   }}
                 >
-                  <div className="w-full h-[85%] bg-black rounded-full mt-[-2px]" />
+                  <div className="w-full h-[85%] bg-neutral-900 rounded-full" style={{
+                    marginTop: size === 'xs' ? '2px' : '0px',
+                  }} />
                 </div>
               </div>
               {/* <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-[47%] h-[47%] rounded-full bg-gradient-to-b from-neutral-800 to-neutral-600 to-85% shadow-[inset_0_-1px_1px_rgba(255,255,255,0.2),inset_0_1px_0px_rgba(0,0,0,0.0)]" />
+                <div className="w-[47%] h-[47%] rounded-full bg-gradient-to-b from-neutral-900 to-neutral-600 to-85% shadow-[inset_0_-1px_1px_rgba(255,255,255,0.2),inset_0_1px_0px_rgba(0,0,0,0.0)]" />
               </div> */}
             </div>
           </div>
         </div>
 
-        {label && <TextLabel variant="control">{label}</TextLabel>}
+        {label && <TextLabel variant="control" className={cn({
+          'text-xs': size === 'lg',
+          'text-[10px]': size === 'md'
+        })}>{label}</TextLabel>}
       </div>
     )
   },

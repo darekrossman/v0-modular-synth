@@ -159,13 +159,13 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer moduleId={moduleId} title="VCO">
-      <div className="grid grid-cols-4 mx-auto gap-1">
+      <div className="grid grid-cols-4 mx-auto gap-0.5">
         {(["sine", "square", "sawtooth", "triangle"] as WaveType[]).map((wave) => (
           <Button
             key={wave}
-            variant={waveType === wave ? "secondary" : "default"}
+            variant={waveType === wave ? "default" : "secondary"}
             size="sm"
-            className="h-8 w-8 px-2"
+            className="size-8 px-0"
             onClick={() => setWaveType(wave)}
           >
             <WaveformIcon type={wave} />
@@ -173,7 +173,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-5 mt-5">
+      <div className="flex flex-col items-center gap-6 mt-6">
         <Knob
           value={[octaveToKnob(octave[0])]}
           onValueChange={(value) => setOctave([knobToOctave(value[0])])}

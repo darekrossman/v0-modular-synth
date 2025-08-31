@@ -204,7 +204,7 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="Filter" moduleId={moduleId}>
-      <div className="flex flex-col items-center justify-center gap-3">
+      <div className="flex flex-col items-center justify-center gap-4">
         <Knob value={cutoff} onValueChange={setCutoff} size="lg" data-param="cutoff" label="Cutoff" />
         <div className="flex gap-4">
           <Knob value={resonance} onValueChange={setResonance} size="md" data-param="resonance" label="Res" />
