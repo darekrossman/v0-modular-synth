@@ -238,79 +238,74 @@ export function WireCanvas() {
       const a = toSvg(fromScreen)
       let b = toSvg(toScreen)
       
-      // Calculate actual distance
+      // Calculate actual distance between endpoints
       const dx = b.x - a.x
       const dy = b.y - a.y
       const actualDist = Math.hypot(dx, dy)
       
-      // Minimum wire length based on tension
-      // Lower tension = longer minimum length (more slack in wire)
+      // Wire physics constants based on tension
       const tension = tensionRef.current
-      const slack = 1 - tension  // Invert: high tension = low slack
-      // Higher tension allows shorter wires, lower tension requires more length
-      const minLength = 20 + slack * 60  // 20px at high tension, up to 80px at low tension
+      const slack = 1 - tension
       
-      // The wire has a physical length that's at least minLength
-      // This determines how much wire material we have to work with
-      const wireLength = Math.max(actualDist, minLength)
+      // Minimum arc length of the wire (the actual wire length)
+      // This is the physical length of the wire material
+      const minArcLength = 40 + slack * 80  // 40px at high tension, up to 120px at low tension
       
-      // For physics calculations, we need consistent behavior
-      // When cursor is closer than minLength, the wire maintains its length
-      // by sagging more (excess wire has to go somewhere)
-      let finalDx = dx
-      let finalDy = dy
-      
-      // If cursor is very close, add some vertical bias for gravity
-      if (actualDist < minLength * 0.3) {
-        // Very close - wire drops mostly downward
-        const ratio = actualDist / (minLength * 0.3)
-        finalDx = dx
-        finalDy = dy + (1 - ratio) * minLength * 0.5  // Add downward bias
+      // Calculate how much the wire needs to sag to maintain its arc length
+      // When endpoints are closer than the arc length, wire must sag
+      let sag = 0
+      if (actualDist < minArcLength) {
+        // Use catenary formula approximation: for a wire of length L between points distance D apart,
+        // the sag S ≈ sqrt((L² - D²) / 8)
+        const lengthSquared = minArcLength * minArcLength
+        const distSquared = actualDist * actualDist
+        sag = Math.sqrt(Math.max(0, lengthSquared - distSquared) / 8)
+      } else {
+        // Wire is taut, minimal sag based on tension
+        sag = slack * 10  // Small amount of natural sag
       }
       
-      // Calculate sag for physics - based on tension and wire length
-      // The key insight: a wire of fixed length between two points will sag more
-      // when the points are closer together (excess wire has to go somewhere)
-      const sagAmount = slack  // We already calculated slack = 1 - tension above
+      // Add gravity effect - wire sags downward
+      const horizontalRatio = actualDist > 0.1 ? Math.abs(dx) / actualDist : 0
+      sag = sag * (0.5 + 0.5 * horizontalRatio)  // More sag when horizontal
       
-      // Base sag depends on the wire's physical length
-      const baseSag = Math.pow(wireLength, 0.7) * 3 * sagAmount
+      // Control points for bezier curve
+      const cp1x = a.x + dx * 0.25
+      const cp1y = a.y + dy * 0.25 + sag
+      const cp2x = a.x + dx * 0.75  
+      const cp2y = a.y + dy * 0.75 + sag
       
-      // Additional sag when endpoints are closer than wire length
-      // This represents the excess wire that must sag
-      const excessRatio = actualDist > 0 ? Math.max(0, (wireLength - actualDist) / wireLength) : 1
-      const excessSag = excessRatio * wireLength * 0.5 * sagAmount
-      
-      // Horizontal factor affects how the sag is distributed
-      const horizontalFactor = actualDist > 1 ? Math.abs(dx) / actualDist : 0.5
-      const sagMultiplier = 0.3 + 0.7 * horizontalFactor
-      
-      // Total sag combines base sag with excess sag
-      const maxSag = 600 * sagAmount
-      const sag = Math.min((baseSag + excessSag) * sagMultiplier, maxSag)
-      
-      // Calculate control points for bezier curve
-      // Use consistent ratios for smooth behavior
-      const cp1x = a.x + finalDx * 0.25
-      const cp1y = a.y + finalDy * 0.25 + sag * 0.7
-      const cp2x = a.x + finalDx * 0.75
-      const cp2y = a.y + finalDy * 0.75 + sag * 0.7
-      
-      // Calculate tangent at start to clip only the start point
-      // Now we always have enough length for stable tangent calculation
+      // Calculate tangent at start (from start toward first control point)
       const startTangentX = cp1x - a.x
       const startTangentY = cp1y - a.y
       const startTangentDist = Math.hypot(startTangentX, startTangentY)
       
-      // Calculate unit vectors for ring rotation (needed later)
-      const startUnitX = startTangentDist > 0.1 ? startTangentX / startTangentDist : 1
-      const startUnitY = startTangentDist > 0.1 ? startTangentY / startTangentDist : 0
+      // Offset for triangle tip attachment
+      const offsetDistance = 13 + tension * 2  // 13-15px based on tension
       
+      // When wire has slack, it doesn't pull upward as strongly
+      // The ring should stay more horizontal when there's excess wire
+      let startUnitX = 1, startUnitY = 0
       let startPoint = a
+      
       if (startTangentDist > 0.1) {
-        // Tension affects how far out the wire starts from the port
-        // Higher tension = wire pulls tighter to port edge, accounting for triangle tip
-        const offsetDistance = 13 + tension * 2  // 13-15px based on tension (triangle tip offset)
+        startUnitX = startTangentX / startTangentDist
+        startUnitY = startTangentY / startTangentDist
+        
+        // If wire has slack (actualDist < minArcLength), reduce upward pull
+        if (actualDist < minArcLength && startUnitY < 0) {
+          // Wire is slack and pulling upward - reduce the upward component
+          const slackRatio = actualDist / minArcLength  // 0 when fully slack, 1 when taut
+          // Blend toward horizontal as slack increases
+          startUnitY = startUnitY * slackRatio  // Reduce upward pull based on slack
+          // Renormalize
+          const newDist = Math.hypot(startUnitX, startUnitY)
+          if (newDist > 0.1) {
+            startUnitX = startUnitX / newDist
+            startUnitY = startUnitY / newDist
+          }
+        }
+        
         startPoint = {
           x: a.x + startUnitX * offsetDistance,
           y: a.y + startUnitY * offsetDistance
@@ -326,9 +321,21 @@ export function WireCanvas() {
       const endTangentY = endPoint.y - cp2y
       const endTangentDist = Math.hypot(endTangentX, endTangentY)
       
-      // Calculate unit vectors for end ring rotation (needed later)
-      const endUnitX = endTangentDist > 0.1 ? endTangentX / endTangentDist : -1
-      const endUnitY = endTangentDist > 0.1 ? endTangentY / endTangentDist : 0
+      // Calculate unit vectors for end ring rotation
+      let endUnitX = endTangentDist > 0.1 ? endTangentX / endTangentDist : -1
+      let endUnitY = endTangentDist > 0.1 ? endTangentY / endTangentDist : 0
+      
+      // Apply same slack adjustment for end ring
+      if (actualDist < minArcLength && endUnitY < 0) {
+        const slackRatio = actualDist / minArcLength
+        endUnitY = endUnitY * slackRatio
+        // Renormalize
+        const newDist = Math.hypot(endUnitX, endUnitY)
+        if (newDist > 0.1) {
+          endUnitX = endUnitX / newDist
+          endUnitY = endUnitY / newDist
+        }
+      }
       
       // Calculate adjusted endpoint with offset for triangle tip
       let adjustedEndPoint = endPoint
@@ -397,6 +404,7 @@ export function WireCanvas() {
     shadowPath.setAttribute("stroke", "black")
     shadowPath.setAttribute("stroke-width", String(thicknessRef.current))  // Same width as wire
     shadowPath.setAttribute("stroke-opacity", "0.2")
+    shadowPath.setAttribute("stroke-linecap", "round")  // Round end caps
     shadowPath.setAttribute("vector-effect", "non-scaling-stroke")
     shadowPath.setAttribute("filter", "url(#wireShadowBlur)")
 
@@ -404,6 +412,7 @@ export function WireCanvas() {
     p.setAttribute("fill", "none")
     p.setAttribute("stroke-width", "6")
     p.setAttribute("stroke-opacity", String(opacityRef.current))
+    p.setAttribute("stroke-linecap", "round")  // Round end caps
     p.setAttribute("vector-effect", "non-scaling-stroke")
     
     // Create end rings that rotate with wire direction
@@ -413,11 +422,12 @@ export function WireCanvas() {
     const startCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
     startCircle.setAttribute("r", "10")
     startCircle.setAttribute("fill", "none")
-    startCircle.setAttribute("stroke-width", "3")
+    startCircle.setAttribute("stroke-width", "6")  // Extra thick ring
     const startTriangle = document.createElementNS("http://www.w3.org/2000/svg", "path")
-    startTriangle.setAttribute("d", "M 9,-4 L 13,0 L 9,4")
+    // Rounded triangle tip using arc for smooth connection
+    startTriangle.setAttribute("d", "M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7")
     startTriangle.setAttribute("fill", "none")
-    startTriangle.setAttribute("stroke-width", "3")
+    startTriangle.setAttribute("stroke-width", "6")  // Extra thick triangle
     startRing.appendChild(startCircle)
     startRing.appendChild(startTriangle)
     // Ring attributes are set on child elements
@@ -429,12 +439,13 @@ export function WireCanvas() {
     const endCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
     endCircle.setAttribute("r", "10")
     endCircle.setAttribute("fill", "none")
-    endCircle.setAttribute("stroke-width", "3")
+    endCircle.setAttribute("stroke-width", "6")  // Extra thick ring
     endCircle.setAttribute("stroke-opacity", String(opacityRef.current))
     const endTriangle = document.createElementNS("http://www.w3.org/2000/svg", "path")
-    endTriangle.setAttribute("d", "M 9,-4 L 13,0 L 9,4")
+    // Rounded triangle tip using arc for smooth connection
+    endTriangle.setAttribute("d", "M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7")
     endTriangle.setAttribute("fill", "none")
-    endTriangle.setAttribute("stroke-width", "3")
+    endTriangle.setAttribute("stroke-width", "6")  // Extra thick triangle
     endTriangle.setAttribute("stroke-opacity", String(opacityRef.current))
     endRing.appendChild(endCircle)
     endRing.appendChild(endTriangle)
@@ -592,14 +603,14 @@ export function WireCanvas() {
       <g>
         {/* Temp start ring */}
         <g ref={tempStartRingRef} style={{ display: 'none' }}>
-          <circle r="10" fill="none" strokeWidth="3" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
-          <path d="M 9,-4 L 13,0 L 9,4" fill="none" strokeWidth="3" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
+          <circle r="10" fill="none" strokeWidth="6" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
+          <path d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7" fill="none" strokeWidth="6" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
         </g>
         
         {/* Temp end ring */}
         <g ref={tempEndRingRef} style={{ display: 'none' }}>
-          <circle r="10" fill="none" strokeWidth="3" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
-          <path d="M 9,-4 L 13,0 L 9,4" fill="none" strokeWidth="3" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
+          <circle r="10" fill="none" strokeWidth="6" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
+          <path d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7" fill="none" strokeWidth="6" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
         </g>
         
         {/* Temp wire path */}
@@ -609,6 +620,7 @@ export function WireCanvas() {
           strokeWidth={Math.max(1, Math.min(10, Number(settings.wireThickness ?? 6)))}
           fill="none"
           strokeOpacity={Number(settings.wireOpacity ?? 0.7)}
+          strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />
       </g>
