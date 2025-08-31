@@ -65,10 +65,10 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     }
 
     const tickSizeClasses = {
-      xs: { length: "w-[1px] h-[1px]", radius: 14, fontSize: "text-[8px]" },
-      sm: { length: "w-[1px] h-[3px]", radius: 19, fontSize: "text-[8px]" },
-      md: { length: "w-[1px] h-[4px]", radius: 28, fontSize: "text-[8px]" },
-      lg: { length: "w-[1px] h-[6px]", radius: 45, fontSize: "text-[8px]" },
+      xs: { length: "w-[2px] h-[2px]", radius: 14, fontSize: "text-[7px]" },
+      sm: { length: "w-[2px] h-[2px]", radius: 19, fontSize: "text-[7px]" },
+      md: { length: "w-[3px] h-[3px]", radius: 28, fontSize: "text-[7px]" },
+      lg: { length: "w-[4px] h-[4px]", radius: 45, fontSize: "text-[7px]" },
     }
 
     const padSizeClasses = {
@@ -77,6 +77,8 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
       md: "w-[60px] mt-2",
       lg: "w-[100px] mt-3",
     }
+
+    const smallStroke = size === "xs" || size === "sm"
 
     const handleMouseDown = (e: React.MouseEvent) => {
       if (disabled) return
@@ -152,7 +154,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
           <div key={i}>
             {/* Tick mark */}
             <div
-              className={cn("absolute bg-neutral-800 rounded-sm", tickSize.length)}
+              className={cn("absolute bg-black/40 rounded-sm", tickSize.length)}
               style={{
                 left: `calc(50% + ${tickX}px)`,
                 top: `calc(50% + ${tickY}px)`,
@@ -161,7 +163,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             />
 
             {/* Optional label */}
-            {tickLabels && tickLabels[i] != null && (
+            {/* {tickLabels && tickLabels[i] != null && (
               <div
                 className={cn(
                   "absolute text-neutral-800 font-mono select-none pointer-events-none leading-tight",
@@ -175,7 +177,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
               >
                 {tickLabels[i]}
               </div>
-            )}
+            )} */}
           </div>,
         )
       }
@@ -198,15 +200,11 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             className={cn(
               "relative rounded-full cursor-pointer select-none",
               "focus-visible:outline-none",
-              "shadow-[0px_3px_1px_0px_rgba(0,0,0,0.2)]",
-              // "bg-radial-[at_50%_20%] from-neutral-700 to-neutral-900 to-85%",
+              size === 'xs' ? "shadow-[inset_0_0_0_3px_#000000]" : "shadow-[inset_0_0_0_4px_#000000]",
               sizeClasses[size],
               skirtSizeClass[size],
               disabled && "opacity-50 cursor-not-allowed",
             )}
-            style={{
-              background: "conic-gradient(from 180deg at 50% 50%, var(--color-neutral-900), var(--color-neutral-900), var(--color-neutral-400), var(--color-neutral-900), var(--color-neutral-900))",
-            }}
             onMouseDown={handleMouseDown}
             tabIndex={0}
             role="slider"
@@ -220,22 +218,22 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             >
               <div className="absolute inset-0 flex items-center justify-center">
                 <div
-                  className="absolute w-0.5 rounded-full"
+                  className={`absolute ${smallStroke ? "w-1" : "w-1.5"} rounded-full`}
                   style={{
                     height: "50%",
                     transform: `rotate(${rotation}deg)`,
                     transformOrigin: "center bottom",
-                    top: "0%",
+                    top: "0",
                     left: "50%",
-                    marginLeft: "-1px",
+                    marginLeft: smallStroke ? "-2px" : "-3px",
                   }}
                 >
-                  <div className="h-[10%] w-full bg-white rounded-full" />
+                  <div className="w-full h-[85%] bg-black rounded-full mt-[-2px]" />
                 </div>
               </div>
-              <div className="absolute inset-0 flex items-center justify-center">
+              {/* <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-[47%] h-[47%] rounded-full bg-gradient-to-b from-neutral-800 to-neutral-600 to-85% shadow-[inset_0_-1px_1px_rgba(255,255,255,0.2),inset_0_1px_0px_rgba(0,0,0,0.0)]" />
-              </div>
+              </div> */}
             </div>
           </div>
         </div>

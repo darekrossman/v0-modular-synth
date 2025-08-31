@@ -11,11 +11,11 @@ interface TextLabelProps {
 }
 
 export function TextLabel({ children, className, variant = "port" }: TextLabelProps) {
-  const baseClasses = "text-xs select-none text-center [text-box-edge:cap_alphabetic] [text-box-trim:trim-both]"
+  const baseClasses = "font-mono text-xs select-none text-center tracking-[0.05em] [text-box-edge:cap_alphabetic] [text-box-trim:trim-both]"
 
   const variantClasses = {
     port: "flex flex-1 items-center justify-center text-white text-[9px] font-bold rounded-[3px] text-center leading-[9px] uppercase w-full",
-    control: "font-bold text-[9px] uppercase text-black leading-[10px]",
+    control: "font-bold text-[9px] lowercase text-black leading-[10px]",
     parameter: "font-medium mb-2",
   }
 

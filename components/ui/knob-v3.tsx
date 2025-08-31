@@ -159,70 +159,84 @@ export function KnobV3({
           className="absolute inset-0 w-full h-full"
           viewBox="0 0 40 40"
         >
-          {/* Outer ring */}
+          {/* Solid color skirt/background circle */}
           <circle
             cx="20"
             cy="20"
             r="18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1"
-            className="text-neutral-700"
+            className="fill-neutral-700"
           />
           
-          {/* Track background */}
-          <path
-            d={`
-              M ${20 + 14 * Math.cos((-135 * Math.PI) / 180)} ${20 + 14 * Math.sin((-135 * Math.PI) / 180)}
-              A 14 14 0 1 1 ${20 + 14 * Math.cos((135 * Math.PI) / 180)} ${20 + 14 * Math.sin((135 * Math.PI) / 180)}
-            `}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            className="text-neutral-600"
-          />
-          
-          {/* Value track */}
-          <path
-            d={`
-              M ${20 + 14 * Math.cos((-135 * Math.PI) / 180)} ${20 + 14 * Math.sin((-135 * Math.PI) / 180)}
-              A 14 14 0 ${normalizedValue > 0.5 ? 1 : 0} 1 ${20 + 14 * Math.cos((angle * Math.PI) / 180)} ${20 + 14 * Math.sin((angle * Math.PI) / 180)}
-            `}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            className="text-blue-500"
-          />
-          
-          {/* Center knob */}
-          <circle
-            cx="20"
-            cy="20"
-            r="10"
-            className="fill-neutral-800 stroke-neutral-600"
-            strokeWidth="1"
-          />
-          
-          {/* Indicator line */}
-          <line
-            x1="20"
-            y1="20"
-            x2={20 + 7 * Math.cos((angle * Math.PI) / 180)}
-            y2={20 + 7 * Math.sin((angle * Math.PI) / 180)}
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            className="text-white"
-          />
+          {/* Center knob with wavy/fluted edge */}
+          <g transform={`rotate(${angle} 20 20)`}>
+            {/* Create subtle fluted/wavy edge using a path */}
+            <path
+              d={(() => {
+                const numFlutes = 18; // More flutes for smoother appearance
+                const baseRadius = 14;
+                const waveAmplitude = 1.5; // Very subtle wave
+                let path = '';
+                const points = [];
+                
+                // Generate points around the circle with subtle wave
+                for (let i = 0; i < numFlutes * 2; i++) {
+                  const angle = (i * 360 / (numFlutes * 2)) * Math.PI / 180;
+                  const isValley = i % 2 === 0;
+                  const radius = baseRadius + (isValley ? -waveAmplitude * 0.3 : waveAmplitude);
+                  points.push({
+                    x: 20 + radius * Math.cos(angle),
+                    y: 20 + radius * Math.sin(angle)
+                  });
+                }
+                
+                // Start path
+                path = `M ${points[0].x} ${points[0].y}`;
+                
+                // Create smooth curves through all points
+                for (let i = 0; i < points.length; i++) {
+                  const p1 = points[i];
+                  const p2 = points[(i + 1) % points.length];
+                  const p3 = points[(i + 2) % points.length];
+                  
+                  // Use cubic bezier for smoother curves with flattened peaks
+                  const cp1x = p1.x + (p2.x - p1.x) * 0.5;
+                  const cp1y = p1.y + (p2.y - p1.y) * 0.5;
+                  const cp2x = p2.x + (p3.x - p2.x) * 0.5;
+                  const cp2y = p2.y + (p3.y - p2.y) * 0.5;
+                  
+                  if (i % 2 === 0) {
+                    // For peaks, create flatter tops
+                    path += ` C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2.x} ${p2.y}`;
+                  } else {
+                    // For valleys, use quadratic for smoother curves
+                    path += ` Q ${p2.x} ${p2.y} ${p2.x} ${p2.y}`;
+                  }
+                  
+                  i++; // Skip next point as we've already handled it
+                }
+                
+                path += ' Z';
+                return path;
+              })()}
+              className="fill-neutral-800 stroke-neutral-600"
+              strokeWidth="0.5"
+            />
+            
+            {/* Indicator dot on the fluted edge */}
+            <circle
+              cx={20 + 13.5 * Math.cos((-90 * Math.PI) / 180)}
+              cy={20 + 13.5 * Math.sin((-90 * Math.PI) / 180)}
+              r="2"
+              className="fill-white"
+            />
+          </g>
           
           {/* Center dot */}
           <circle
             cx="20"
             cy="20"
-            r="2"
-            className="fill-neutral-600"
+            r="3"
+            className="fill-neutral-900"
           />
         </svg>
       </div>
