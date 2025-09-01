@@ -15,7 +15,7 @@ interface ToggleSwitchProps {
 const ToggleSwitch = React.forwardRef<HTMLButtonElement, ToggleSwitchProps>(
   ({ value, onValueChange, label, disabled = false, className }, ref) => {
     return (
-      <div className="flex flex-col items-center gap-2 w-9">
+      <div className="flex flex-col items-center gap-1.5 w-9">
         <button
           ref={ref}
           className={cn(

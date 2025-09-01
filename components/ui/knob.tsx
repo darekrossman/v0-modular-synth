@@ -81,7 +81,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
 
     const padSizeClasses = {
       xs: "w-6 gap-1.5",
-      sm: "w-12 gap-2.5",
+      sm: "w-10 gap-2.5",
       md: "w-[60px] gap-3.5",
       lg: "w-[100px] gap-4.5",
     }

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Knob } from "@/components/ui/knob"
 import { useModuleInit } from "@/hooks/use-module-init"
 import { useModulePatch } from "./patch-manager"
+import { ChevronDown } from "lucide-react"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -19,14 +20,14 @@ function getAudioContext(): AudioContext {
 
 // Scale masks (12-bit, LSB=C)
 const SCALES: { id: string; name: string; mask: number }[] = [
-  { id: "chromatic", name: "Chromatic", mask: 0b111111111111 },
+  { id: "chromatic", name: "Chroma", mask: 0b111111111111 },
   { id: "major", name: "Major", mask: parseInt("101011010101", 2) }, // C D E F G A B
-  { id: "natural-minor", name: "Natural Minor", mask: parseInt("101101011010", 2) }, // C D Eb F G Ab Bb
-  { id: "harmonic-minor", name: "Harmonic Minor", mask: parseInt("101101011001", 2) },
-  { id: "pentatonic-major", name: "Pentatonic Maj", mask: parseInt("100101010010", 2) }, // C D E G A
-  { id: "pentatonic-minor", name: "Pentatonic Min", mask: parseInt("101001001010", 2) }, // C Eb F G Bb
+  { id: "natural-minor", name: "Nat Min", mask: parseInt("101101011010", 2) }, // C D Eb F G Ab Bb
+  { id: "harmonic-minor", name: "Harm Min", mask: parseInt("101101011001", 2) },
+  { id: "pentatonic-major", name: "Penta Maj", mask: parseInt("100101010010", 2) }, // C D E G A
+  { id: "pentatonic-minor", name: "Penta Min", mask: parseInt("101001001010", 2) }, // C Eb F G Bb
   { id: "dorian", name: "Dorian", mask: parseInt("101101010110", 2) },
-  { id: "mixolydian", name: "Mixolydian", mask: parseInt("101011010110", 2) },
+  { id: "mixolydian", name: "Mixo", mask: parseInt("101011010110", 2) },
 ]
 
 const KEYS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -132,114 +133,115 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
     <ModuleContainer moduleId={moduleId} title="Quantizer">
       <div className="flex flex-col gap-3">
         {/* Row 1: Inputs left, controls center, output right */}
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Port id={`${moduleId}-pitch-in`} type="input" label="PITCH" audioType="cv" audioNode={pitchInRef.current ?? undefined} />
             <Port id={`${moduleId}-trig-in`} type="input" label="TRIG" audioType="cv" audioNode={trigInRef.current ?? undefined} />
           </div>
-          <div className="flex items-center gap-4">
-            <ToggleSwitch label="Trig Only" value={hold} onValueChange={setHold} />
-            <Knob
-              value={[(transpose + 12) / 24]}
-              onValueChange={(v) => setTranspose(Math.round(v[0] * 24 - 12))}
-              size="sm"
-              label="Trans"
-              tickLabels={["-12", "-6", "0", "+6", "+12"]}
-            />
-            <Knob
-              value={[(octave + 4) / 8]}
-              onValueChange={(v) => setOctave(Math.round(v[0] * 8 - 4))}
-              size="sm"
-              label="Oct"
-              tickLabels={["-4", "-2", "0", "+2", "+4"]}
-            />
+
+          <div className="relative h-10 rounded-[2px] overflow-hidden">
+            <div className="flex h-full">
+              {([0, 2, 4, 5, 7, 9, 11] as number[]).map((rotSemi) => {
+                const on = ((rotatedMask >> rotSemi) & 1) === 1
+                const isRoot = rotSemi === 0
+                return (
+                  <div
+                    key={rotSemi}
+                    className={`w-4 flex-1 border-r border-black/30 last:border-r-0 cursor-pointer select-none ${on ? (isRoot ? 'bg-green-300' : 'bg-blue-300') : 'bg-neutral-100 hover:bg-neutral-200'
+                      }`}
+                    onClick={() => {
+                      const baseIdx = (rotSemi - keyIdx + 12) % 12
+                      setMask12((prev) => {
+                        const nm = prev ^ (1 << baseIdx)
+                        nodeRef.current?.port.postMessage({ type: 'scale', mask12: nm & 0xFFF })
+                        return nm
+                      })
+                    }}
+                  />
+                )
+              })}
+            </div>
+            <div className="absolute top-0 left-0 h-6 w-full pointer-events-none">
+              {([
+                { rotSemi: 1, pos: 0.65 },
+                { rotSemi: 3, pos: 1.7 },
+                { rotSemi: 6, pos: 3.7 },
+                { rotSemi: 8, pos: 4.7 },
+                { rotSemi: 10, pos: 5.72 },
+              ] as { rotSemi: number; pos: number }[]).map(({ rotSemi, pos }) => {
+                const on = ((rotatedMask >> rotSemi) & 1) === 1
+                const isRoot = rotSemi === 0
+                return (
+                  <div
+                    key={rotSemi}
+                    className={`absolute h-full pointer-events-auto cursor-pointer rounded-[2px] border ${on ? (isRoot ? 'bg-green-500 border-green-600' : 'bg-blue-500 border-blue-600') : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700'
+                      }`}
+                    style={{ left: `${(pos * 100) / 7}%`, width: `${(100 / 7) * 0.6}%` }}
+                    onClick={() => {
+                      const baseIdx = (rotSemi - keyIdx + 12) % 12
+                      setMask12((prev) => {
+                        const nm = prev ^ (1 << baseIdx)
+                        nodeRef.current?.port.postMessage({ type: 'scale', mask12: nm & 0xFFF })
+                        return nm
+                      })
+                    }}
+                  />
+                )
+              })}
+            </div>
           </div>
+
           <div className="flex items-center gap-3">
             <Port id={`${moduleId}-pitch-out`} type="output" label="OUT" audioType="cv" audioNode={pitchOutRef.current ?? undefined} />
           </div>
         </div>
 
-        {/* Row 2: Scale/Key selectors only */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-4">
-            <Select value={scaleId} onValueChange={setScaleId}>
-              <SelectTrigger className="w-36 h-8"><SelectValue placeholder="Scale" /></SelectTrigger>
-              <SelectContent>
-                {SCALES.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={String(keyIdx)} onValueChange={(v) => setKeyIdx(Number(v))}>
-              <SelectTrigger className="w-20 h-8"><SelectValue placeholder="Key" /></SelectTrigger>
-              <SelectContent>
-                {KEYS.map((k, i) => <SelectItem key={k} value={String(i)}>{k}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div />
-        </div>
+        <div className="flex-grow" />
 
-        {/* Row 3: Piano-style scale editor (full width right-aligned) */}
-        <div className="flex items-center justify-end gap-3">
-          <div className="flex items-center gap-3">
-            <div className="relative w-64 h-10 rounded-[2px] overflow-hidden">
-              <div className="flex h-full">
-                {([0, 2, 4, 5, 7, 9, 11] as number[]).map((rotSemi) => {
-                  const on = ((rotatedMask >> rotSemi) & 1) === 1
-                  const isRoot = rotSemi === 0
-                  return (
-                    <div
-                      key={rotSemi}
-                      className={`flex-1 border-r border-black/30 last:border-r-0 cursor-pointer select-none ${on ? (isRoot ? 'bg-green-300' : 'bg-blue-300') : 'bg-neutral-100 hover:bg-neutral-200'
-                        }`}
-                      onClick={() => {
-                        const baseIdx = (rotSemi - keyIdx + 12) % 12
-                        setMask12((prev) => {
-                          const nm = prev ^ (1 << baseIdx)
-                          nodeRef.current?.port.postMessage({ type: 'scale', mask12: nm & 0xFFF })
-                          return nm
-                        })
-                      }}
-                    />
-                  )
-                })}
-              </div>
-              <div className="absolute top-0 left-0 h-6 w-full pointer-events-none">
-                {([
-                  { rotSemi: 1, pos: 0.65 },
-                  { rotSemi: 3, pos: 1.7 },
-                  { rotSemi: 6, pos: 3.7 },
-                  { rotSemi: 8, pos: 4.7 },
-                  { rotSemi: 10, pos: 5.72 },
-                ] as { rotSemi: number; pos: number }[]).map(({ rotSemi, pos }) => {
-                  const on = ((rotatedMask >> rotSemi) & 1) === 1
-                  const isRoot = rotSemi === 0
-                  return (
-                    <div
-                      key={rotSemi}
-                      className={`absolute h-full pointer-events-auto cursor-pointer rounded-[2px] border ${on ? (isRoot ? 'bg-green-500 border-green-600' : 'bg-blue-500 border-blue-600') : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700'
-                        }`}
-                      style={{ left: `${(pos * 100) / 7}%`, width: `${(100 / 7) * 0.6}%` }}
-                      onClick={() => {
-                        const baseIdx = (rotSemi - keyIdx + 12) % 12
-                        setMask12((prev) => {
-                          const nm = prev ^ (1 << baseIdx)
-                          nodeRef.current?.port.postMessage({ type: 'scale', mask12: nm & 0xFFF })
-                          return nm
-                        })
-                      }}
-                    />
-                  )
-                })}
+        {/* Row 2 */}
+        <div className="flex items-end justify-between gap-4 pl-1">
+          <ToggleSwitch label="Trig" value={hold} onValueChange={setHold} />
+
+          <div className="flex items-end gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1">
+                <Select value={scaleId} onValueChange={setScaleId}>
+                  <SelectTrigger className="w-26">
+                    <SelectValue placeholder="Scale" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {SCALES.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={String(keyIdx)} onValueChange={(v) => setKeyIdx(Number(v))}>
+                  <SelectTrigger className="w-14 uppercase"><SelectValue placeholder="Key" /></SelectTrigger>
+                  <SelectContent>
+                    {KEYS.map((k, i) => <SelectItem key={k} value={String(i)} className="uppercase">{k}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <Button size="xs" onClick={() => {
-              const scale = SCALES.find(s => s.id === scaleId) || SCALES[0]
-              setMask12(scale.mask)
-              nodeRef.current?.port.postMessage({ type: 'scale', mask12: scale.mask })
-            }}>Reset</Button>
+
+            <div className="flex items-center gap-2">
+              <Knob
+                value={[(transpose + 12) / 24]}
+                onValueChange={(v) => setTranspose(Math.round(v[0] * 24 - 12))}
+                size="sm"
+                label="Trans"
+                tickLabels={["-12", "-6", "0", "+6", "+12"]}
+              />
+              <Knob
+                value={[(octave + 4) / 8]}
+                onValueChange={(v) => setOctave(Math.round(v[0] * 8 - 4))}
+                size="sm"
+                label="Oct"
+                tickLabels={["-4", "-2", "0", "+2", "+4"]}
+              />
+            </div>
           </div>
         </div>
       </div>
-    </ModuleContainer>
+    </ModuleContainer >
   )
 }
