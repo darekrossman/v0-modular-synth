@@ -618,23 +618,16 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
 
   const createNewPatch = useCallback(() => {
     clearAllConnections()
-    const blankModules = [{ id: "output-1", type: "output" }]
-    onModulesChange(blankModules)
-
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-module-id="output-1"]`)
-      if (el && (el as any).setParameters) (el as any).setParameters({})
-    })
 
     const blank: Patch = {
       name: "New Patch",
-      version: "2.0",
+      version: "1.0",
       modules: [],
       connections: [],
       metadata: {
         created: new Date().toISOString(),
         modified: new Date().toISOString(),
-        description: "A blank patch with only an output module",
+        description: "A blank patch",
       },
     }
     setCurrentPatch(blank)

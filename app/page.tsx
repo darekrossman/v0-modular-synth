@@ -1,8 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo, memo } from "react"
-import * as motion from "motion/react"
-const { Reorder, useDragControls } = motion
+import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from "react"
 import { OscillatorModule } from "@/components/oscillator-module"
 import { LFOModule } from "@/components/lfo-module"
 import { OutputModule } from "@/components/output-module"
@@ -124,33 +122,37 @@ const ModuleRenderer = memo(({ module }: { module: ModuleInstance }) => {
 ModuleRenderer.displayName = 'ModuleRenderer'
 
 // Wrapper component for each draggable module
-const DraggableModuleItem = memo(({ module, index, rackModules, onDelete }: any) => {
-  const controls = useDragControls()
+const DraggableModuleItem = memo(({ module, index, rackModules, onDelete, onDragStart, isDragging, draggedId }: any) => {
+  const opacity = isDragging && draggedId === module.id ? 0.3 : 1
+  const [isDraggable, setIsDraggable] = useState(false)
 
   return (
-    <Reorder.Item
+    <div
       key={module.id}
-      value={module}
-      dragControls={controls}
-      dragListener={false}
-      whileDrag={{ zIndex: 1 }}
-      transition={{ duration: 0.15 }}
       className="relative h-full"
-      style={{ marginRight: index < rackModules.length - 1 ? '0.25rem' : 0 }}
+      style={{
+        marginRight: index < rackModules.length - 1 ? '2px' : 0,
+        opacity
+      }}
+      draggable={isDraggable}
+      onDragStart={(e) => {
+        if (isDraggable) {
+          onDragStart(e, module, index)
+        }
+      }}
+      onMouseDown={(e) => {
+        // Check if clicking on module header
+        const target = e.target as HTMLElement
+        const header = target.closest('.module-header')
+        setIsDraggable(!!header)
+      }}
+      onMouseUp={() => {
+        setIsDraggable(false)
+      }}
     >
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div
-            className="h-full"
-            onPointerDown={(e) => {
-              // Only start drag if clicking on the header area
-              const target = e.target as HTMLElement
-              const header = target.closest('.module-header')
-              if (header) {
-                controls.start(e)
-              }
-            }}
-          >
+          <div className="h-full">
             <ModuleRenderer module={module} />
           </div>
         </ContextMenuTrigger>
@@ -165,7 +167,7 @@ const DraggableModuleItem = memo(({ module, index, rackModules, onDelete }: any)
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-    </Reorder.Item>
+    </div>
   )
 })
 
@@ -177,10 +179,30 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
   const { open } = useSettings()
   const [isModuleDialogOpen, setIsModuleDialogOpen] = useState(false)
 
+  // Drag state
+  const [dragState, setDragState] = useState<{
+    isDragging: boolean
+    draggedModule: ModuleInstance | null
+    draggedFromRack: number
+    dropIndex: number | null
+    dropRack: number | null
+    mouseX: number
+  }>({
+    isDragging: false,
+    draggedModule: null,
+    draggedFromRack: 1,
+    dropIndex: null,
+    dropRack: null,
+    mouseX: 0
+  })
+
+  const rack1Ref = useRef<HTMLDivElement>(null)
+  const rack2Ref = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
-    setTimeout(() => {
-      loadDefaultPatch()
-    }, 1000)
+    // setTimeout(() => {
+    //   loadDefaultPatch()
+    // }, 1000)
   }, [])
 
   // Keyboard shortcut listener
@@ -228,27 +250,125 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
     [modules]
   )
 
-  const handleRack1Reorder = useCallback((newOrder: ModuleInstance[]) => {
-    setModules(prev => {
-      const rack2 = prev.filter(m => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer")
-      return [...newOrder, ...rack2]
+  // Drag handlers
+  const handleDragStart = useCallback((e: React.DragEvent, module: ModuleInstance, fromRack: number) => {
+    e.dataTransfer.effectAllowed = 'move'
+    setDragState({
+      isDragging: true,
+      draggedModule: module,
+      draggedFromRack: fromRack,
+      dropIndex: null,
+      dropRack: null,
+      mouseX: e.clientX
     })
-    // Trigger geometry update for wires
-    setTimeout(() => {
-      window.dispatchEvent(new Event('resize'))
-    }, 0)
-  }, [setModules])
+  }, [])
 
-  const handleRack2Reorder = useCallback((newOrder: ModuleInstance[]) => {
-    setModules(prev => {
-      const rack1 = prev.filter(m => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer")
-      return [...rack1, ...newOrder]
+  const handleDragOver = useCallback((e: React.DragEvent, rack: number) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+
+    if (!dragState.isDragging || !dragState.draggedModule) return
+
+    const rackEl = rack === 1 ? rack1Ref.current : rack2Ref.current
+    if (!rackEl) return
+
+    const rackModules = rack === 1 ? rack1Modules : rack2Modules
+    const rackRect = rackEl.getBoundingClientRect()
+    const relativeX = e.clientX - rackRect.left
+
+    // Find drop index based on mouse position - simple approach
+    let dropIdx = 0
+    const moduleElements = rackEl.querySelectorAll('[draggable]')
+
+    for (let i = 0; i < moduleElements.length; i++) {
+      const moduleRect = moduleElements[i].getBoundingClientRect()
+      const moduleMidpoint = moduleRect.left + moduleRect.width / 2 - rackRect.left
+
+      if (relativeX > moduleMidpoint) {
+        dropIdx = i + 1
+      }
+    }
+
+    // Store the raw drop index - no adjustments
+    setDragState(prev => ({ ...prev, dropIndex: dropIdx, dropRack: rack, mouseX: e.clientX }))
+  }, [dragState])
+
+  const handleDrop = useCallback((e: React.DragEvent, rack: number) => {
+    e.preventDefault()
+
+    if (!dragState.isDragging || !dragState.draggedModule || dragState.dropIndex === null) return
+
+    const draggedModule = dragState.draggedModule
+    let dropIndex = dragState.dropIndex
+
+    // When dragging within same rack, adjust drop index
+    if (rack === dragState.draggedFromRack) {
+      const sourceRackModules = rack === 1 ? rack1Modules : rack2Modules
+      const draggedIndex = sourceRackModules.findIndex(m => m.id === draggedModule.id)
+
+      // If dropping after original position, decrement index since the module will be removed first
+      if (draggedIndex !== -1 && dropIndex > draggedIndex) {
+        dropIndex--
+      }
+    }
+
+    // Create new array without the dragged module (from either rack)
+    const modulesWithoutDragged = modules.filter(m => m.id !== draggedModule.id)
+
+    // Find modules for target rack (excluding dragged)
+    const targetRackFiltered = modulesWithoutDragged.filter(m => {
+      if (rack === 1) {
+        return (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid"
+      } else {
+        return m.rack === 2 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
+      }
     })
+
+    // Find modules for other rack
+    const otherRackModules = modulesWithoutDragged.filter(m => {
+      if (rack === 1) {
+        return m.rack === 2 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
+      } else {
+        return (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid"
+      }
+    })
+
+    // Insert dragged module at drop position
+    targetRackFiltered.splice(dropIndex, 0, { ...draggedModule, rack })
+
+    // Combine racks in correct order
+    if (rack === 1) {
+      setModules([...targetRackFiltered, ...otherRackModules])
+    } else {
+      setModules([...otherRackModules, ...targetRackFiltered])
+    }
+
+    // Reset drag state
+    setDragState({
+      isDragging: false,
+      draggedModule: null,
+      draggedFromRack: 1,
+      dropIndex: null,
+      dropRack: null,
+      mouseX: 0
+    })
+
     // Trigger geometry update for wires
     setTimeout(() => {
       window.dispatchEvent(new Event('resize'))
-    }, 0)
-  }, [setModules])
+    }, 50)
+  }, [dragState, rack1Modules, rack2Modules, setModules])
+
+  const handleDragEnd = useCallback(() => {
+    setDragState({
+      isDragging: false,
+      draggedModule: null,
+      draggedFromRack: 1,
+      dropIndex: null,
+      dropRack: null,
+      mouseX: 0
+    })
+  }, [])
 
   return (
     <main className="h-screen bg-background flex flex-col relative">
@@ -294,41 +414,63 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
 
       <div className="flex-1 flex flex-col">
         <div className="p-1 border-b border-border h-[580px] bg-neutral-900">
-          <Reorder.Group
-            axis="x"
-            values={rack1Modules}
-            onReorder={handleRack1Reorder}
+          <div
+            ref={rack1Ref}
             className="flex overflow-x-auto relative items-stretch h-full"
+            onDragOver={(e) => handleDragOver(e, 1)}
+            onDrop={(e) => handleDrop(e, 1)}
+            onDragEnd={handleDragEnd}
           >
             {rack1Modules.map((module: ModuleInstance, index: number) => (
-              <DraggableModuleItem
-                key={module.id}
-                module={module}
-                index={index}
-                rackModules={rack1Modules}
-                onDelete={handleDeleteModule}
-              />
+              <React.Fragment key={module.id}>
+                {dragState.isDragging && dragState.dropRack === 1 && dragState.dropIndex === index && (
+                  <DragIndicator />
+                )}
+                <DraggableModuleItem
+                  module={module}
+                  index={index}
+                  rackModules={rack1Modules}
+                  onDelete={handleDeleteModule}
+                  onDragStart={(e: React.DragEvent) => handleDragStart(e, module, 1)}
+                  isDragging={dragState.isDragging}
+                  draggedId={dragState.draggedModule?.id}
+                />
+              </React.Fragment>
             ))}
-          </Reorder.Group>
+            {dragState.isDragging && dragState.dropRack === 1 && dragState.dropIndex === rack1Modules.length && (
+              <DragIndicator />
+            )}
+          </div>
         </div>
 
         <div className="p-1 border-b border-border h-[200px] bg-neutral-900">
-          <Reorder.Group
-            axis="x"
-            values={rack2Modules}
-            onReorder={handleRack2Reorder}
+          <div
+            ref={rack2Ref}
             className="flex overflow-x-auto relative items-stretch h-full"
+            onDragOver={(e) => handleDragOver(e, 2)}
+            onDrop={(e) => handleDrop(e, 2)}
+            onDragEnd={handleDragEnd}
           >
             {rack2Modules.map((module: ModuleInstance, index: number) => (
-              <DraggableModuleItem
-                key={module.id}
-                module={module}
-                index={index}
-                rackModules={rack2Modules}
-                onDelete={handleDeleteModule}
-              />
+              <React.Fragment key={module.id}>
+                {dragState.isDragging && dragState.dropRack === 2 && dragState.dropIndex === index && (
+                  <DragIndicator />
+                )}
+                <DraggableModuleItem
+                  module={module}
+                  index={index}
+                  rackModules={rack2Modules}
+                  onDelete={handleDeleteModule}
+                  onDragStart={(e: React.DragEvent) => handleDragStart(e, module, 2)}
+                  isDragging={dragState.isDragging}
+                  draggedId={dragState.draggedModule?.id}
+                />
+              </React.Fragment>
             ))}
-          </Reorder.Group>
+            {dragState.isDragging && dragState.dropRack === 2 && dragState.dropIndex === rack2Modules.length && (
+              <DragIndicator />
+            )}
+          </div>
         </div>
 
         <div className="flex-1 p-4 flex items-center justify-center text-muted-foreground min-h-16">
@@ -409,3 +551,9 @@ export default function SynthPlayground() {
     </SettingsProvider>
   )
 }
+
+const DragIndicator = () => (
+  <div className="relative h-full flex-shrink-0">
+    <div className="absolute top-0 left-[-2px] w-[4px] h-full bg-red-500 flex-shrink-0 z-10" />
+  </div>
+)

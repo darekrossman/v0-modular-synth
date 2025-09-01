@@ -227,8 +227,8 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
           <Port id={`${moduleId}-offset-cv-in`} type="input" label="OFFS" audioType="cv" audioNode={offInRef.current ?? undefined} />
         </div>
         <div className="flex justify-between items-end gap-2">
-          <div className="w-11" />
           <Port id={`${moduleId}-sync-in`} type="input" label="SYNC" audioType="cv" audioNode={syncInRef.current ?? undefined} />
+          <div className="w-11" />
           <Port id={`${moduleId}-uni-out`} type="output" label="UNI" audioType="cv" audioNode={outUniRef.current ?? undefined} />
           <Port id={`${moduleId}-cv-out`} type="output" label="OUT" audioType="cv" audioNode={outBipRef.current ?? undefined} />
         </div>
