@@ -22,7 +22,7 @@ export default function RootLayout({
       <head>
         <style>{`
 html {
-  font-family: ${geist.style.fontFamily};
+  font-family: ${GeistMono.style.fontFamily};
   --font-sans: ${geist.variable};
   --font-mono: ${GeistMono.variable};
 }

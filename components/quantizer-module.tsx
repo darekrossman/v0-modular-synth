@@ -5,7 +5,7 @@ import { ModuleContainer } from "./module-container"
 import { Port } from "./port"
 import { ToggleSwitch } from "@/components/ui/toggle-switch"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Knob } from "@/components/ui/knob"
 import { useModuleInit } from "@/hooks/use-module-init"
 import { useModulePatch } from "./patch-manager"
@@ -19,15 +19,16 @@ function getAudioContext(): AudioContext {
 }
 
 // Scale masks (12-bit, LSB=C)
+// Bit positions: B A# A G# G F# F E D# D C# C (reading right to left)
 const SCALES: { id: string; name: string; mask: number }[] = [
-  { id: "chromatic", name: "Chroma", mask: 0b111111111111 },
-  { id: "major", name: "Major", mask: parseInt("101011010101", 2) }, // C D E F G A B
+  { id: "chromatic", name: "Chroma", mask: 0b111111111111 }, // All notes
+  { id: "major", name: "Major", mask: parseInt("101010110101", 2) }, // C D E F G A B
   { id: "natural-minor", name: "Nat Min", mask: parseInt("101101011010", 2) }, // C D Eb F G Ab Bb
-  { id: "harmonic-minor", name: "Harm Min", mask: parseInt("101101011001", 2) },
-  { id: "pentatonic-major", name: "Penta Maj", mask: parseInt("100101010010", 2) }, // C D E G A
-  { id: "pentatonic-minor", name: "Penta Min", mask: parseInt("101001001010", 2) }, // C Eb F G Bb
-  { id: "dorian", name: "Dorian", mask: parseInt("101101010110", 2) },
-  { id: "mixolydian", name: "Mixo", mask: parseInt("101011010110", 2) },
+  { id: "harmonic-minor", name: "Harm Min", mask: parseInt("101101011001", 2) }, // C D Eb F G Ab B
+  { id: "pentatonic-major", name: "Penta Maj", mask: parseInt("101001010001", 2) }, // C D E G A
+  { id: "pentatonic-minor", name: "Penta Min", mask: parseInt("100101001010", 2) }, // C Eb F G Bb
+  { id: "dorian", name: "Dorian", mask: parseInt("101011011010", 2) }, // C D Eb F G A Bb
+  { id: "mixolydian", name: "Mixo", mask: parseInt("101010110110", 2) }, // C D E F G A Bb
 ]
 
 const KEYS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -121,13 +122,12 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
     node.port.postMessage({ type: 'scale', mask12: targetMask })
   }, [scaleId, mask12])
 
-  // Helpers for preview
-  const rotatedMask = (() => {
+  // Helper to get the transposed mask for display
+  const displayMask = (() => {
     const m = (mask12 & 0xFFF)
     const k = ((keyIdx % 12) + 12) % 12
     return ((m << k) | (m >>> (12 - k))) & 0xFFF
   })()
-  const keysRotated = Array.from({ length: 12 }, (_, i) => KEYS[(i + keyIdx) % 12])
 
   return (
     <ModuleContainer moduleId={moduleId} title="Quantizer">
@@ -141,18 +141,20 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
 
           <div className="relative h-10 rounded-[2px] overflow-hidden">
             <div className="flex h-full">
-              {([0, 2, 4, 5, 7, 9, 11] as number[]).map((rotSemi) => {
-                const on = ((rotatedMask >> rotSemi) & 1) === 1
-                const isRoot = rotSemi === 0
+              {/* White keys: C, D, E, F, G, A, B */}
+              {([0, 2, 4, 5, 7, 9, 11] as number[]).map((semitone) => {
+                const on = ((displayMask >> semitone) & 1) === 1
                 return (
                   <div
-                    key={rotSemi}
-                    className={`w-4 flex-1 border-r border-black/30 last:border-r-0 cursor-pointer select-none ${on ? (isRoot ? 'bg-green-300' : 'bg-blue-300') : 'bg-neutral-100 hover:bg-neutral-200'
-                      }`}
+                    key={semitone}
+                    className={`w-4 flex-1 border-r border-black/30 last:border-r-0 cursor-pointer select-none ${
+                      on ? 'bg-blue-300' : 'bg-neutral-100 hover:bg-neutral-200'
+                    }`}
                     onClick={() => {
-                      const baseIdx = (rotSemi - keyIdx + 12) % 12
+                      // Toggle the note in the original mask (before transposition)
+                      const noteInOriginalScale = (semitone - keyIdx + 12) % 12
                       setMask12((prev) => {
-                        const nm = prev ^ (1 << baseIdx)
+                        const nm = prev ^ (1 << noteInOriginalScale)
                         nodeRef.current?.port.postMessage({ type: 'scale', mask12: nm & 0xFFF })
                         return nm
                       })
@@ -162,25 +164,27 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
               })}
             </div>
             <div className="absolute top-0 left-0 h-6 w-full pointer-events-none">
+              {/* Black keys: C#, D#, F#, G#, A# */}
               {([
-                { rotSemi: 1, pos: 0.65 },
-                { rotSemi: 3, pos: 1.7 },
-                { rotSemi: 6, pos: 3.7 },
-                { rotSemi: 8, pos: 4.7 },
-                { rotSemi: 10, pos: 5.72 },
-              ] as { rotSemi: number; pos: number }[]).map(({ rotSemi, pos }) => {
-                const on = ((rotatedMask >> rotSemi) & 1) === 1
-                const isRoot = rotSemi === 0
+                { semitone: 1, pos: 0.65 },   // C#
+                { semitone: 3, pos: 1.7 },    // D#
+                { semitone: 6, pos: 3.7 },    // F#
+                { semitone: 8, pos: 4.7 },    // G#
+                { semitone: 10, pos: 5.72 },  // A#
+              ] as { semitone: number; pos: number }[]).map(({ semitone, pos }) => {
+                const on = ((displayMask >> semitone) & 1) === 1
                 return (
                   <div
-                    key={rotSemi}
-                    className={`absolute h-full pointer-events-auto cursor-pointer rounded-[2px] border ${on ? (isRoot ? 'bg-green-500 border-green-600' : 'bg-blue-500 border-blue-600') : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700'
-                      }`}
+                    key={semitone}
+                    className={`absolute h-full pointer-events-auto cursor-pointer rounded-[2px] border ${
+                      on ? 'bg-blue-500 border-blue-600' : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700'
+                    }`}
                     style={{ left: `${(pos * 100) / 7}%`, width: `${(100 / 7) * 0.6}%` }}
                     onClick={() => {
-                      const baseIdx = (rotSemi - keyIdx + 12) % 12
+                      // Toggle the note in the original mask (before transposition)
+                      const noteInOriginalScale = (semitone - keyIdx + 12) % 12
                       setMask12((prev) => {
-                        const nm = prev ^ (1 << baseIdx)
+                        const nm = prev ^ (1 << noteInOriginalScale)
                         nodeRef.current?.port.postMessage({ type: 'scale', mask12: nm & 0xFFF })
                         return nm
                       })
@@ -199,26 +203,37 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
         <div className="flex-grow" />
 
         {/* Row 2 */}
-        <div className="flex items-end justify-between gap-4 pl-1">
+        <div className="flex items-center justify-between gap-4 pl-1">
           <ToggleSwitch label="Trig" value={hold} onValueChange={setHold} />
 
           <div className="flex items-end gap-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1">
-                <Select value={scaleId} onValueChange={setScaleId}>
-                  <SelectTrigger className="w-26">
-                    <SelectValue placeholder="Scale" />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    {SCALES.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
+                <Select value={scaleId} onValueChange={(newScaleId) => {
+                  setScaleId(newScaleId)
+                  const scale = SCALES.find(s => s.id === newScaleId)
+                  if (scale) {
+                    setMask12(scale.mask)
+                  }
+                }}>
+                  <SelectGroup>
+                    <SelectLabel>scale</SelectLabel>
+                    <SelectTrigger className="w-26">
+                      <SelectValue placeholder="Scale" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SCALES.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </SelectGroup>
                 </Select>
                 <Select value={String(keyIdx)} onValueChange={(v) => setKeyIdx(Number(v))}>
-                  <SelectTrigger className="w-14 uppercase"><SelectValue placeholder="Key" /></SelectTrigger>
-                  <SelectContent>
-                    {KEYS.map((k, i) => <SelectItem key={k} value={String(i)} className="uppercase">{k}</SelectItem>)}
-                  </SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>key</SelectLabel>
+                    <SelectTrigger className="w-14 uppercase"><SelectValue placeholder="Key" /></SelectTrigger>
+                    <SelectContent>
+                      {KEYS.map((k, i) => <SelectItem key={k} value={String(i)} className="uppercase">{k}</SelectItem>)}
+                    </SelectContent>
+                  </SelectGroup>
                 </Select>
               </div>
             </div>

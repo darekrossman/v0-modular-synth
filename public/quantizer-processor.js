@@ -53,12 +53,43 @@ class QuantizerProcessor extends AudioWorkletProcessor {
   }
 
   quantizeVolts(volts, key) {
-    const semi = volts * 12
-    const oct = Math.floor(semi / 12)
-    const chroma = semi - oct * 12 // 0..12
-    const target = this.nearestInScale(chroma, key)
-    const qSemi = oct * 12 + target
-    return qSemi / 12
+    // Convert voltage to semitones (1V/oct standard)
+    const inputSemitones = volts * 12
+    
+    // Get the rotated scale mask for the current key
+    const mask = ((this.mask12 << key) | (this.mask12 >>> (12 - key))) & 0xFFF
+    
+    // Build array of valid notes in the scale
+    const validNotes = []
+    for (let i = 0; i < 12; i++) {
+      if ((mask >> i) & 1) {
+        validNotes.push(i)
+      }
+    }
+    
+    // If no valid notes, return input unchanged
+    if (validNotes.length === 0) return volts
+    
+    // Find the closest valid note across all octaves
+    // We'll check the current octave and adjacent ones to avoid discontinuities
+    const centerOctave = Math.floor(inputSemitones / 12)
+    let bestSemitone = centerOctave * 12
+    let bestDistance = Infinity
+    
+    // Check octaves around the current position
+    for (let oct = centerOctave - 1; oct <= centerOctave + 1; oct++) {
+      for (const note of validNotes) {
+        const candidate = oct * 12 + note
+        const distance = Math.abs(candidate - inputSemitones)
+        if (distance < bestDistance) {
+          bestDistance = distance
+          bestSemitone = candidate
+        }
+      }
+    }
+    
+    // Convert back to voltage
+    return bestSemitone / 12
   }
 
   process(inputs, outputs, parameters) {

@@ -16,7 +16,7 @@ interface SettingsContextValue {
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined)
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<SettingsState>({ wireTension: 0.35, wireOpacity: 0.6, wireThickness: 5 })
+  const [settings, setSettings] = useState<SettingsState>({ wireTension: 0.55, wireOpacity: 0.6, wireThickness: 5 })
   const [isOpen, setIsOpen] = useState(false)
 
   const value = useMemo<SettingsContextValue>(
