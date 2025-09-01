@@ -145,20 +145,22 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="Clock" moduleId={moduleId}>
-      <div className="flex flex-col items-center gap-2 w-full">
+      <div className="flex flex-col items-center gap-6 w-full">
         <div className="bg-black text-red-400 font-mono text-md py-1 rounded-xs w-full text-center">
           {bpm[0].toFixed(1)} BPM
         </div>
 
-        <div className="flex-1 flex justify-center items-center gap-6">
-          <PushButton
-            onClick={handleStartStop}
-            className={`${isRunning
-              ? "bg-red-600 hover:bg-red-700 active:bg-red-800"
-              : "bg-green-600 hover:bg-green-700 active:bg-green-800"
-              }`}
-            label={isRunning ? "Stop" : "Run"}
-          />
+        <div className="flex-1 flex justify-center items-center gap-4">
+          <div className="w-15 flex justify-center">
+            <PushButton
+              onClick={handleStartStop}
+              className={`${isRunning
+                ? "bg-red-600 hover:bg-red-700 active:bg-red-800"
+                : "bg-green-600 hover:bg-green-700 active:bg-green-800"
+                }`}
+              label={isRunning ? "Stop" : "Run"}
+            />
+          </div>
           <Knob
             defaultValue={defaultKnobValue}
             onValueChange={handleKnobChange}
@@ -169,16 +171,16 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <Knob
+      <div className="flex flex-col gap-2 mt-5">
+        <div className="flex items-center gap-6">
+          <div className="flex justify-center w-15"><Knob
             defaultValue={[3 / 8]}
             onValueChange={handleDiv1Change}
             label="DIV1"
             size="sm"
             tickLabels={divisionLabels}
             steps={9}
-          />
+          /></div>
           <Port
             id={`${moduleId}-div1-out`}
             type="output"
@@ -188,15 +190,15 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           />
         </div>
 
-        <div className="flex items-center justify-between">
-          <Knob
+        <div className="flex items-center gap-6">
+          <div className="flex justify-center w-15"><Knob
             defaultValue={[4 / 8]}
             onValueChange={handleDiv2Change}
             label="DIV2"
             size="sm"
             tickLabels={divisionLabels}
             steps={9}
-          />
+          /></div>
           <Port
             id={`${moduleId}-div2-out`}
             type="output"
@@ -206,15 +208,15 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           />
         </div>
 
-        <div className="flex items-center justify-between">
-          <Knob
+        <div className="flex items-center gap-6">
+          <div className="flex justify-center w-15"><Knob
             defaultValue={[5 / 8]}
             onValueChange={handleDiv3Change}
             label="DIV3"
             size="sm"
             tickLabels={divisionLabels}
             steps={9}
-          />
+          /></div>
           <Port
             id={`${moduleId}-div3-out`}
             type="output"
@@ -224,15 +226,15 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           />
         </div>
 
-        <div className="flex items-center justify-between">
-          <Knob
+        <div className="flex items-center gap-6">
+          <div className="flex justify-center w-15"><Knob
             defaultValue={[6 / 8]}
             onValueChange={handleDiv4Change}
             label="DIV4"
             size="sm"
             tickLabels={divisionLabels}
             steps={9}
-          />
+          /></div>
           <Port
             id={`${moduleId}-div4-out`}
             type="output"

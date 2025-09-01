@@ -173,17 +173,8 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
   }
 
   return (
-    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-2 pb-0.5 w-11 bg-neutral-400 rounded-sm relative", className)}>
+    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-0.5 pb-2 w-11 bg-neutral-400 rounded-sm relative", className)}>
       <TextLabel>{label}</TextLabel>
-      {/* {showIndicator && (
-        <div
-          className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full shadow-sm"
-          style={{
-            backgroundColor: voltageToColor(signalValue),
-            boxShadow: `0 0 3px ${voltageToColor(signalValue)}`
-          }}
-        />
-      )} */}
       <div
         ref={setNodeRef}
         data-port-id={id}
@@ -191,10 +182,6 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
         className={cn(
           "relative w-5 h-5 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-3 border-neutral-100",
         )}
-        // style={wireColor ? {
-        //   borderColor: wireColor,
-        //   borderWidth: !wireColor ? "4px" : "5px",
-        // } : {}}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

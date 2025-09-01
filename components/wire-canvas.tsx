@@ -38,9 +38,11 @@ function calculateWirePhysics(dist: number, dx: number, dy: number, tension: num
     sag = Math.sqrt(excessWire * Math.max(30, dist)) / 1.5
   }
   
-  // Gravity effect
-  const horizontalFactor = dist > 0 ? Math.abs(dx) / dist : 0
-  const gravityEffect = 0.4 + 0.6 * horizontalFactor
+  // Gravity effect - vertical wires should sag MORE, not less!
+  // When wire is vertical (dx ≈ 0), all excess length becomes sag
+  const horizontalRatio = dist > 0 ? Math.abs(dx) / dist : 0
+  // Invert the effect: vertical wires get full sag, horizontal get partial
+  const gravityEffect = 1.0 - (0.3 * horizontalRatio)  // 1.0 for vertical, 0.7 for horizontal
   
   return (sag * gravityEffect) + shadowOffset
 }
@@ -57,11 +59,36 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
     const tension = 1 - d
     const sag = calculateWirePhysics(dist, dx, dy, tension, shadowOffset)
 
-    // Calculate control points for the bezier curve (MUST match temp wire exactly)
-    const cp1x = a.x + dx * 0.25
-    const cp1y = a.y + dy * 0.25 + sag  // Use full sag, not 0.7
-    const cp2x = a.x + dx * 0.75
-    const cp2y = a.y + dy * 0.75 + sag  // Use full sag, not 0.7
+    // Calculate control points for natural catenary curve
+    // Key insight: Bezier curves need horizontal spread to render properly
+    // When dx is very small, we need to provide minimal spread for the math to work
+    
+    // For vertical positions, account for slack
+    const slackRatio = Math.min(1, sag / (dist * 0.5))
+    
+    // Calculate base positions with smooth transition for vertical wires
+    let cp1x, cp2x, cp1y, cp2y
+    
+    // Smooth transition based on how vertical the wire is
+    // Use a smoother transition that doesn't cause jumps
+    const horizontalness = dist > 0 ? Math.abs(dx) / dist : 0
+    
+    // Always blend - never have a hard cutoff
+    // For nearly vertical wires, reduce horizontal spread smoothly
+    const minHorizontal = 0.01  // Minimum horizontal factor to avoid degenerate curves
+    const horizontalFactor = Math.max(minHorizontal, horizontalness)
+    
+    // Control points horizontal positions - smoothly transition to vertical
+    cp1x = a.x + dx * 0.35 * horizontalFactor
+    cp2x = a.x + dx * 0.65 * horizontalFactor
+    
+    // For vertical positions, blend based on how vertical the wire is
+    // More vertical = control points spread more evenly along the height
+    const verticalness = 1.0 - horizontalness
+    const verticalSpread = 0.35 - verticalness * 0.1  // From 0.35 to 0.25 as wire becomes vertical
+    
+    cp1y = a.y + dy * verticalSpread * (1 - slackRatio * 0.8) + sag
+    cp2y = a.y + dy * (1 - verticalSpread) * (1 - slackRatio * 0.8) + sag
 
     // REMOVED quadratic logic - always use cubic bezier like temp wire
     if (false) {
@@ -262,107 +289,15 @@ export function WireCanvas() {
         if (endRing) endRing.style.display = 'none'
         return
       }
+      
       const a = toSvg(fromScreen)
-      let b = toSvg(toScreen)
+      const b = toSvg(toScreen)
       
-      // Calculate actual distance between endpoints
-      const dx = b.x - a.x
-      const dy = b.y - a.y
-      const actualDist = Math.hypot(dx, dy)
+      // Use the SAME function that permanent wires use!
+      const result = sagPathRef.current(a, b)
       
-      // Use unified wire physics calculation
-      const tension = tensionRef.current
-      const sag = calculateWirePhysics(actualDist, dx, dy, tension, 0)
-      
-      // Calculate wire arc length for slack detection
-      const slack = 1 - tension
-      const distanceFactor = Math.max(50, actualDist)
-      const inverseBonus = 300 / distanceFactor
-      const baseExtra = slack * 250 * inverseBonus
-      const proportionalExtra = actualDist * slack * 0.5
-      const wireArcLength = actualDist + baseExtra + proportionalExtra
-      
-      // Control points for bezier curve (MUST match permanent wire exactly)
-      const cp1x = a.x + dx * 0.25
-      const cp1y = a.y + dy * 0.25 + sag  // Full sag
-      const cp2x = a.x + dx * 0.75  
-      const cp2y = a.y + dy * 0.75 + sag  // Full sag
-      
-      // Calculate tangent at start (from start toward first control point)
-      const startTangentX = cp1x - a.x
-      const startTangentY = cp1y - a.y
-      const startTangentDist = Math.hypot(startTangentX, startTangentY)
-      
-      // Offset for triangle tip attachment
-      const offsetDistance = 13 + tension * 2  // 13-15px based on tension
-      
-      // When wire has slack, it doesn't pull upward as strongly
-      // The ring should stay more horizontal when there's excess wire
-      let startUnitX = 1, startUnitY = 0
-      let startPoint = a
-      
-      if (startTangentDist > 0.1) {
-        startUnitX = startTangentX / startTangentDist
-        startUnitY = startTangentY / startTangentDist
-        
-        // If wire has slack (wireArcLength > actualDist), reduce upward pull
-        if (wireArcLength > actualDist && startUnitY < 0) {
-          // Wire has excess length and is pulling upward - reduce the upward component
-          const tautness = actualDist / wireArcLength  // 0 when lots of slack, 1 when taut
-          // Blend toward horizontal as slack increases
-          startUnitY = startUnitY * tautness  // Reduce upward pull based on slack
-          // Renormalize
-          const newDist = Math.hypot(startUnitX, startUnitY)
-          if (newDist > 0.1) {
-            startUnitX = startUnitX / newDist
-            startUnitY = startUnitY / newDist
-          }
-        }
-        
-        startPoint = {
-          x: a.x + startUnitX * offsetDistance,
-          y: a.y + startUnitY * offsetDistance
-        }
-      }
-      
-      // End point is always at actual cursor position (not extended)
-      const endPoint = toSvg(toScreen)
-      
-      // Calculate end tangent for wire offset
-      // The tangent at the end comes from the second control point toward the end
-      const endTangentX = endPoint.x - cp2x
-      const endTangentY = endPoint.y - cp2y
-      const endTangentDist = Math.hypot(endTangentX, endTangentY)
-      
-      // Calculate unit vectors for end ring rotation
-      let endUnitX = endTangentDist > 0.1 ? endTangentX / endTangentDist : -1
-      let endUnitY = endTangentDist > 0.1 ? endTangentY / endTangentDist : 0
-      
-      // Apply same slack adjustment for end ring
-      if (wireArcLength > actualDist && endUnitY < 0) {
-        const tautness = actualDist / wireArcLength
-        endUnitY = endUnitY * tautness
-        // Renormalize
-        const newDist = Math.hypot(endUnitX, endUnitY)
-        if (newDist > 0.1) {
-          endUnitX = endUnitX / newDist
-          endUnitY = endUnitY / newDist
-        }
-      }
-      
-      // Calculate adjusted endpoint with offset for triangle tip
-      let adjustedEndPoint = endPoint
-      if (endTangentDist > 0.1) {
-        const offsetDistance = 13 + tension * 2  // Same as start offset
-        adjustedEndPoint = {
-          x: endPoint.x - endUnitX * offsetDistance,  // Pull wire back from end ring
-          y: endPoint.y - endUnitY * offsetDistance
-        }
-      }
-      
-      // Draw the path - always use cubic bezier for consistency
-      const path = `M ${startPoint.x} ${startPoint.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${adjustedEndPoint.x} ${adjustedEndPoint.y}`
-      pathEl.setAttribute("d", path)
+      // Set the wire path
+      pathEl.setAttribute("d", result.path)
       
       if (color) {
         pathEl.setAttribute("stroke", color)
@@ -371,15 +306,9 @@ export function WireCanvas() {
       
       // Position and show temp wire rings
       if (startRing && endRing) {
-        // Calculate angles for ring rotation
-        const startAngle = Math.atan2(startUnitY, startUnitX) * 180 / Math.PI
-        
-        // For end ring, use the calculated unit vectors
-        const endAngle = Math.atan2(-endUnitY, -endUnitX) * 180 / Math.PI
-        
         // Show and position start ring
         startRing.style.display = ''
-        startRing.setAttribute('transform', `translate(${a.x}, ${a.y}) rotate(${startAngle})`)
+        startRing.setAttribute('transform', `translate(${a.x}, ${a.y}) rotate(${result.startAngle})`)
         const startCircle = startRing.firstElementChild as SVGCircleElement
         const startTriangle = startRing.lastElementChild as SVGPathElement
         if (startCircle && startTriangle && color) {
@@ -389,7 +318,7 @@ export function WireCanvas() {
         
         // Show and position end ring at cursor/end point
         endRing.style.display = ''
-        endRing.setAttribute('transform', `translate(${endPoint.x}, ${endPoint.y}) rotate(${endAngle})`)
+        endRing.setAttribute('transform', `translate(${b.x}, ${b.y}) rotate(${result.endAngle})`)
         const endCircle = endRing.firstElementChild as SVGCircleElement
         const endTriangle = endRing.lastElementChild as SVGPathElement
         if (endCircle && endTriangle && color) {
