@@ -84,37 +84,320 @@ export function useModulePatch(
   return { initialParameters }
 }
 
-// ---------- Default patch (uses new {from,to,kind} shape) ----------
 const createDefaultPatch = (): Patch => ({
-  name: "Default Patch",
-  version: "2.0",
-  modules: [
-    { id: "keyboard-cv-1", type: "keyboard-cv", parameters: {} },
-    { id: "oscillator-1", type: "oscillator", parameters: { tune: 0, octave: 0, phase: 0, waveType: "sine" } },
-    { id: "lowpass-filter-1", type: "lowpass-filter", parameters: { cutoff: 1000, resonance: 1 } },
-    { id: "adsr-2", type: "adsr", parameters: { attack: 0.05, decay: 0.1, sustain: 0.5, release: 1.0 } },
-    { id: "adsr-1", type: "adsr", parameters: { attack: 0.1, decay: 0.2, sustain: 0.7, release: 0.3 } },
-    { id: "lfo-1", type: "lfo", parameters: {} },
-    { id: "vca-1", type: "vca", parameters: {} },
-    { id: "output-1", type: "output", parameters: {} },
+  "name": "Default Patch",
+  "version": "2.0",
+  "modules": [
+    {
+      "id": "clock-1",
+      "type": "clock",
+      "parameters": {}
+    },
+    {
+      "id": "random-1",
+      "type": "random",
+      "parameters": {
+        "atten": [
+          [
+            1
+          ],
+          [
+            1
+          ],
+          [
+            1
+          ],
+          [
+            1
+          ],
+          [
+            1
+          ],
+          [
+            1
+          ]
+        ],
+        "offset": [
+          [
+            0.5
+          ],
+          [
+            0.5
+          ],
+          [
+            0.5
+          ],
+          [
+            0.5
+          ],
+          [
+            0.5
+          ],
+          [
+            0.5
+          ]
+        ]
+      }
+    },
+    {
+      "id": "lfo-1",
+      "type": "lfo",
+      "parameters": {
+        "shape": 0,
+        "freq": 15.000250000000001,
+        "pw": 0.5,
+        "amp": 1,
+        "offset": 0,
+        "slew": 0,
+        "rateAmt": 4,
+        "pwAmt": 1,
+        "ampAmt": 2,
+        "offAmt": 2
+      }
+    },
+    {
+      "id": "oscillator-1",
+      "type": "oscillator",
+      "parameters": {
+        "tune": 0,
+        "octave": 0,
+        "phase": 0,
+        "waveType": "square",
+        "pulseWidth": 0.5,
+        "syncAmount": 0,
+        "waveformMorph": 0,
+        "fmAmount": 0,
+        "pwmCvAmt": 1,
+        "morphCvAmt": 1
+      }
+    },
+    {
+      "id": "oscillator-2",
+      "type": "oscillator",
+      "parameters": {
+        "tune": 0,
+        "octave": 0,
+        "phase": 0,
+        "waveType": "square",
+        "pulseWidth": 0.5,
+        "syncAmount": 0,
+        "waveformMorph": 0,
+        "fmAmount": 0,
+        "pwmCvAmt": 1,
+        "morphCvAmt": 1
+      }
+    },
+    {
+      "id": "lowpass-filter-1",
+      "type": "lowpass-filter",
+      "parameters": {
+        "cutoff": 1,
+        "resonance": 0,
+        "drive": 0,
+        "resComp": 0.6,
+        "fbSat": 0.09,
+        "input1Level": 1,
+        "input2Level": 1,
+        "input3Level": 1,
+        "cvAttenuation": 1
+      }
+    },
+    {
+      "id": "adsr-1",
+      "type": "adsr",
+      "parameters": {
+        "attackN": 0,
+        "decayN": 0.09954977488744372,
+        "sustainN": 1,
+        "releaseN": 0.019803960792158435,
+        "maxVN": 1,
+        "retrig": true,
+        "longMode": false,
+        "linearShape": false
+      }
+    },
+    {
+      "id": "adsr-2",
+      "type": "adsr",
+      "parameters": {
+        "attackN": 0,
+        "decayN": 0.09954977488744372,
+        "sustainN": 1,
+        "releaseN": 0.019803960792158435,
+        "maxVN": 1,
+        "retrig": true,
+        "longMode": false,
+        "linearShape": false
+      }
+    },
+    {
+      "id": "vca-1",
+      "type": "vca",
+      "parameters": {
+        "cvAmount": 1,
+        "offset": 0
+      }
+    },
+    {
+      "id": "delay-1",
+      "type": "delay",
+      "parameters": {
+        "time": 0.25999999999999995,
+        "feedback": 0.3,
+        "mix": 0,
+        "toneHz": 8000,
+        "mode": 0,
+        "timeCvAmt": 1,
+        "fbCvAmt": 1,
+        "clocked": false
+      }
+    },
+    {
+      "id": "reverb-1",
+      "type": "reverb",
+      "parameters": {
+        "size": 0.6,
+        "decay": 0.7,
+        "dampHz": 7400,
+        "preDelay": 0.08,
+        "mix": 0.35,
+        "algo": 1,
+        "sizeCvAmt": 1,
+        "dampCvAmt": 1,
+        "decayCvAmt": 1,
+        "mixCvAmt": 1
+      }
+    },
+    {
+      "id": "output-1",
+      "type": "output",
+      "parameters": {
+        "volume": 0.75
+      }
+    },
+    {
+      "id": "euclid-1",
+      "type": "euclid",
+      "parameters": {
+        "steps": 0.5,
+        "pulsesNorm": 0.375,
+        "rotateNorm": 0,
+        "gateRatio": 0.25,
+        "density": 1,
+        "accent": 0.5
+      }
+    },
+    {
+      "id": "quantizer-1",
+      "type": "quantizer",
+      "parameters": {
+        "scaleId": "major",
+        "keyIdx": 0,
+        "hold": false,
+        "transpose": 0,
+        "octave": 0,
+        "mask12": 2741
+      }
+    }
   ],
-  connections: [
-    { id: "c1", from: "keyboard-cv-1-gate-out", to: "adsr-1-gate-in", kind: "cv", color: "#FF6B6B" },
-    { id: "c2", from: "keyboard-cv-1-gate-out", to: "adsr-2-gate-in", kind: "cv", color: "#FF6B6B" },
-    { id: "c3", from: "keyboard-cv-1-pitch-out", to: "oscillator-1-freq-in", kind: "cv", color: "#4ECDC4" },
-    { id: "c4", from: "oscillator-1-audio-out", to: "lowpass-filter-1-audio-in-1", kind: "audio", color: "#FFD93D" },
-    { id: "c5", from: "lowpass-filter-1-audio-out", to: "vca-1-audio-in", kind: "audio", color: "#95E77E" },
-    { id: "c6", from: "adsr-1-env-out", to: "vca-1-cv-in", kind: "cv", color: "#A8E6CF" },
-    { id: "c7", from: "adsr-2-env-out", to: "lowpass-filter-1-cutoff-cv-in", kind: "cv", color: "#DDA0DD" },
-    { id: "c8", from: "vca-1-audio-out", to: "output-1-left-in", kind: "audio", color: "#87CEEB" },
-    { id: "c9", from: "vca-1-audio-out", to: "output-1-right-in", kind: "audio", color: "#87CEEB" },
+  "connections": [
+    {
+      "id": "1f92c6c1-80a6-400a-87dc-6c83eb057cc9",
+      "from": "oscillator-1-audio-out",
+      "to": "lowpass-filter-1-audio-in-1",
+      "kind": "audio",
+      "color": "#FFD700"
+    },
+    {
+      "id": "a6af7e1c-b4f9-42e4-927e-7bdfb32ee754",
+      "from": "oscillator-2-audio-out",
+      "to": "lowpass-filter-1-audio-in-2",
+      "kind": "audio",
+      "color": "#FFD700"
+    },
+    {
+      "id": "667c8866-0563-4fba-96b6-c2fabb24cbce",
+      "from": "lowpass-filter-1-audio-out",
+      "to": "vca-1-audio-in",
+      "kind": "audio",
+      "color": "#9D00FF"
+    },
+    {
+      "id": "767481eb-56b3-479b-8e1c-dca66f44c8b1",
+      "from": "vca-1-audio-out",
+      "to": "delay-1-in-l",
+      "kind": "audio",
+      "color": "#FF0040"
+    },
+    {
+      "id": "b25595fa-aa38-4f31-b5a6-b72fabf4b831",
+      "from": "delay-1-out-l",
+      "to": "reverb-1-in-l",
+      "kind": "audio",
+      "color": "#FFD700"
+    },
+    {
+      "id": "438a30ae-8810-44a4-854c-8ba1348ea0dd",
+      "from": "delay-1-out-r",
+      "to": "reverb-1-in-r",
+      "kind": "audio",
+      "color": "#9D00FF"
+    },
+    {
+      "id": "327f1bfa-e6fa-4155-9386-f2ad6894d4d7",
+      "from": "reverb-1-out-l",
+      "to": "output-1-left-in",
+      "kind": "audio",
+      "color": "#00FF94"
+    },
+    {
+      "id": "c5834340-baeb-4fff-8b43-312b0a79ce47",
+      "from": "reverb-1-out-r",
+      "to": "output-1-right-in",
+      "kind": "audio",
+      "color": "#FF0040"
+    },
+    {
+      "id": "d2e488ac-4d99-4749-b0d5-c9d5a1d6351f",
+      "from": "adsr-2-env-out",
+      "to": "vca-1-cv-in",
+      "kind": "cv",
+      "color": "#FF8000"
+    },
+    {
+      "id": "baca46f9-d29d-4f91-8fd2-6e96f6726a4e",
+      "from": "adsr-1-env-out",
+      "to": "lowpass-filter-1-cutoff-cv-in",
+      "kind": "cv",
+      "color": "#00FF94"
+    },
+    {
+      "id": "9369b51f-4ded-4c8a-9a9e-f273274fc583",
+      "from": "euclid-1-gate-out",
+      "to": "adsr-2-gate-in",
+      "kind": "cv",
+      "color": "#00FF94"
+    },
+    {
+      "id": "8f0760ca-075b-4138-8623-20809dc72105",
+      "from": "euclid-1-accent-out",
+      "to": "adsr-1-gate-in",
+      "kind": "cv",
+      "color": "#FF0040"
+    },
+    {
+      "id": "fe43dada-35d8-4af3-a781-5015b3d645fe",
+      "from": "clock-1-48ppq-out",
+      "to": "euclid-1-clock-in",
+      "kind": "cv",
+      "color": "#FF0040"
+    }
   ],
-  metadata: {
-    created: "2024-01-01T00:00:00.000Z",
-    modified: "2024-01-01T00:00:00.000Z",
-    description:
-      "The default synthesizer configuration with dual ADSR envelopes - one for amplitude and one for filter modulation",
-  },
+  "metadata": {
+    "created": "2024-01-01T00:00:00.000Z",
+    "modified": "2025-09-01T20:38:12.454Z",
+    "description": "The default synthesizer configuration with dual ADSR envelopes - one for amplitude and one for filter modulation"
+  }
 })
 
 interface PatchProviderProps {
@@ -132,19 +415,19 @@ const normalizeConnections = (conns: any[]): PatchConnection[] => {
   return conns.map((c) => {
     // legacy -> new
     if (c && c.sourcePortId && c.targetPortId && c.audioType) {
-      return { 
-        id: c.id || c.uuid || `${c.sourcePortId}->${c.targetPortId}`, 
-        from: c.sourcePortId, 
-        to: c.targetPortId, 
+      return {
+        id: c.id || c.uuid || `${c.sourcePortId}->${c.targetPortId}`,
+        from: c.sourcePortId,
+        to: c.targetPortId,
         kind: c.audioType,
         ...(c.color && { color: c.color })
       }
     }
     // already new - preserve color if it exists
-    return { 
-      id: c.id, 
-      from: c.from, 
-      to: c.to, 
+    return {
+      id: c.id,
+      from: c.from,
+      to: c.to,
       kind: c.kind,
       ...(c.color && { color: c.color })
     }
@@ -246,10 +529,10 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
       name: currentPatch?.name || "Untitled Patch",
       version: "2.0",
       modules: modulesForExport,
-      connections: edges.map((e) => ({ 
-        id: e.id, 
-        from: e.from, 
-        to: e.to, 
+      connections: edges.map((e) => ({
+        id: e.id,
+        from: e.from,
+        to: e.to,
         kind: e.kind,
         ...(e.color && { color: e.color })
       })),
@@ -305,8 +588,12 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
     const moduleInstances = patch.modules.map((m) => ({ id: m.id, type: m.type as any }))
     onModulesChange(moduleInstances)
 
-    // 3) Load connections
-    loadPatchJSON({ modules: patch.modules, connections: patch.connections })
+    // 3) Load connections (ensure all have colors)
+    const connectionsWithColors = patch.connections.map(conn => ({
+      ...conn,
+      color: conn.color || '#888888' // Default gray color if none specified
+    }))
+    loadPatchJSON({ modules: patch.modules, connections: connectionsWithColors })
     setCurrentPatch(patch)
   }, [onModulesChange, loadPatchJSON])
 
@@ -342,7 +629,7 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
     const blank: Patch = {
       name: "New Patch",
       version: "2.0",
-      modules: [{ id: "output-1", type: "output", parameters: {} }],
+      modules: [],
       connections: [],
       metadata: {
         created: new Date().toISOString(),

@@ -28,6 +28,7 @@ import { PatchDropdown } from "@/components/patch-dropdown"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Plus, Trash2, Settings as SettingsIcon } from "lucide-react"
 import { SettingsProvider, useSettings } from "@/components/settings-context"
 import { SettingsDialog } from "@/components/settings-dialog"
@@ -43,7 +44,7 @@ type ModuleType =
   | "reverb"
   | "delay"
   | "oscilloscope"
-  | "simple-oscilloscope"
+  | "scope"
   | "clock"
   | "sequencer"
   | "random"
@@ -58,21 +59,21 @@ interface ModuleInstance {
 }
 
 const availableModules = [
-  { type: "oscillator" as ModuleType, name: "Oscillator", description: "Audio frequency generator" },
-  { type: "output" as ModuleType, name: "Output", description: "Stereo audio output" },
-  { type: "lowpass-filter" as ModuleType, name: "Lowpass Filter", description: "Frequency filter" },
-  { type: "keyboard-cv" as ModuleType, name: "Keyboard CV", description: "MIDI keyboard to CV converter" },
-  { type: "adsr" as ModuleType, name: "ADSR", description: "Attack Decay Sustain Release envelope" },
-  { type: "vca" as ModuleType, name: "VCA", description: "Voltage controlled amplifier" },
-  { type: "random" as ModuleType, name: "Random", description: "Random voltage generator" },
+  { type: "adsr" as ModuleType, name: "ADSR", description: "4-stage envelope generator" },
   { type: "clock" as ModuleType, name: "Clock", description: "Timing and trigger generator" },
-  { type: "simple-oscilloscope" as ModuleType, name: "Scope", description: "Single-channel oscilloscope" },
-  { type: "sequencer" as ModuleType, name: "Sequencer", description: "Step sequencer for patterns" },
-  { type: "euclid" as ModuleType, name: "Euclid", description: "Euclidean rhythm sequencer" },
-  { type: "lfo" as ModuleType, name: "LFO", description: "Low-frequency oscillator" },
   { type: "delay" as ModuleType, name: "Delay", description: "Delay effect module" },
-  { type: "reverb" as ModuleType, name: "Reverb", description: "Stereo reverb effect" },
+  { type: "euclid" as ModuleType, name: "Euclid", description: "Euclidean rhythm sequencer" },
+  { type: "keyboard-cv" as ModuleType, name: "Keyboard CV", description: "MIDI keyboard to CV converter" },
+  { type: "lfo" as ModuleType, name: "LFO", description: "Low-frequency oscillator" },
+  { type: "lowpass-filter" as ModuleType, name: "Lowpass Filter", description: "24db ladder filter" },
+  { type: "oscillator" as ModuleType, name: "VCO", description: "Voltage-controlled oscillator" },
+  { type: "output" as ModuleType, name: "Output", description: "Stereo audio output" },
   { type: "quantizer" as ModuleType, name: "Quantizer", description: "Pitch CV quantizer" },
+  { type: "random" as ModuleType, name: "Random", description: "Random voltage generator" },
+  { type: "reverb" as ModuleType, name: "Reverb", description: "Stereo reverb effect" },
+  { type: "scope" as ModuleType, name: "Scope", description: "Single-channel oscilloscope" },
+  { type: "sequencer" as ModuleType, name: "Sequencer", description: "Step sequencer for patterns" },
+  { type: "vca" as ModuleType, name: "VCA", description: "Voltage-controlled amplifier" },
 ]
 
 interface SynthPlaygroundContentProps {
@@ -103,7 +104,7 @@ const ModuleRenderer = memo(({ module }: { module: ModuleInstance }) => {
       return <RandomModule moduleId={module.id} />
     case "clock":
       return <ClockModule moduleId={module.id} />
-    case "simple-oscilloscope":
+    case "scope":
       return <SimpleOscilloscopeModule moduleId={module.id} />
     case "sequencer":
       return <SequencerModule moduleId={module.id} />
@@ -174,10 +175,29 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
   const { loadDefaultPatch } = usePatchManager()
   const { connections, removeConnection } = useConnections()
   const { open } = useSettings()
+  const [isModuleDialogOpen, setIsModuleDialogOpen] = useState(false)
 
   useEffect(() => {
-    //loadDefaultPatch()
-  }, [loadDefaultPatch])
+    setTimeout(() => {
+      loadDefaultPatch()
+    }, 1000)
+  }, [])
+
+  // Keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only trigger if not typing in an input/textarea and key is 'm'
+      if (event.key.toLowerCase() === 'm' &&
+        !['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName) &&
+        !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault()
+        setIsModuleDialogOpen(prev => !prev)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const handleDeleteModule = useCallback((moduleId: string) => {
     connections.forEach((connection) => {
@@ -188,6 +208,10 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
 
     removeModule(moduleId)
   }, [connections, removeConnection, removeModule])
+
+  const handleModuleSelect = useCallback((moduleType: ModuleType) => {
+    addModule(moduleType)
+  }, [addModule])
 
   // Rack assignment: Sequencer and Quantizer always in rack 2
   const rack1Modules = useMemo(() =>
@@ -311,6 +335,33 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
           <p>Additional workspace area</p>
         </div>
       </div>
+
+      {/* Module Selection Dialog */}
+      <Dialog open={isModuleDialogOpen} onOpenChange={setIsModuleDialogOpen}>
+        <DialogContent className="max-w-[70vw]! max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>add module</DialogTitle>
+            <DialogDescription>
+              choose a module to add to your rack.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 mt-4">
+            {availableModules.map((module) => (
+              <Button
+                key={module.type}
+                onClick={() => handleModuleSelect(module.type)}
+                className="h-auto p-4 flex flex-col items-start gap-2 text-left hover:bg-neutral-900/80 transition-colors whitespace-normal"
+              >
+                <div className="font-semibold text-sm">{module.name}</div>
+                <div className="text-xs text-muted-foreground leading-relaxed">
+                  {module.description}
+                </div>
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
