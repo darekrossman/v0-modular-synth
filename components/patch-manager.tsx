@@ -496,7 +496,7 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
     if (isInitialized) return
     const stored = loadPatchesFromStorage()
     const defaultPatch = createDefaultPatch()
-    const hasDefault = stored.some((p) => p.name === "Default Patch")
+    const hasDefault = stored.some((p) => p.name === "empty patch")
     const all = hasDefault ? stored : [defaultPatch, ...stored]
     setAvailablePatches(all)
     setCurrentPatch(defaultPatch)

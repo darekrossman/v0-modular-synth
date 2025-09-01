@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-neutral-900 text-white",
-        secondary: "text-black shadow-[inset_0_0_0_2px_var(--color-neutral-900)]",
+        secondary: "text-black shadow-[inset_0_0_0_2px_var(--color-neutral-400)]",
         // selected: "bg-neutral-800 text-white",
         destructive:
           "bg-destructive texxs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",

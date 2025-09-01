@@ -173,7 +173,7 @@ const DraggableModuleItem = memo(({ module, index, rackModules, onDelete, onDrag
 DraggableModuleItem.displayName = 'DraggableModuleItem'
 
 function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }: SynthPlaygroundContentProps) {
-  const { loadDefaultPatch } = usePatchManager()
+  const { loadDefaultPatch, currentPatch } = usePatchManager()
   const { connections, removeConnection } = useConnections()
   const { open } = useSettings()
   const [isModuleDialogOpen, setIsModuleDialogOpen] = useState(false)
@@ -197,6 +197,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
 
   const rack1Ref = useRef<HTMLDivElement>(null)
   const rack2Ref = useRef<HTMLDivElement>(null)
+  const rack3Ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // setTimeout(() => {
@@ -234,17 +235,24 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
     addModule(moduleType)
   }, [addModule])
 
-  // Rack assignment: Sequencer and Quantizer always in rack 2
+  // Rack assignment: rack 1 is general, rack 2 is new middle rack, rack 3 is for sequencers
   const rack1Modules = useMemo(() =>
     modules.filter(
-      (m: ModuleInstance) => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid"
+      (m: ModuleInstance) => m.rack === 1 || (!m.rack && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid")
     ),
     [modules]
   )
 
   const rack2Modules = useMemo(() =>
     modules.filter(
-      (m: ModuleInstance) => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
+      (m: ModuleInstance) => m.rack === 2
+    ),
+    [modules]
+  )
+
+  const rack3Modules = useMemo(() =>
+    modules.filter(
+      (m: ModuleInstance) => m.rack === 3 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
     ),
     [modules]
   )
@@ -268,10 +276,10 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
 
     if (!dragState.isDragging || !dragState.draggedModule) return
 
-    const rackEl = rack === 1 ? rack1Ref.current : rack2Ref.current
+    const rackEl = rack === 1 ? rack1Ref.current : rack === 2 ? rack2Ref.current : rack3Ref.current
     if (!rackEl) return
 
-    const rackModules = rack === 1 ? rack1Modules : rack2Modules
+    const rackModules = rack === 1 ? rack1Modules : rack === 2 ? rack2Modules : rack3Modules
     const rackRect = rackEl.getBoundingClientRect()
     const relativeX = e.clientX - rackRect.left
 
@@ -290,7 +298,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
 
     // Store the raw drop index - no adjustments
     setDragState(prev => ({ ...prev, dropIndex: dropIdx, dropRack: rack, mouseX: e.clientX }))
-  }, [dragState])
+  }, [dragState, rack1Modules, rack2Modules, rack3Modules])
 
   const handleDrop = useCallback((e: React.DragEvent, rack: number) => {
     e.preventDefault()
@@ -302,7 +310,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
 
     // When dragging within same rack, adjust drop index
     if (rack === dragState.draggedFromRack) {
-      const sourceRackModules = rack === 1 ? rack1Modules : rack2Modules
+      const sourceRackModules = rack === 1 ? rack1Modules : rack === 2 ? rack2Modules : rack3Modules
       const draggedIndex = sourceRackModules.findIndex(m => m.id === draggedModule.id)
 
       // If dropping after original position, decrement index since the module will be removed first
@@ -311,35 +319,28 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
       }
     }
 
-    // Create new array without the dragged module (from either rack)
+    // Create new array without the dragged module (from any rack)
     const modulesWithoutDragged = modules.filter(m => m.id !== draggedModule.id)
 
-    // Find modules for target rack (excluding dragged)
-    const targetRackFiltered = modulesWithoutDragged.filter(m => {
-      if (rack === 1) {
-        return (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid"
-      } else {
-        return m.rack === 2 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
-      }
-    })
+    // Find modules for each rack (excluding dragged)
+    const rack1Filtered = modulesWithoutDragged.filter(m =>
+      m.rack === 1 || (!m.rack && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid")
+    )
+    const rack2Filtered = modulesWithoutDragged.filter(m => m.rack === 2)
+    const rack3Filtered = modulesWithoutDragged.filter(m =>
+      m.rack === 3 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
+    )
 
-    // Find modules for other rack
-    const otherRackModules = modulesWithoutDragged.filter(m => {
-      if (rack === 1) {
-        return m.rack === 2 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
-      } else {
-        return (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid"
-      }
-    })
-
-    // Insert dragged module at drop position
-    targetRackFiltered.splice(dropIndex, 0, { ...draggedModule, rack })
-
-    // Combine racks in correct order
+    // Insert dragged module at drop position in target rack
     if (rack === 1) {
-      setModules([...targetRackFiltered, ...otherRackModules])
+      rack1Filtered.splice(dropIndex, 0, { ...draggedModule, rack: 1 })
+      setModules([...rack1Filtered, ...rack2Filtered, ...rack3Filtered])
+    } else if (rack === 2) {
+      rack2Filtered.splice(dropIndex, 0, { ...draggedModule, rack: 2 })
+      setModules([...rack1Filtered, ...rack2Filtered, ...rack3Filtered])
     } else {
-      setModules([...otherRackModules, ...targetRackFiltered])
+      rack3Filtered.splice(dropIndex, 0, { ...draggedModule, rack: 3 })
+      setModules([...rack1Filtered, ...rack2Filtered, ...rack3Filtered])
     }
 
     // Reset drag state
@@ -356,7 +357,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
     setTimeout(() => {
       window.dispatchEvent(new Event('resize'))
     }, 50)
-  }, [dragState, rack1Modules, rack2Modules, setModules])
+  }, [dragState, rack1Modules, rack2Modules, rack3Modules, modules, setModules])
 
   const handleDragEnd = useCallback(() => {
     setDragState({
@@ -373,10 +374,10 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
     <main className="h-screen bg-background flex flex-col relative">
       <WireCanvas />
 
-      <header className="px-6 py-4 border-b border-border flex items-center justify-between">
+      <header className="px-6 py-2 border-b border-border flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Synthesis Playground</h1>
-          <p className="text-sm text-muted-foreground">Modular synthesis environment</p>
+          <h1 className="text-2xl font-bold text-foreground">vrack</h1>
+          <p className="text-sm text-muted-foreground">{currentPatch?.name || "empty patch"}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -442,7 +443,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
           </div>
         </div>
 
-        <div className="p-1 border-b border-border h-[200px] bg-neutral-900">
+        <div className="p-1 border-b border-border h-[580px] bg-neutral-900">
           <div
             ref={rack2Ref}
             className="flex overflow-x-auto relative items-stretch h-full"
@@ -467,6 +468,36 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
               </React.Fragment>
             ))}
             {dragState.isDragging && dragState.dropRack === 2 && dragState.dropIndex === rack2Modules.length && (
+              <DragIndicator />
+            )}
+          </div>
+        </div>
+
+        <div className="p-1 border-b border-border h-[200px] bg-neutral-900">
+          <div
+            ref={rack3Ref}
+            className="flex overflow-x-auto relative items-stretch h-full"
+            onDragOver={(e) => handleDragOver(e, 3)}
+            onDrop={(e) => handleDrop(e, 3)}
+            onDragEnd={handleDragEnd}
+          >
+            {rack3Modules.map((module: ModuleInstance, index: number) => (
+              <React.Fragment key={module.id}>
+                {dragState.isDragging && dragState.dropRack === 3 && dragState.dropIndex === index && (
+                  <DragIndicator />
+                )}
+                <DraggableModuleItem
+                  module={module}
+                  index={index}
+                  rackModules={rack3Modules}
+                  onDelete={handleDeleteModule}
+                  onDragStart={(e: React.DragEvent) => handleDragStart(e, module, 3)}
+                  isDragging={dragState.isDragging}
+                  draggedId={dragState.draggedModule?.id}
+                />
+              </React.Fragment>
+            ))}
+            {dragState.isDragging && dragState.dropRack === 3 && dragState.dropIndex === rack3Modules.length && (
               <DragIndicator />
             )}
           </div>
@@ -513,7 +544,7 @@ export default function SynthPlayground() {
   const addModule = (type: ModuleType) => {
     const existingCount = modules.filter((m) => m.type === type).length
     const newId = `${type}-${existingCount + 1}`
-    const rack = (type === "sequencer" || type === "quantizer" || type === "euclid") ? 2 : 1
+    const rack = (type === "sequencer" || type === "quantizer" || type === "euclid") ? 3 : 1
     setModules((prev) => [...prev, { id: newId, type, rack }])
   }
 
@@ -538,7 +569,7 @@ export default function SynthPlayground() {
               m.map((x) => ({
                 id: x.id,
                 type: x.type as ModuleType,
-                rack: (x.type === "sequencer" || x.type === "quantizer" || x.type === "euclid") ? 2 : 1,
+                rack: (x.type === "sequencer" || x.type === "quantizer" || x.type === "euclid") ? 3 : 1,
               }))
             )}
           onParameterChange={handleParameterChange}
