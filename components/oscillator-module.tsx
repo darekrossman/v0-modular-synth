@@ -173,7 +173,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-6 mt-6">
+      <div className="flex flex-col items-center gap-5 mt-5">
         <Knob
           value={[octaveToKnob(octave[0])]}
           onValueChange={(value) => setOctave([knobToOctave(value[0])])}

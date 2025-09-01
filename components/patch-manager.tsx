@@ -19,6 +19,7 @@ export interface PatchConnection {
   from: string         // source port id (output)
   to: string           // target port id (input)
   kind: "audio" | "cv"
+  color?: string       // wire color (optional for backward compatibility)
 }
 
 export interface Patch {
@@ -98,15 +99,15 @@ const createDefaultPatch = (): Patch => ({
     { id: "output-1", type: "output", parameters: {} },
   ],
   connections: [
-    { id: "c1", from: "keyboard-cv-1-gate-out", to: "adsr-1-gate-in", kind: "cv" },
-    { id: "c2", from: "keyboard-cv-1-gate-out", to: "adsr-2-gate-in", kind: "cv" },
-    { id: "c3", from: "keyboard-cv-1-pitch-out", to: "oscillator-1-freq-in", kind: "cv" },
-    { id: "c4", from: "oscillator-1-audio-out", to: "lowpass-filter-1-audio-in-1", kind: "audio" },
-    { id: "c5", from: "lowpass-filter-1-audio-out", to: "vca-1-audio-in", kind: "audio" },
-    { id: "c6", from: "adsr-1-env-out", to: "vca-1-cv-in", kind: "cv" },
-    { id: "c7", from: "adsr-2-env-out", to: "lowpass-filter-1-cutoff-cv-in", kind: "cv" },
-    { id: "c8", from: "vca-1-audio-out", to: "output-1-left-in", kind: "audio" },
-    { id: "c9", from: "vca-1-audio-out", to: "output-1-right-in", kind: "audio" },
+    { id: "c1", from: "keyboard-cv-1-gate-out", to: "adsr-1-gate-in", kind: "cv", color: "#FF6B6B" },
+    { id: "c2", from: "keyboard-cv-1-gate-out", to: "adsr-2-gate-in", kind: "cv", color: "#FF6B6B" },
+    { id: "c3", from: "keyboard-cv-1-pitch-out", to: "oscillator-1-freq-in", kind: "cv", color: "#4ECDC4" },
+    { id: "c4", from: "oscillator-1-audio-out", to: "lowpass-filter-1-audio-in-1", kind: "audio", color: "#FFD93D" },
+    { id: "c5", from: "lowpass-filter-1-audio-out", to: "vca-1-audio-in", kind: "audio", color: "#95E77E" },
+    { id: "c6", from: "adsr-1-env-out", to: "vca-1-cv-in", kind: "cv", color: "#A8E6CF" },
+    { id: "c7", from: "adsr-2-env-out", to: "lowpass-filter-1-cutoff-cv-in", kind: "cv", color: "#DDA0DD" },
+    { id: "c8", from: "vca-1-audio-out", to: "output-1-left-in", kind: "audio", color: "#87CEEB" },
+    { id: "c9", from: "vca-1-audio-out", to: "output-1-right-in", kind: "audio", color: "#87CEEB" },
   ],
   metadata: {
     created: "2024-01-01T00:00:00.000Z",
@@ -131,10 +132,22 @@ const normalizeConnections = (conns: any[]): PatchConnection[] => {
   return conns.map((c) => {
     // legacy -> new
     if (c && c.sourcePortId && c.targetPortId && c.audioType) {
-      return { id: c.id || c.uuid || `${c.sourcePortId}->${c.targetPortId}`, from: c.sourcePortId, to: c.targetPortId, kind: c.audioType }
+      return { 
+        id: c.id || c.uuid || `${c.sourcePortId}->${c.targetPortId}`, 
+        from: c.sourcePortId, 
+        to: c.targetPortId, 
+        kind: c.audioType,
+        ...(c.color && { color: c.color })
+      }
     }
-    // already new
-    return { id: c.id, from: c.from, to: c.to, kind: c.kind }
+    // already new - preserve color if it exists
+    return { 
+      id: c.id, 
+      from: c.from, 
+      to: c.to, 
+      kind: c.kind,
+      ...(c.color && { color: c.color })
+    }
   })
 }
 
@@ -233,7 +246,13 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
       name: currentPatch?.name || "Untitled Patch",
       version: "2.0",
       modules: modulesForExport,
-      connections: edges.map((e) => ({ id: e.id, from: e.from, to: e.to, kind: e.kind })),
+      connections: edges.map((e) => ({ 
+        id: e.id, 
+        from: e.from, 
+        to: e.to, 
+        kind: e.kind,
+        ...(e.color && { color: e.color })
+      })),
       metadata: { modified: new Date().toISOString() },
     }
   }, [modules, currentPatch, exportPatchJSON])

@@ -5,8 +5,10 @@ import { ModuleContainer } from "./module-container"
 import { Knob } from "@/components/ui/knob"
 import { PushButton } from "@/components/ui/push-button"
 import { Port } from "./port"
-import { mapLinear } from "@/lib/utils"
+import { cn, mapLinear } from "@/lib/utils"
 import { useModuleInit } from "@/hooks/use-module-init"
+import { Toggle } from "./ui/toggle"
+import { TextLabel } from "./text-label"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -151,14 +153,15 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
         </div>
 
         <div className="flex-1 flex justify-center items-center gap-4">
-          <div className="w-15 flex justify-center">
-            <PushButton
+          <div className="w-15 flex flex-col items-center justify-center gap-2">
+            <TextLabel variant="control">{isRunning ? "stop" : "run"}</TextLabel>
+            <Toggle
+              pressed={isRunning}
+              size="lg"
               onClick={handleStartStop}
-              className={`${isRunning
-                ? "bg-red-600 hover:bg-red-700 active:bg-red-800"
-                : "bg-green-600 hover:bg-green-700 active:bg-green-800"
-                }`}
-              label={isRunning ? "Stop" : "Run"}
+              className={cn(
+                'rounded-full bg-yellow-500 hover:bg-yellow-500/80 data-[state=on]:bg-red-500 data-[state=on]:hover:bg-red-600',
+              )}
             />
           </div>
           <Knob
@@ -171,7 +174,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 mt-5">
+      <div className="flex flex-col gap-5 mt-6">
         <div className="flex items-center gap-6">
           <div className="flex justify-center w-15"><Knob
             defaultValue={[3 / 8]}
@@ -184,7 +187,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           <Port
             id={`${moduleId}-div1-out`}
             type="output"
-            label="div div"
+            label="out"
             audioType="cv"
             audioNode={div1OutRef.current ?? undefined}
           />
@@ -202,7 +205,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           <Port
             id={`${moduleId}-div2-out`}
             type="output"
-            label="DIV2"
+            label="out"
             audioType="cv"
             audioNode={div2OutRef.current ?? undefined}
           />
@@ -220,7 +223,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           <Port
             id={`${moduleId}-div3-out`}
             type="output"
-            label="DIV3"
+            label="out"
             audioType="cv"
             audioNode={div3OutRef.current ?? undefined}
           />
@@ -238,7 +241,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           <Port
             id={`${moduleId}-div4-out`}
             type="output"
-            label="DIV4"
+            label="out"
             audioType="cv"
             audioNode={div4OutRef.current ?? undefined}
           />

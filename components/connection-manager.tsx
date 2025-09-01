@@ -529,9 +529,28 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     (patch) => {
       clearAllConnections()
       connectionsRef.current.clear()
+      
+      // Group connections by output port to assign consistent colors
+      const outputGroups = new Map<string, string>()
+      
       patch.connections.forEach((edge) => {
         const id = edge.id || uuid()
-        connectionsRef.current.set(id, { ...edge, id })
+        
+        // If edge doesn't have a color, assign one based on output port
+        let color = edge.color
+        if (!color) {
+          if (outputGroups.has(edge.from)) {
+            color = outputGroups.get(edge.from)!
+          } else {
+            color = getRandomPaletteColor()
+            outputGroups.set(edge.from, color)
+          }
+        } else {
+          // Track the color for this output port
+          outputGroups.set(edge.from, color)
+        }
+        
+        connectionsRef.current.set(id, { ...edge, id, color })
       })
       setConnections(Array.from(connectionsRef.current.values()))
       // Try immediate binds

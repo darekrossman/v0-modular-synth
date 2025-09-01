@@ -51,7 +51,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     }
 
     const sizeClasses = {
-      xs: "w-6 h-6",
+      xs: "w-5 h-5",
       sm: "w-8 h-8",
       md: "w-12 h-12",
       lg: "w-20 h-20",
@@ -80,10 +80,10 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     }
 
     const padSizeClasses = {
-      xs: "w-7",
-      sm: "w-12",
-      md: "w-[60px]",
-      lg: "w-[100px]",
+      xs: "w-6 gap-1.5",
+      sm: "w-12 gap-2.5",
+      md: "w-[60px] gap-3.5",
+      lg: "w-[100px] gap-4.5",
     }
 
     const smallStroke = size === "xs" || size === "sm"
@@ -158,7 +158,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
         const labelX = Math.cos(radian) * (tickSize.radius + (size === "lg" ? 10 : 8))
         const labelY = Math.sin(radian) * (tickSize.radius + (size === "lg" ? 10 : 8))
 
-        ticks.push(
+        size !== "xs" && ticks.push(
           <div key={i}>
             {/* Tick mark */}
             <div
@@ -199,7 +199,12 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     const rotation = currentValue * rotationRange + rotationOffset
 
     return (
-      <div className={cn("flex flex-col items-center gap-1", padSizeClasses[size], className)}>
+      <div className={cn("flex flex-col items-center", padSizeClasses[size], className)}>
+        {label && <TextLabel variant="control" className={cn({
+          'text-xs': size === 'lg',
+          'text-[10px]': size === 'md'
+        })}>{label}</TextLabel>}
+
         <div className="relative">
           {showTicks && <div className="absolute inset-0 pointer-events-none">{renderTickMarks()}</div>}
 
@@ -260,13 +265,13 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
                 <div
                   className={`absolute rounded-full`}
                   style={{
-                    width: size === 'xs' ? '3px' : (size === 'sm' ? '4px' : (size === 'md' ? '5px' : '6px')),
+                    width: size === 'xs' ? '2px' : (size === 'sm' ? '4px' : (size === 'md' ? '5px' : '6px')),
                     height: '50%',
                     transform: `rotate(${rotation}deg)`,
                     transformOrigin: "center bottom",
                     top: 0,
                     left: "50%",
-                    marginLeft: size === 'xs' ? '-1.5px' : (smallStroke ? "-2px" : "-3px"),
+                    marginLeft: size === 'xs' ? '-1px' : (smallStroke ? "-2px" : "-3px"),
                   }}
                 >
                   <div className="w-full h-[50%] bg-neutral-100 rounded-full" style={{
@@ -280,11 +285,6 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
             </div>
           </div>
         </div>
-
-        {label && <TextLabel variant="control" className={cn({
-          'text-xs': size === 'lg',
-          'text-[10px]': size === 'md'
-        })}>{label}</TextLabel>}
       </div>
     )
   },

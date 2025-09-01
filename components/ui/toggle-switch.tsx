@@ -19,8 +19,8 @@ const ToggleSwitch = React.forwardRef<HTMLButtonElement, ToggleSwitchProps>(
         <button
           ref={ref}
           className={cn(
-            "relative w-6 h-10 px-0.5 focus-visible:outline-none rounded-sm transition cursor-pointer border-3",
-            value ? "bg-neutral-400/50 delay-50" : "duration-0",
+            "relative w-5 h-9 px-[1px] focus-visible:outline-none rounded-sm transition cursor-pointer border-2",
+            value ? "bg-white delay-50" : "bg-neutral-400/30 duration-0",
             disabled && "opacity-50 cursor-not-allowed",
             className,
           )}
@@ -32,7 +32,7 @@ const ToggleSwitch = React.forwardRef<HTMLButtonElement, ToggleSwitchProps>(
         >
           <div
             className={cn(
-              "w-3.5 h-3.5 bg-neutral-900 rounded-xs transition",
+              "w-3.5 h-3.5 bg-neutral-900 rounded-[4px] transition",
               value ? "translate-y-[-8px]" : "translate-y-[8px]",
             )}
           />

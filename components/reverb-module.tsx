@@ -203,16 +203,16 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-4 mt-6">
+      <div className="flex flex-col items-center gap-5 mt-5">
         <Knob value={sizeN} onValueChange={setSizeN} size="lg" label="Size" />
-        <div className="flex flex-col gap-6">
-          <div className="flex gap-11">
-            <Knob value={decayN} onValueChange={setDecayN} size="md" label="Decay" />
-            <Knob value={preN} onValueChange={setPreN} size="md" label="Pre" />
+        <div className="flex flex-col gap-5">
+          <div className="flex gap-5">
+            <Knob value={decayN} onValueChange={setDecayN} size="sm" label="Decay" />
+            <Knob value={preN} onValueChange={setPreN} size="sm" label="Pre" />
           </div>
-          <div className="flex gap-11">
-            <Knob value={dampN} onValueChange={setDampN} size="md" label="Tone" />
-            <Knob value={mixN} onValueChange={setMixN} size="md" label="Mix" />
+          <div className="flex gap-5">
+            <Knob value={dampN} onValueChange={setDampN} size="sm" label="Tone" />
+            <Knob value={mixN} onValueChange={setMixN} size="sm" label="Mix" />
           </div>
         </div>
       </div>

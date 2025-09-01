@@ -15,21 +15,21 @@ const cssEscape = (s: string) => {
 // Unified wire physics calculation
 function calculateWirePhysics(dist: number, dx: number, dy: number, tension: number, shadowOffset: number = 0) {
   const slack = 1 - tension
-  
+
   // For short distances, we need MUCH more extra wire
   // Use inverse relationship: shorter wires get proportionally more extra length
   const distanceFactor = Math.max(50, dist)  // Minimum 50px for calculations
   const inverseBonus = 300 / distanceFactor  // Bonus multiplier for short wires (6x at 50px, 1.5x at 200px)
-  
+
   // Base extra wire - more for short connections
   const baseExtra = slack * 250 * inverseBonus
-  
+
   // Proportional extra - still add some based on distance
   const proportionalExtra = dist * slack * 0.5
-  
+
   // Total wire arc length
   const wireArcLength = dist + baseExtra + proportionalExtra
-  
+
   // Calculate sag from excess wire
   const excessWire = wireArcLength - dist
   let sag = 0
@@ -37,11 +37,11 @@ function calculateWirePhysics(dist: number, dx: number, dy: number, tension: num
     // More aggressive sag formula for visibility
     sag = Math.sqrt(excessWire * Math.max(30, dist)) / 1.5
   }
-  
+
   // Gravity effect - but scale it by slack so it disappears at high tension
   const horizontalRatio = dist > 0 ? Math.abs(dx) / dist : 0
   const gravityEffect = (1.0 - (0.3 * horizontalRatio)) * slack  // Scale gravity by slack
-  
+
   return (sag * gravityEffect) + shadowOffset
 }
 
@@ -52,111 +52,59 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
     const dx = b.x - a.x
     const dy = b.y - a.y
     const dist = Math.hypot(dx, dy)
-    
+
     // Use unified physics calculation
     const tension = 1 - d
     const sag = calculateWirePhysics(dist, dx, dy, tension, shadowOffset)
 
     // Calculate control points for natural catenary curve
     let cp1x, cp2x, cp1y, cp2y
-    
+
     // Control point positions should interpolate based on tension
     // At tension = 1 (slack = 0), control points are on the straight line
     // At tension = 0 (slack = 1), control points create maximum curve
     const slack = 1 - tension
-    
+
     // Smooth transition based on how vertical the wire is
     const horizontalness = dist > 0 ? Math.abs(dx) / dist : 0
     const verticalness = 1.0 - horizontalness
-    
+
     // For horizontal spread, reduce for vertical wires
     const minHorizontal = 0.01
     const horizontalFactor = Math.max(minHorizontal, horizontalness)
-    
+
     // Base control point positions (for straight line)
     const straightCp1x = a.x + dx * 0.35
     const straightCp2x = a.x + dx * 0.65
     const straightCp1y = a.y + dy * 0.35
     const straightCp2y = a.y + dy * 0.65
-    
+
     // Saggy control point positions (with catenary adjustment)
     const sagCp1x = a.x + dx * 0.35 * horizontalFactor
     const sagCp2x = a.x + dx * 0.65 * horizontalFactor
     const sagCp1y = a.y + dy * (0.35 - verticalness * 0.1) + sag
     const sagCp2y = a.y + dy * (0.65 + verticalness * 0.1) + sag
-    
+
     // Interpolate between straight and saggy based on slack
     cp1x = straightCp1x + (sagCp1x - straightCp1x) * slack
     cp2x = straightCp2x + (sagCp2x - straightCp2x) * slack
     cp1y = straightCp1y + (sagCp1y - straightCp1y) * slack
     cp2y = straightCp2y + (sagCp2y - straightCp2y) * slack
 
-    // REMOVED quadratic logic - always use cubic bezier like temp wire
-    if (false) {
-      const mx = (a.x + b.x) / 2
-      const my = (a.y + b.y) / 2 + sag * 0.8
-      
-      if (clipRadius > 0 && dist > clipRadius * 2) {
-        // For quadratic, calculate tangent at endpoints
-        // Tangent at start points toward control point
-        const startTangentX = mx - a.x
-        const startTangentY = my - a.y
-        const startTangentDist = Math.hypot(startTangentX, startTangentY)
-        const startUnitX = startTangentX / startTangentDist
-        const startUnitY = startTangentY / startTangentDist
-        
-        // Tangent at end points from control point
-        const endTangentX = b.x - mx
-        const endTangentY = b.y - my
-        const endTangentDist = Math.hypot(endTangentX, endTangentY)
-        const endUnitX = endTangentX / endTangentDist
-        const endUnitY = endTangentY / endTangentDist
-        
-        const startPoint = {
-          x: a.x + startUnitX * clipRadius,
-          y: a.y + startUnitY * clipRadius
-        }
-        const endPoint = {
-          x: b.x - endUnitX * clipRadius,
-          y: b.y - endUnitY * clipRadius
-        }
-        
-        // Calculate angles for ring rotation
-        const startAngle = Math.atan2(startUnitY, startUnitX) * 180 / Math.PI
-        const endAngle = Math.atan2(-endUnitY, -endUnitX) * 180 / Math.PI
-        
-        return {
-          path: `M ${startPoint.x} ${startPoint.y} Q ${mx} ${my} ${endPoint.x} ${endPoint.y}`,
-          startAngle,
-          endAngle
-        }
-      }
-      
-      // Calculate angles even without clipping
-      const startAngle = Math.atan2(my - a.y, mx - a.x) * 180 / Math.PI
-      const endAngle = Math.atan2(b.y - my, b.x - mx) * 180 / Math.PI
-      
-      return {
-        path: `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`,
-        startAngle,
-        endAngle
-      }
-    }
-
     // Always calculate tangent vectors and apply offsets consistently
     // At t=0, tangent points from start toward first control point
     const startTangentX = cp1x - a.x
     const startTangentY = cp1y - a.y
     const startTangentDist = Math.hypot(startTangentX, startTangentY)
-    
+
     // At t=1, tangent points from second control point toward end
     const endTangentX = b.x - cp2x
     const endTangentY = b.y - cp2y
     const endTangentDist = Math.hypot(endTangentX, endTangentY)
-    
+
     // Calculate unit vectors with sensible defaults for zero-length tangents
     let startUnitX, startUnitY, endUnitX, endUnitY
-    
+
     if (startTangentDist > 0.001) {
       startUnitX = startTangentX / startTangentDist
       startUnitY = startTangentY / startTangentDist
@@ -165,7 +113,7 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
       startUnitX = 0
       startUnitY = 1
     }
-    
+
     if (endTangentDist > 0.001) {
       endUnitX = endTangentX / endTangentDist
       endUnitY = endTangentY / endTangentDist
@@ -174,11 +122,11 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
       endUnitX = 0
       endUnitY = 1  // Points down (wire comes from above, so tangent at end points down)
     }
-    
+
     // Always apply offsets if clipRadius > 0
     let startPoint = a
     let endPoint = b
-    
+
     if (clipRadius > 0) {
       startPoint = {
         x: a.x + startUnitX * clipRadius,
@@ -188,17 +136,17 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
         x: b.x - endUnitX * clipRadius,
         y: b.y - endUnitY * clipRadius
       }
-      
+
       // Adjust control points to maintain smooth curve
       const cp1xAdjusted = cp1x - startUnitX * clipRadius * 0.25
       const cp1yAdjusted = cp1y - startUnitY * clipRadius * 0.25
       const cp2xAdjusted = cp2x + endUnitX * clipRadius * 0.25
       const cp2yAdjusted = cp2y + endUnitY * clipRadius * 0.25
-      
+
       // Calculate angles for ring rotation
       const startAngle = Math.atan2(startUnitY, startUnitX) * 180 / Math.PI
       const endAngle = Math.atan2(-endUnitY, -endUnitX) * 180 / Math.PI
-      
+
       return {
         path: `M ${startPoint.x} ${startPoint.y} C ${cp1xAdjusted} ${cp1yAdjusted}, ${cp2xAdjusted} ${cp2yAdjusted}, ${endPoint.x} ${endPoint.y}`,
         startAngle,
@@ -208,7 +156,7 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
       // No clipping radius - wire goes directly to centers
       const startAngle = Math.atan2(startUnitY, startUnitX) * 180 / Math.PI
       const endAngle = Math.atan2(-endUnitY, -endUnitX) * 180 / Math.PI
-      
+
       return {
         path: `M ${a.x} ${a.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${b.x} ${b.y}`,
         startAngle,
@@ -229,6 +177,7 @@ export function WireCanvas() {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const staticLayerRef = useRef<SVGGElement | null>(null)
   const tempPathRef = useRef<SVGPathElement | null>(null)
+  const tempShadowPathRef = useRef<SVGPathElement | null>(null)
   const tempColorRef = useRef<string>("#fff")
   const tempStartRingRef = useRef<SVGGElement | null>(null)
   const tempEndRingRef = useRef<SVGGElement | null>(null)
@@ -296,48 +245,63 @@ export function WireCanvas() {
   useEffect(() => {
     registerTempWireUpdater((fromScreen, toScreen, color) => {
       const pathEl = tempPathRef.current
+      const shadowPathEl = tempShadowPathRef.current
       const startRing = tempStartRingRef.current
       const endRing = tempEndRingRef.current
-      
-      if (!pathEl || !toScreen) {
+
+      if (!pathEl || !shadowPathEl || !toScreen) {
         // Clean up temp wire and rings
         if (pathEl) pathEl.setAttribute("d", "")
+        if (shadowPathEl) shadowPathEl.setAttribute("d", "")
         if (startRing) startRing.style.display = 'none'
         if (endRing) endRing.style.display = 'none'
         return
       }
-      
+
       const a = toSvg(fromScreen)
       const b = toSvg(toScreen)
-      
+
       // Use the SAME function that permanent wires use!
       const result = sagPathRef.current(a, b)
-      
+
+      // Create shadow path with additional vertical offset (same as permanent wires)
+      const dist = Math.hypot(b.x - a.x, b.y - a.y)
+      const shadowVerticalOffset = Math.min(15, dist * 0.05)  // 5% of distance, max 15px
+      const tension = tensionRef.current
+      const clipRadius = 13 + (tension * 2) // Same as main path
+      const shadowSagPath = makeSagPath(1 - tension, shadowVerticalOffset, clipRadius)
+      const shadowResult = shadowSagPath(a, b)
+
+      // Set the shadow path
+      shadowPathEl.setAttribute("d", shadowResult.path)
+      shadowPathEl.setAttribute("stroke-width", String(thicknessRef.current))
+
       // Set the wire path
       pathEl.setAttribute("d", result.path)
-      
+      pathEl.setAttribute("stroke-width", String(thicknessRef.current))
+
       if (color) {
         pathEl.setAttribute("stroke", color)
         tempColorRef.current = color
       }
-      
+
       // Position and show temp wire rings
       if (startRing && endRing) {
         // Show and position start ring
         startRing.style.display = ''
         startRing.setAttribute('transform', `translate(${a.x}, ${a.y}) rotate(${result.startAngle})`)
-        const startCircle = startRing.firstElementChild as SVGCircleElement
-        const startTriangle = startRing.lastElementChild as SVGPathElement
+        const startCircle = startRing.children[0] as SVGCircleElement
+        const startTriangle = startRing.children[1] as SVGPathElement
         if (startCircle && startTriangle && color) {
           startCircle.setAttribute('stroke', color)
           startTriangle.setAttribute('stroke', color)
         }
-        
+
         // Show and position end ring at cursor/end point
         endRing.style.display = ''
         endRing.setAttribute('transform', `translate(${b.x}, ${b.y}) rotate(${result.endAngle})`)
-        const endCircle = endRing.firstElementChild as SVGCircleElement
-        const endTriangle = endRing.lastElementChild as SVGPathElement
+        const endCircle = endRing.children[0] as SVGCircleElement
+        const endTriangle = endRing.children[1] as SVGPathElement
         if (endCircle && endTriangle && color) {
           endCircle.setAttribute('stroke', color)
           endTriangle.setAttribute('stroke', color)
@@ -362,7 +326,7 @@ export function WireCanvas() {
     shadowPath.setAttribute("fill", "none")
     shadowPath.setAttribute("stroke", "black")
     shadowPath.setAttribute("stroke-width", String(thicknessRef.current))  // Same width as wire
-    shadowPath.setAttribute("stroke-opacity", "0.2")
+    shadowPath.setAttribute("stroke-opacity", String(0.15 * opacityRef.current))
     shadowPath.setAttribute("stroke-linecap", "round")  // Round end caps
     shadowPath.setAttribute("vector-effect", "non-scaling-stroke")
     shadowPath.setAttribute("filter", "url(#wireShadowBlur)")
@@ -373,7 +337,7 @@ export function WireCanvas() {
     p.setAttribute("stroke-opacity", String(opacityRef.current))
     p.setAttribute("stroke-linecap", "round")  // Round end caps
     p.setAttribute("vector-effect", "non-scaling-stroke")
-    
+
     // Create end rings that rotate with wire direction
     // Create triangular-pointed ring shapes
     const startRing = document.createElementNS("http://www.w3.org/2000/svg", "g")
@@ -390,22 +354,22 @@ export function WireCanvas() {
     startRing.appendChild(startCircle)
     startRing.appendChild(startTriangle)
     // Ring attributes are set on child elements
-    startCircle.setAttribute("stroke-opacity", String(opacityRef.current))
-    startTriangle.setAttribute("stroke-opacity", String(opacityRef.current))
+    startCircle.setAttribute("stroke-opacity", "1")
+    startTriangle.setAttribute("stroke-opacity", "1")
     startRing.setAttribute("class", "wire-start-ring")
-    
+
     const endRing = document.createElementNS("http://www.w3.org/2000/svg", "g")
     const endCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
     endCircle.setAttribute("r", "10")
     endCircle.setAttribute("fill", "none")
     endCircle.setAttribute("stroke-width", "6")  // Extra thick ring
-    endCircle.setAttribute("stroke-opacity", String(opacityRef.current))
+    endCircle.setAttribute("stroke-opacity", "1")
     const endTriangle = document.createElementNS("http://www.w3.org/2000/svg", "path")
     // Rounded triangle tip using arc for smooth connection
     endTriangle.setAttribute("d", "M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7")
     endTriangle.setAttribute("fill", "none")
     endTriangle.setAttribute("stroke-width", "6")  // Extra thick triangle
-    endTriangle.setAttribute("stroke-opacity", String(opacityRef.current))
+    endTriangle.setAttribute("stroke-opacity", "1")
     endRing.appendChild(endCircle)
     endRing.appendChild(endTriangle)
     endRing.setAttribute("class", "wire-end-ring")
@@ -459,7 +423,7 @@ export function WireCanvas() {
 
     const a = toSvg(aScr)
     const b = toSvg(bScr)
-    
+
     // Wire with path and angles
     const result = sagPathRef.current(a, b)
 
@@ -482,19 +446,20 @@ export function WireCanvas() {
     p.setAttribute("stroke", color)
     const opacity = opacityRef.current
     p.setAttribute("stroke-opacity", String(opacity))
+    shadowPath.setAttribute("stroke-opacity", String(0.15 * opacity))
     p.setAttribute("stroke-width", String(thicknessRef.current))
-    
+
     // Position and style the triangular wire rings with rotation
-    const startCircle = startRing.firstElementChild as SVGCircleElement
-    const startTriangle = startRing.lastElementChild as SVGPathElement
+    const startCircle = startRing.children[0] as SVGCircleElement
+    const startTriangle = startRing.children[1] as SVGPathElement
     if (startCircle && startTriangle) {
       startCircle.setAttribute("stroke", color)
       startTriangle.setAttribute("stroke", color)
     }
     startRing.setAttribute("transform", `translate(${a.x}, ${a.y}) rotate(${result.startAngle})`)
-    
-    const endCircle = endRing.firstElementChild as SVGCircleElement
-    const endTriangle = endRing.lastElementChild as SVGPathElement
+
+    const endCircle = endRing.children[0] as SVGCircleElement
+    const endTriangle = endRing.children[1] as SVGPathElement
     if (endCircle && endTriangle) {
       endCircle.setAttribute("stroke", color)
       endTriangle.setAttribute("stroke", color)
@@ -554,24 +519,36 @@ export function WireCanvas() {
     <svg ref={svgRef} className="pointer-events-none fixed inset-0 w-full h-full z-40" shapeRendering="geometricPrecision">
       <defs>
         <filter id="wireShadowBlur" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="1" />
+          <feGaussianBlur stdDeviation="0" />
         </filter>
       </defs>
 
       {/* Temp wire with rings */}
       <g>
+        {/* Temp wire shadow (rendered first) */}
+        <path
+          ref={tempShadowPathRef}
+          stroke="black"
+          strokeWidth={Math.max(1, Math.min(10, Number(settings.wireThickness ?? 6)))}
+          fill="none"
+          strokeOpacity={String(0.15 * opacityRef.current)}
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+          filter="url(#wireShadowBlur)"
+        />
+
         {/* Temp start ring */}
         <g ref={tempStartRingRef} style={{ display: 'none' }}>
-          <circle r="10" fill="none" strokeWidth="6" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
-          <path d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7" fill="none" strokeWidth="6" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
+          <circle r="10" fill="none" strokeWidth="6" strokeOpacity={1} />
+          <path d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7" fill="none" strokeWidth="6" strokeOpacity={1} />
         </g>
-        
+
         {/* Temp end ring */}
         <g ref={tempEndRingRef} style={{ display: 'none' }}>
-          <circle r="10" fill="none" strokeWidth="6" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
-          <path d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7" fill="none" strokeWidth="6" strokeOpacity={Number(settings.wireOpacity ?? 0.7)} />
+          <circle r="10" fill="none" strokeWidth="6" strokeOpacity={1} />
+          <path d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7" fill="none" strokeWidth="6" strokeOpacity={1} />
         </g>
-        
+
         {/* Temp wire path */}
         <path
           ref={tempPathRef}

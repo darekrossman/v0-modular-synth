@@ -194,16 +194,18 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-6 mt-6">
+      <div className="flex flex-col items-center gap-5 mt-5">
         <Knob value={freq} onValueChange={setFreq} label="Freq" size="lg" />
 
-        <div className="flex gap-5">
-          <Knob value={amp} onValueChange={setAmp} label="Amp" size="sm" />
-          <Knob value={offset} onValueChange={setOffset} label="Offset" size="sm" />
-        </div>
-        <div className="flex gap-5">
-          <Knob value={pw} onValueChange={setPw} label="PWM" size="sm" />
-          <Knob value={slew} onValueChange={setSlew} label="Slew" size="sm" />
+        <div className="flex flex-col items-center gap-5">
+          <div className="flex gap-5">
+            <Knob value={amp} onValueChange={setAmp} label="Amp" size="sm" />
+            <Knob value={offset} onValueChange={setOffset} label="Offset" size="sm" />
+          </div>
+          <div className="flex gap-5">
+            <Knob value={pw} onValueChange={setPw} label="PWM" size="sm" />
+            <Knob value={slew} onValueChange={setSlew} label="Slew" size="sm" />
+          </div>
         </div>
 
       </div>

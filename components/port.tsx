@@ -173,26 +173,31 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
   }
 
   return (
-    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-1 pb-2 w-11 bg-neutral-400 rounded-sm relative", className)}>
+    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-1 pb-1.5 w-11 bg-neutral-400/50 rounded-sm relative", {
+      "bg-transparent shadow-[inset_0_0_0_2px_oklch(80%_0_0)] rounded-sm": type === "input"
+
+    }, className)}>
       <TextLabel>{label}</TextLabel>
       <div
         ref={setNodeRef}
         data-port-id={id}
         data-port-kind={kind}
         className={cn(
-          "relative w-5 h-5 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-3 border-neutral-100",
+          "relative w-5.5 h-5.5 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]",
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
+        <div className="absolute inset-[-3px] border border-black/50 rounded-full" />
+
         {wireColor ? <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
           style={{
             backgroundColor: voltageToColor(signalValue),
             boxShadow: `0 0 3px ${voltageToColor(signalValue)}`
           }}
-        /> : <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-neutral-900" />}
+        /> : <div className="absolute inset-[3px] rounded-full bg-neutral-900" />}
       </div>
     </div>
   )

@@ -12,7 +12,7 @@ interface ModuleContainerProps {
 
 export function ModuleContainer({ moduleId, title, children, className = "" }: ModuleContainerProps) {
   return (
-    <div className="h-full bg-neutral-300 overflow-hidden" data-module-id={moduleId}>
+    <div className="h-full bg-neutral-200 overflow-hidden" data-module-id={moduleId}>
       <Card className={cn("h-full flex flex-col bg-transparent", className)}>
         <CardHeader className="shrink-0 relative group cursor-grab active:cursor-grabbing module-header">
           <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-40 transition-opacity">
@@ -20,7 +20,7 @@ export function ModuleContainer({ moduleId, title, children, className = "" }: M
           </div>
           <CardTitle className="text-sm text-black font-extrabold lowercase font-mono tracking-wide">{title}</CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col p-4 pt-1">{children}</CardContent>
+        <CardContent className="flex-1 flex flex-col p-4 pt-0">{children}</CardContent>
       </Card>
     </div>
   )

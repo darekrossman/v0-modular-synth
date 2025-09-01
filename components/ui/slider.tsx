@@ -48,7 +48,7 @@ const trackVariants = cva(
 )
 
 const thumbVariants = cva(
-  "flex! flex-col justify-center gap-[1px] px-1 border-primary rounded-sm bg-neutral-300 border-3 border-neutral-900 block shrink-0 focus-visible:ring-0 focus-visible:outline-hidden cursor-pointer",
+  "flex! flex-col justify-center gap-[1px] px-1 border-primary rounded-sm bg-neutral-200 border-2 border-neutral-900 block shrink-0 focus-visible:ring-0 focus-visible:outline-hidden cursor-pointer",
   {
     variants: {
       variant: {

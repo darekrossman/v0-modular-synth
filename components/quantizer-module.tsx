@@ -132,7 +132,7 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
     <ModuleContainer moduleId={moduleId} title="Quantizer">
       <div className="flex flex-col gap-3">
         {/* Row 1: Inputs left, controls center, output right */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <Port id={`${moduleId}-pitch-in`} type="input" label="PITCH" audioType="cv" audioNode={pitchInRef.current ?? undefined} />
             <Port id={`${moduleId}-trig-in`} type="input" label="TRIG" audioType="cv" audioNode={trigInRef.current ?? undefined} />

@@ -130,10 +130,10 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="Random" moduleId={moduleId}>
-      <div className="flex flex-col flex-1 justify-between">
+      <div className="flex flex-col flex-1 justify-between mt-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div className="contents" key={i} >
-            {i !== 0 && <div className="w-full h-0.5 bg-neutral-900 rounded-full" />}
+            {i !== 0 && <div className="w-full h-0.5 bg-neutral-400/80 rounded-full" />}
             <div className="flex items-center justify-between gap-3 rounded-xs">
               <Port
                 id={`${moduleId}-trigger-in-${i + 1}`}

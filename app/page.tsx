@@ -125,10 +125,10 @@ ModuleRenderer.displayName = 'ModuleRenderer'
 // Wrapper component for each draggable module
 const DraggableModuleItem = memo(({ module, index, rackModules, onDelete }: any) => {
   const controls = useDragControls()
-  
+
   return (
-    <Reorder.Item 
-      key={module.id} 
+    <Reorder.Item
+      key={module.id}
       value={module}
       dragControls={controls}
       dragListener={false}
@@ -139,7 +139,7 @@ const DraggableModuleItem = memo(({ module, index, rackModules, onDelete }: any)
     >
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div 
+          <div
             className="h-full"
             onPointerDown={(e) => {
               // Only start drag if clicking on the header area
@@ -190,14 +190,14 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
   }, [connections, removeConnection, removeModule])
 
   // Rack assignment: Sequencer and Quantizer always in rack 2
-  const rack1Modules = useMemo(() => 
+  const rack1Modules = useMemo(() =>
     modules.filter(
       (m: ModuleInstance) => (m.rack === 1 || !m.rack) && m.type !== "sequencer" && m.type !== "quantizer" && m.type !== "euclid"
     ),
     [modules]
   )
-  
-  const rack2Modules = useMemo(() => 
+
+  const rack2Modules = useMemo(() =>
     modules.filter(
       (m: ModuleInstance) => m.rack === 2 || m.type === "sequencer" || m.type === "quantizer" || m.type === "euclid"
     ),
@@ -269,9 +269,9 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
       </header>
 
       <div className="flex-1 flex flex-col">
-        <div className="p-1 border-b border-border h-[550px] bg-neutral-900">
-          <Reorder.Group 
-            axis="x" 
+        <div className="p-1 border-b border-border h-[580px] bg-neutral-900">
+          <Reorder.Group
+            axis="x"
             values={rack1Modules}
             onReorder={handleRack1Reorder}
             className="flex overflow-x-auto relative items-stretch h-full"
@@ -288,9 +288,9 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
           </Reorder.Group>
         </div>
 
-        <div className="p-1 border-b border-border min-h-64 bg-neutral-900">
-          <Reorder.Group 
-            axis="x" 
+        <div className="p-1 border-b border-border h-[200px] bg-neutral-900">
+          <Reorder.Group
+            axis="x"
             values={rack2Modules}
             onReorder={handleRack2Reorder}
             className="flex overflow-x-auto relative items-stretch h-full"

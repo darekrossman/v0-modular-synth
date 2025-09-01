@@ -198,8 +198,8 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer moduleId={moduleId} title="ADSR">
-      <div className="flex flex-col flex-1 gap-5">
-        <div className="flex justify-center items-center gap-8 px-2 pt-2">
+      <div className="flex flex-col flex-1 gap-8">
+        <div className="flex justify-center items-center gap-8 px-2 pt-4">
           <div className="flex flex-col items-center h-full gap-2">
             <div className="flex-1 flex items-center">
               <Slider
@@ -284,6 +284,8 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
           </div>
 
         </div>
+
+        <div className="flex-grow" />
 
         <div className="flex justify-between items-end">
           <div className="flex gap-2">

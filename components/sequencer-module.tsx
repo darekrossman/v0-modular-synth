@@ -9,6 +9,7 @@ import { Port } from "./port"
 import { mapLinear } from "@/lib/utils"
 import { useModuleInit } from "@/hooks/use-module-init"
 import { useModulePatch } from "./patch-manager"
+import { TextLabel } from "./text-label"
 
 function getAudioContext(): AudioContext {
   const w = window as any
@@ -202,7 +203,7 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="Step Sequencer" moduleId={moduleId}>
-      <div className="flex items-center gap-5">
+      <div className="flex items-start gap-5">
         <div className="flex items-center gap-2">
           <Port
             id={`${moduleId}-clock-in`}
@@ -220,7 +221,7 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
           />
         </div>
 
-        <div className="flex justify-between items-center flex-1">
+        <div className="flex justify-between items-start flex-1">
           <PushButton onClick={handleReset} label="reset" size="sm" />
 
           <div className="flex items-center justify-center gap-8">
@@ -267,24 +268,17 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
       <div className="flex-grow" />
 
       {/* Steps */}
-      <div className="flex gap-1">
+      <div className="flex gap-1.5">
         {steps.map((active, idx) => (
           <div key={idx} className="flex flex-col items-center gap-2 min-w-[32px]">
-            <div
-              className={`w-2 h-2 rounded-full ${currentStep === idx
-                ? "bg-red-500 shadow-[0_0_8px_rgba(239,10,10,0.8),0_0_4px_rgba(239,10,10,1)]"
-                : "bg-black/20"
-                }`}
-            />
-
-            <Toggle
-              pressed={active}
-              onPressedChange={() => handleStepToggle(idx)}
-              className={`w-8 h-8 p-0 min-w-auto text-xs rounded-xs cursor-pointer
-                ${active ? "bg-blue-600 data-[state=on]:bg-blue-600 border-t border-t-white/70" : "bg-black/20 border-t border-t-white/50 hover:bg-blue-500/30 hover:text-black"}`}
-            >
-              {idx + 1}
-            </Toggle>
+            <div className="flex flex-col items-center gap-1">
+              <TextLabel variant="control" className="">{idx + 1}</TextLabel>
+              <Toggle
+                pressed={active}
+                active={currentStep === idx}
+                onPressedChange={() => handleStepToggle(idx)}
+              />
+            </div>
             <Knob defaultValue={[pitchesRef.current[idx]]} onValueChange={(v) => handlePitchChange(idx, v)} size="xs" />
           </div>
         ))}

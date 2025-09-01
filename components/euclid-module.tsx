@@ -225,41 +225,33 @@ export function EuclidModule({ moduleId }: { moduleId: string }) {
   return (
     <ModuleContainer title="Euclid" moduleId={moduleId}>
       {/* Top row: CLK/RESET and outputs */}
-      <div className="flex items-center gap-5">
+      <div className="flex flex-col items-center gap-3">
         <div className="flex items-center gap-2">
           <Port id={`${moduleId}-clock-in`} type="input" label="CLK" audioType="cv" audioNode={clockInRef.current ?? undefined} />
+          <Port id={`${moduleId}-pulses-cv-in`} type="input" label="PUL" audioType="cv" audioNode={pulsesInRef.current ?? undefined} />
+          <Port id={`${moduleId}-rotate-cv-in`} type="input" label="ROT" audioType="cv" audioNode={rotateInRef.current ?? undefined} />
           <Port id={`${moduleId}-reset-in`} type="input" label="RST" audioType="cv" audioNode={resetInRef.current ?? undefined} />
-        </div>
-
-        <div className="flex-1 flex items-center justify-center gap-6">
-          <PushButton onClick={handleReset} label="reset" size="sm" />
-          <Knob defaultValue={[0]} onValueChange={handleClockDividerChange} size="sm" label="Div" steps={7} tickLabels={["1", "2", "4", "8", "16", "32", "64"]} />
-          <Knob value={gateRatio} onValueChange={handleGateRatioChange} size="sm" label="Gate" />
-        </div>
-
-        <div className="flex items-center gap-2">
+          <Port id={`${moduleId}-density-cv-in`} type="input" label="DENS" audioType="cv" audioNode={densityInRef.current ?? undefined} />
+          <Port id={`${moduleId}-accent-cv-in`} type="input" label="ACC" audioType="cv" audioNode={accentInRef.current ?? undefined} />
           <Port id={`${moduleId}-gate-out`} type="output" label="GATE" audioType="cv" audioNode={gateOutRef.current ?? undefined} />
           <Port id={`${moduleId}-accent-out`} type="output" label="ACC" audioType="cv" audioNode={accentOutRef.current ?? undefined} />
         </div>
-      </div>
 
-      {/* Controls */}
-      <div className="mt-2 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-6">
+        <div className="flex-1 flex items-center justify-center gap-2">
+          {/* <PushButton onClick={handleReset} label="reset" size="sm" /> */}
+          <Knob defaultValue={[0]} onValueChange={handleClockDividerChange} size="sm" label="Div" steps={7} tickLabels={["1", "2", "4", "8", "16", "32", "64"]} />
           <Knob value={steps} onValueChange={handleStepsChange} size="sm" label="Steps" steps={16} tickLabels={stepTickLabels} />
-          <Knob value={pulsesNorm} onValueChange={handlePulsesChange} size="sm" label="Pulses" steps={stepsInt + 1} tickLabels={pulsesTickLabels} />
+          <Knob value={pulsesNorm} onValueChange={handlePulsesChange} size="sm" label="Count" steps={stepsInt + 1} tickLabels={pulsesTickLabels} />
           <Knob value={rotateNorm} onValueChange={handleRotateChange} size="sm" label="Rotate" steps={Math.max(1, stepsInt)} tickLabels={rotateTickLabels} />
-          <Knob value={density} onValueChange={handleDensityChange} size="sm" label="Density" />
-          <Knob value={accent} onValueChange={handleAccentChange} size="sm" label="Accent" />
+          <Knob value={density} onValueChange={handleDensityChange} size="sm" label="Dens" />
+          <Knob value={accent} onValueChange={handleAccentChange} size="sm" label="Acc" />
+          <Knob value={gateRatio} onValueChange={handleGateRatioChange} size="sm" label="Gate" />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Port id={`${moduleId}-pulses-cv-in`} type="input" label="PUL" audioType="cv" audioNode={pulsesInRef.current ?? undefined} />
-          <Port id={`${moduleId}-rotate-cv-in`} type="input" label="ROT" audioType="cv" audioNode={rotateInRef.current ?? undefined} />
-          <Port id={`${moduleId}-density-cv-in`} type="input" label="DENS" audioType="cv" audioNode={densityInRef.current ?? undefined} />
-          <Port id={`${moduleId}-accent-cv-in`} type="input" label="ACC CV" audioType="cv" audioNode={accentInRef.current ?? undefined} />
-        </div>
+
       </div>
+
+      <div className="flex-grow" />
 
       {/* Pattern preview */}
       <div className="flex-1 flex items-center justify-center">
@@ -268,12 +260,12 @@ export function EuclidModule({ moduleId }: { moduleId: string }) {
             const isPulse = pattern[i]
             const isCur = i === currentStep
             const cls = isCur
-              ? (isPulse ? 'bg-red-500 shadow-[0_0_8px_rgba(239,10,10,0.8),0_0_4px_rgba(239,10,10,1)]' : 'bg-yellow-400')
-              : (isPulse ? 'bg-blue-600' : 'bg-black/20')
-            return <div key={i} className={`w-4 h-4 rounded-sm ${cls}`} />
+              ? (isPulse ? 'bg-green-500 shadow-[0_0_6px_var(--color-green-400)]' : 'shadow-[0_0_8px_var(--color-yellow-300)] bg-yellow-500')
+              : (isPulse ? 'bg-blue-600' : 'bg-neutral-400')
+            return <div key={i} className={`w-2 h-2 rounded-full ${cls}`} />
           })}
         </div>
       </div>
-    </ModuleContainer>
+    </ModuleContainer >
   )
 }
