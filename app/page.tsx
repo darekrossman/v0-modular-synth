@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Plus, Trash2, Settings as SettingsIcon } from "lucide-react"
+import { Plus, Trash2, Settings as SettingsIcon, X } from "lucide-react"
 import { SettingsProvider, useSettings } from "@/components/settings-context"
 import { SettingsDialog } from "@/components/settings-dialog"
 
@@ -158,12 +158,11 @@ const DraggableModuleItem = memo(({ module, index, rackModules, onDelete, onDrag
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem
-            variant="destructive"
             onClick={() => onDelete(module.id)}
             className="flex items-center gap-2"
           >
-            <Trash2 className="w-4 h-4" />
-            Delete
+            <X className="w-3 h-3" />
+            remove
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
