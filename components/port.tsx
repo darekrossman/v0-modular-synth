@@ -173,7 +173,7 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
   }
 
   return (
-    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-0.5 pb-2 w-11 bg-neutral-400 rounded-sm relative", className)}>
+    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-1 pb-2 w-11 bg-neutral-400 rounded-sm relative", className)}>
       <TextLabel>{label}</TextLabel>
       <div
         ref={setNodeRef}

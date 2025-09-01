@@ -184,7 +184,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
           <Port
             id={`${moduleId}-div1-out`}
             type="output"
-            label="DIV1"
+            label="div div"
             audioType="cv"
             audioNode={div1OutRef.current ?? undefined}
           />

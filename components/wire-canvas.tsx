@@ -22,7 +22,7 @@ function calculateWirePhysics(dist: number, dx: number, dy: number, tension: num
   const inverseBonus = 300 / distanceFactor  // Bonus multiplier for short wires (6x at 50px, 1.5x at 200px)
   
   // Base extra wire - more for short connections
-  const baseExtra = slack * 250 * inverseBonus  // Up to 1500px extra for very short wires at low tension!
+  const baseExtra = slack * 250 * inverseBonus
   
   // Proportional extra - still add some based on distance
   const proportionalExtra = dist * slack * 0.5
@@ -38,11 +38,9 @@ function calculateWirePhysics(dist: number, dx: number, dy: number, tension: num
     sag = Math.sqrt(excessWire * Math.max(30, dist)) / 1.5
   }
   
-  // Gravity effect - vertical wires should sag MORE, not less!
-  // When wire is vertical (dx ≈ 0), all excess length becomes sag
+  // Gravity effect - but scale it by slack so it disappears at high tension
   const horizontalRatio = dist > 0 ? Math.abs(dx) / dist : 0
-  // Invert the effect: vertical wires get full sag, horizontal get partial
-  const gravityEffect = 1.0 - (0.3 * horizontalRatio)  // 1.0 for vertical, 0.7 for horizontal
+  const gravityEffect = (1.0 - (0.3 * horizontalRatio)) * slack  // Scale gravity by slack
   
   return (sag * gravityEffect) + shadowOffset
 }
@@ -60,35 +58,38 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
     const sag = calculateWirePhysics(dist, dx, dy, tension, shadowOffset)
 
     // Calculate control points for natural catenary curve
-    // Key insight: Bezier curves need horizontal spread to render properly
-    // When dx is very small, we need to provide minimal spread for the math to work
-    
-    // For vertical positions, account for slack
-    const slackRatio = Math.min(1, sag / (dist * 0.5))
-    
-    // Calculate base positions with smooth transition for vertical wires
     let cp1x, cp2x, cp1y, cp2y
     
-    // Smooth transition based on how vertical the wire is
-    // Use a smoother transition that doesn't cause jumps
-    const horizontalness = dist > 0 ? Math.abs(dx) / dist : 0
+    // Control point positions should interpolate based on tension
+    // At tension = 1 (slack = 0), control points are on the straight line
+    // At tension = 0 (slack = 1), control points create maximum curve
+    const slack = 1 - tension
     
-    // Always blend - never have a hard cutoff
-    // For nearly vertical wires, reduce horizontal spread smoothly
-    const minHorizontal = 0.01  // Minimum horizontal factor to avoid degenerate curves
+    // Smooth transition based on how vertical the wire is
+    const horizontalness = dist > 0 ? Math.abs(dx) / dist : 0
+    const verticalness = 1.0 - horizontalness
+    
+    // For horizontal spread, reduce for vertical wires
+    const minHorizontal = 0.01
     const horizontalFactor = Math.max(minHorizontal, horizontalness)
     
-    // Control points horizontal positions - smoothly transition to vertical
-    cp1x = a.x + dx * 0.35 * horizontalFactor
-    cp2x = a.x + dx * 0.65 * horizontalFactor
+    // Base control point positions (for straight line)
+    const straightCp1x = a.x + dx * 0.35
+    const straightCp2x = a.x + dx * 0.65
+    const straightCp1y = a.y + dy * 0.35
+    const straightCp2y = a.y + dy * 0.65
     
-    // For vertical positions, blend based on how vertical the wire is
-    // More vertical = control points spread more evenly along the height
-    const verticalness = 1.0 - horizontalness
-    const verticalSpread = 0.35 - verticalness * 0.1  // From 0.35 to 0.25 as wire becomes vertical
+    // Saggy control point positions (with catenary adjustment)
+    const sagCp1x = a.x + dx * 0.35 * horizontalFactor
+    const sagCp2x = a.x + dx * 0.65 * horizontalFactor
+    const sagCp1y = a.y + dy * (0.35 - verticalness * 0.1) + sag
+    const sagCp2y = a.y + dy * (0.65 + verticalness * 0.1) + sag
     
-    cp1y = a.y + dy * verticalSpread * (1 - slackRatio * 0.8) + sag
-    cp2y = a.y + dy * (1 - verticalSpread) * (1 - slackRatio * 0.8) + sag
+    // Interpolate between straight and saggy based on slack
+    cp1x = straightCp1x + (sagCp1x - straightCp1x) * slack
+    cp2x = straightCp2x + (sagCp2x - straightCp2x) * slack
+    cp1y = straightCp1y + (sagCp1y - straightCp1y) * slack
+    cp2y = straightCp2y + (sagCp2y - straightCp2y) * slack
 
     // REMOVED quadratic logic - always use cubic bezier like temp wire
     if (false) {
@@ -142,36 +143,53 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
       }
     }
 
-    // For cubic bezier curves
-    if (clipRadius > 0 && dist > clipRadius * 2) {
-      // Calculate tangent vectors at the endpoints of the cubic bezier
-      // At t=0, tangent points from start toward first control point
-      const startTangentX = cp1x - a.x
-      const startTangentY = cp1y - a.y
-      const startTangentDist = Math.hypot(startTangentX, startTangentY)
-      const startUnitX = startTangentX / startTangentDist
-      const startUnitY = startTangentY / startTangentDist
-      
-      // At t=1, tangent points from second control point toward end
-      const endTangentX = b.x - cp2x
-      const endTangentY = b.y - cp2y
-      const endTangentDist = Math.hypot(endTangentX, endTangentY)
-      const endUnitX = endTangentX / endTangentDist
-      const endUnitY = endTangentY / endTangentDist
-      
-      // Offset along the tangent directions
-      const startPoint = {
+    // Always calculate tangent vectors and apply offsets consistently
+    // At t=0, tangent points from start toward first control point
+    const startTangentX = cp1x - a.x
+    const startTangentY = cp1y - a.y
+    const startTangentDist = Math.hypot(startTangentX, startTangentY)
+    
+    // At t=1, tangent points from second control point toward end
+    const endTangentX = b.x - cp2x
+    const endTangentY = b.y - cp2y
+    const endTangentDist = Math.hypot(endTangentX, endTangentY)
+    
+    // Calculate unit vectors with sensible defaults for zero-length tangents
+    let startUnitX, startUnitY, endUnitX, endUnitY
+    
+    if (startTangentDist > 0.001) {
+      startUnitX = startTangentX / startTangentDist
+      startUnitY = startTangentY / startTangentDist
+    } else {
+      // Default: wire leaves downward due to sag
+      startUnitX = 0
+      startUnitY = 1
+    }
+    
+    if (endTangentDist > 0.001) {
+      endUnitX = endTangentX / endTangentDist
+      endUnitY = endTangentY / endTangentDist
+    } else {
+      // Default: wire arrives from above (opposite of start)
+      endUnitX = 0
+      endUnitY = 1  // Points down (wire comes from above, so tangent at end points down)
+    }
+    
+    // Always apply offsets if clipRadius > 0
+    let startPoint = a
+    let endPoint = b
+    
+    if (clipRadius > 0) {
+      startPoint = {
         x: a.x + startUnitX * clipRadius,
         y: a.y + startUnitY * clipRadius
       }
-      const endPoint = {
+      endPoint = {
         x: b.x - endUnitX * clipRadius,
         y: b.y - endUnitY * clipRadius
       }
       
       // Adjust control points to maintain smooth curve
-      // Move them slightly to account for the shortened endpoints
-      const adjustFactor = clipRadius / dist
       const cp1xAdjusted = cp1x - startUnitX * clipRadius * 0.25
       const cp1yAdjusted = cp1y - startUnitY * clipRadius * 0.25
       const cp2xAdjusted = cp2x + endUnitX * clipRadius * 0.25
@@ -186,17 +204,16 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
         startAngle,
         endAngle
       }
-    }
-
-    // No clipping for very short distances or when clipRadius is 0
-    // Still calculate angles from control points
-    const startAngle = Math.atan2(cp1y - a.y, cp1x - a.x) * 180 / Math.PI
-    const endAngle = Math.atan2(b.y - cp2y, b.x - cp2x) * 180 / Math.PI
-    
-    return {
-      path: `M ${a.x} ${a.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${b.x} ${b.y}`,
-      startAngle,
-      endAngle
+    } else {
+      // No clipping radius - wire goes directly to centers
+      const startAngle = Math.atan2(startUnitY, startUnitX) * 180 / Math.PI
+      const endAngle = Math.atan2(-endUnitY, -endUnitX) * 180 / Math.PI
+      
+      return {
+        path: `M ${a.x} ${a.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${b.x} ${b.y}`,
+        startAngle,
+        endAngle
+      }
     }
   }
 }

@@ -14,7 +14,7 @@ export function TextLabel({ children, className, variant = "port" }: TextLabelPr
   const baseClasses = "font-mono text-xs select-none text-center tracking-[0.05em] [text-box-edge:cap_alphabetic] [text-box-trim:trim-both]"
 
   const variantClasses = {
-    port: "flex flex-1 items-center justify-center text-black text-[9px] font-bold rounded-[3px] text-center leading-[9px] lowercase w-full",
+    port: "flex flex-1 items-center justify-center text-black text-[9px] font-bold text-center leading-[9px] lowercase w-full mb-[-1px]",
     control: "font-bold text-[9px] lowercase text-black leading-[10px]",
     parameter: "font-medium mb-2",
   }
