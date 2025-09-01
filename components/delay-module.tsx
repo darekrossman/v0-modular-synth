@@ -244,7 +244,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-5 mt-5">
+      <div className="flex flex-col items-center gap-8 mt-5">
         {clocked ? (
           <Knob
             value={[clockDivIdx / (NOTE_DIVISIONS.length - 1)]}
@@ -266,14 +266,13 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
           </div>
         </div>
 
+        <div className="flex justify-center items-center gap-5">
+          <ToggleSwitch label="Free" topLabel="Sync" value={clocked} onValueChange={setClocked} />
+          <ToggleSwitch label="Tape" topLabel="Fade" value={stable} onValueChange={setStable} />
+        </div>
       </div>
 
-      <div className="flex-grow" />
 
-      <div className="flex flex-col items-center gap-2">
-        <ToggleSwitch label="Sync" value={clocked} onValueChange={setClocked} />
-        <ToggleSwitch label="Stable" value={stable} onValueChange={setStable} />
-      </div>
 
       <div className="flex-grow" />
 

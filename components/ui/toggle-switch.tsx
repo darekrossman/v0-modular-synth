@@ -8,14 +8,17 @@ interface ToggleSwitchProps {
   value: boolean
   onValueChange: (value: boolean) => void
   label?: string
+  topLabel?: string
   disabled?: boolean
   className?: string
 }
 
 const ToggleSwitch = React.forwardRef<HTMLButtonElement, ToggleSwitchProps>(
-  ({ value, onValueChange, label, disabled = false, className }, ref) => {
+  ({ value, onValueChange, label, topLabel, disabled = false, className }, ref) => {
     return (
       <div className="flex flex-col items-center gap-1.5 w-9">
+        {topLabel && <TextLabel variant="control">{topLabel}</TextLabel>}
+
         <button
           ref={ref}
           className={cn(

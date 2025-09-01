@@ -203,7 +203,7 @@ export function ReverbModule({ moduleId }: { moduleId: string }) {
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-5 mt-5">
+      <div className="flex flex-col items-center gap-8 mt-5">
         <Knob value={sizeN} onValueChange={setSizeN} size="lg" label="Size" />
         <div className="flex flex-col gap-5">
           <div className="flex gap-5">
