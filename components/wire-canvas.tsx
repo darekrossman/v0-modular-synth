@@ -12,6 +12,39 @@ const cssEscape = (s: string) => {
   return s.replace(/[^a-zA-Z0-9_-]/g, "\\$&")
 }
 
+// Unified wire physics calculation
+function calculateWirePhysics(dist: number, dx: number, dy: number, tension: number, shadowOffset: number = 0) {
+  const slack = 1 - tension
+  
+  // For short distances, we need MUCH more extra wire
+  // Use inverse relationship: shorter wires get proportionally more extra length
+  const distanceFactor = Math.max(50, dist)  // Minimum 50px for calculations
+  const inverseBonus = 300 / distanceFactor  // Bonus multiplier for short wires (6x at 50px, 1.5x at 200px)
+  
+  // Base extra wire - more for short connections
+  const baseExtra = slack * 250 * inverseBonus  // Up to 1500px extra for very short wires at low tension!
+  
+  // Proportional extra - still add some based on distance
+  const proportionalExtra = dist * slack * 0.5
+  
+  // Total wire arc length
+  const wireArcLength = dist + baseExtra + proportionalExtra
+  
+  // Calculate sag from excess wire
+  const excessWire = wireArcLength - dist
+  let sag = 0
+  if (excessWire > 0) {
+    // More aggressive sag formula for visibility
+    sag = Math.sqrt(excessWire * Math.max(30, dist)) / 1.5
+  }
+  
+  // Gravity effect
+  const horizontalFactor = dist > 0 ? Math.abs(dx) / dist : 0
+  const gravityEffect = 0.4 + 0.6 * horizontalFactor
+  
+  return (sag * gravityEffect) + shadowOffset
+}
+
 function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number = 0) {
   const d = Math.max(0, Math.min(1, droop))
 
@@ -19,25 +52,19 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
     const dx = b.x - a.x
     const dy = b.y - a.y
     const dist = Math.hypot(dx, dy)
+    
+    // Use unified physics calculation
+    const tension = 1 - d
+    const sag = calculateWirePhysics(dist, dx, dy, tension, shadowOffset)
 
-    // Calculate sag for physics
-    const baseSag = Math.sqrt(dist) * 8 * d
-    const maxSag = 600 * d
-
-    // Account for horizontal vs vertical wires
-    const horizontalFactor = Math.abs(dx) / (dist + 1)
-    const sagMultiplier = 0.3 + 0.7 * horizontalFactor
-
-    const sag = Math.min(baseSag * sagMultiplier, maxSag) + shadowOffset
-
-    // Calculate control points for the bezier curve
+    // Calculate control points for the bezier curve (MUST match temp wire exactly)
     const cp1x = a.x + dx * 0.25
-    const cp1y = a.y + dy * 0.25 + sag * 0.7
+    const cp1y = a.y + dy * 0.25 + sag  // Use full sag, not 0.7
     const cp2x = a.x + dx * 0.75
-    const cp2y = a.y + dy * 0.75 + sag * 0.7
+    const cp2y = a.y + dy * 0.75 + sag  // Use full sag, not 0.7
 
-    // For very short wires, use simpler quadratic curve
-    if (dist < 50) {
+    // REMOVED quadratic logic - always use cubic bezier like temp wire
+    if (false) {
       const mx = (a.x + b.x) / 2
       const my = (a.y + b.y) / 2 + sag * 0.8
       
@@ -243,37 +270,23 @@ export function WireCanvas() {
       const dy = b.y - a.y
       const actualDist = Math.hypot(dx, dy)
       
-      // Wire physics constants based on tension
+      // Use unified wire physics calculation
       const tension = tensionRef.current
+      const sag = calculateWirePhysics(actualDist, dx, dy, tension, 0)
+      
+      // Calculate wire arc length for slack detection
       const slack = 1 - tension
+      const distanceFactor = Math.max(50, actualDist)
+      const inverseBonus = 300 / distanceFactor
+      const baseExtra = slack * 250 * inverseBonus
+      const proportionalExtra = actualDist * slack * 0.5
+      const wireArcLength = actualDist + baseExtra + proportionalExtra
       
-      // Minimum arc length of the wire (the actual wire length)
-      // This is the physical length of the wire material
-      const minArcLength = 40 + slack * 80  // 40px at high tension, up to 120px at low tension
-      
-      // Calculate how much the wire needs to sag to maintain its arc length
-      // When endpoints are closer than the arc length, wire must sag
-      let sag = 0
-      if (actualDist < minArcLength) {
-        // Use catenary formula approximation: for a wire of length L between points distance D apart,
-        // the sag S ≈ sqrt((L² - D²) / 8)
-        const lengthSquared = minArcLength * minArcLength
-        const distSquared = actualDist * actualDist
-        sag = Math.sqrt(Math.max(0, lengthSquared - distSquared) / 8)
-      } else {
-        // Wire is taut, minimal sag based on tension
-        sag = slack * 10  // Small amount of natural sag
-      }
-      
-      // Add gravity effect - wire sags downward
-      const horizontalRatio = actualDist > 0.1 ? Math.abs(dx) / actualDist : 0
-      sag = sag * (0.5 + 0.5 * horizontalRatio)  // More sag when horizontal
-      
-      // Control points for bezier curve
+      // Control points for bezier curve (MUST match permanent wire exactly)
       const cp1x = a.x + dx * 0.25
-      const cp1y = a.y + dy * 0.25 + sag
+      const cp1y = a.y + dy * 0.25 + sag  // Full sag
       const cp2x = a.x + dx * 0.75  
-      const cp2y = a.y + dy * 0.75 + sag
+      const cp2y = a.y + dy * 0.75 + sag  // Full sag
       
       // Calculate tangent at start (from start toward first control point)
       const startTangentX = cp1x - a.x
@@ -292,12 +305,12 @@ export function WireCanvas() {
         startUnitX = startTangentX / startTangentDist
         startUnitY = startTangentY / startTangentDist
         
-        // If wire has slack (actualDist < minArcLength), reduce upward pull
-        if (actualDist < minArcLength && startUnitY < 0) {
-          // Wire is slack and pulling upward - reduce the upward component
-          const slackRatio = actualDist / minArcLength  // 0 when fully slack, 1 when taut
+        // If wire has slack (wireArcLength > actualDist), reduce upward pull
+        if (wireArcLength > actualDist && startUnitY < 0) {
+          // Wire has excess length and is pulling upward - reduce the upward component
+          const tautness = actualDist / wireArcLength  // 0 when lots of slack, 1 when taut
           // Blend toward horizontal as slack increases
-          startUnitY = startUnitY * slackRatio  // Reduce upward pull based on slack
+          startUnitY = startUnitY * tautness  // Reduce upward pull based on slack
           // Renormalize
           const newDist = Math.hypot(startUnitX, startUnitY)
           if (newDist > 0.1) {
@@ -326,9 +339,9 @@ export function WireCanvas() {
       let endUnitY = endTangentDist > 0.1 ? endTangentY / endTangentDist : 0
       
       // Apply same slack adjustment for end ring
-      if (actualDist < minArcLength && endUnitY < 0) {
-        const slackRatio = actualDist / minArcLength
-        endUnitY = endUnitY * slackRatio
+      if (wireArcLength > actualDist && endUnitY < 0) {
+        const tautness = actualDist / wireArcLength
+        endUnitY = endUnitY * tautness
         // Renormalize
         const newDist = Math.hypot(endUnitX, endUnitY)
         if (newDist > 0.1) {
