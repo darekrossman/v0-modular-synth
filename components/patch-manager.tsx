@@ -12,6 +12,7 @@ export interface PatchModule {
     x: number
     y: number
   }
+  rack?: number
 }
 
 export interface PatchConnection {
@@ -402,8 +403,8 @@ const createDefaultPatch = (): Patch => ({
 
 interface PatchProviderProps {
   children: ReactNode
-  modules: Array<{ id: string; type: string }>
-  onModulesChange: (modules: Array<{ id: string; type: string }>) => void
+  modules: Array<{ id: string; type: string; rack?: number }>
+  onModulesChange: (modules: Array<{ id: string; type: string; rack?: number }>) => void
   onParameterChange: (moduleId: string, parameter: string, value: any) => void
 }
 
@@ -441,7 +442,12 @@ const normalizePatch = (p: any): Patch | null => {
     name: p.name || "Untitled Patch",
     version: p.version || "2.0",
     modules: p.modules.map((m: any) => ({
-      id: m.id, type: m.type, parameters: m.parameters || {}, x: m.x, y: m.y,
+      id: m.id,
+      type: m.type,
+      parameters: m.parameters || {},
+      ...(m.position && { position: m.position }),
+      ...(m.x !== undefined && m.y !== undefined && { position: { x: m.x, y: m.y } }),
+      ...(m.rack !== undefined && { rack: m.rack })
     })),
     connections: normalizeConnections(p.connections),
     metadata: p.metadata || {},
@@ -520,7 +526,8 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
         id: m.id,
         type: m.type,
         parameters,
-        ...(position && { position })
+        ...(position && { position }),
+        ...(m.rack && { rack: m.rack })
       }
     })
 
@@ -585,7 +592,11 @@ export function PatchProvider({ children, modules, onModulesChange, onParameterC
     })
 
     // 2) Update modules list (will trigger re-render with new parameters)
-    const moduleInstances = patch.modules.map((m) => ({ id: m.id, type: m.type as any }))
+    const moduleInstances = patch.modules.map((m) => ({
+      id: m.id,
+      type: m.type as any,
+      ...(m.rack && { rack: m.rack })
+    }))
     onModulesChange(moduleInstances)
 
     // 3) Load connections (ensure all have colors)

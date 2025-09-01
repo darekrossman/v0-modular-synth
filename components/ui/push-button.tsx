@@ -17,8 +17,8 @@ const sizeVariants = {
     gap: "gap-0.5",
   },
   md: {
-    button: "h-8 w-8",
-    gap: "gap-1",
+    button: "h-9 w-9",
+    gap: "gap-2",
   },
   lg: {
     button: "h-10 w-10",
@@ -38,7 +38,7 @@ export function PushButton({
   labelClassName,
   className,
   children,
-  size = "lg",
+  size = "md",
   feel = "plastic",
   ...props
 }: PushButtonProps) {
@@ -47,6 +47,10 @@ export function PushButton({
 
   return (
     <div className={cn("flex flex-col items-center", sizeClasses.gap)}>
+      <TextLabel variant="control" className={cn("text-center", labelClassName)}>
+        {label}
+      </TextLabel>
+
       <button
         className={cn(
           // Base push button styling
@@ -57,12 +61,7 @@ export function PushButton({
           className,
         )}
         {...props}
-      >
-        {feel === "plastic" && <div className="rounded-full w-full h-full mb-[-1px] shadow-[0_-1px_2px_0_rgba(255,255,255,0.8)] border-b border-b-black/50" />}
-      </button>
-      <TextLabel variant="control" className={cn("text-center", labelClassName)}>
-        {label}
-      </TextLabel>
+      />
     </div>
   )
 }

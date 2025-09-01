@@ -564,12 +564,12 @@ export default function SynthPlayground() {
       <ConnectionProvider>
         <PatchProvider
           modules={modules}
-          onModulesChange={(m: Array<{ id: string; type: string }>) =>
+          onModulesChange={(m: Array<{ id: string; type: string; rack?: number }>) =>
             setModules(
               m.map((x) => ({
                 id: x.id,
                 type: x.type as ModuleType,
-                rack: (x.type === "sequencer" || x.type === "quantizer" || x.type === "euclid") ? 3 : 1,
+                rack: x.rack !== undefined ? x.rack : (x.type === "sequencer" || x.type === "quantizer" || x.type === "euclid") ? 3 : 1,
               }))
             )}
           onParameterChange={handleParameterChange}

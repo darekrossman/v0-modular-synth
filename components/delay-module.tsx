@@ -56,6 +56,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     timeCvAmt: timeCvAmtN[0],
     fbCvAmt: fbCvAmtN[0],
     clocked,
+    stable,
   }))
 
   // Clock division index for tempo sync
@@ -85,6 +86,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
 
   const [mode, setMode] = useState<Mode>(initialParameters?.mode ?? 0)
   const [clocked, setClocked] = useState(initialParameters?.clocked ?? false)
+  const [stable, setStable] = useState(initialParameters?.stable ?? false)
 
   // Graph
   const acRef = useRef<AudioContext | null>(null)
@@ -171,6 +173,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     setParam("fbCvAmt", Math.max(0, Math.min(1, fbCvAmtN[0])), 0.02)
     setParam("clocked", clocked ? 1 : 0, 0.0)
     setParam("clockDiv", clockDivIdx, 0.0)
+    setParam("stable", stable ? 1 : 0, 0.0)
     // Initial dryMono state based on current connections
     const inLId = `${moduleId}-in-l`
     const inRId = `${moduleId}-in-r`
@@ -180,7 +183,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     setParam("dryMono", dryMono ? 1 : 0, 0.0)
 
     console.log("[DELAY] initialized")
-  }, [mode, clocked, timeN, fbN, mixN, toneN, timeCvAmtN, fbCvAmtN, connections, moduleId])
+  }, [mode, clocked, stable, timeN, fbN, mixN, toneN, timeCvAmtN, fbCvAmtN, connections, moduleId])
 
   const { isReady, initError, retryInit } = useModuleInit(init, "DELAY")
 
@@ -208,6 +211,7 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
       setParam("clockDiv", clockDivIdx, 0.0)
     }
   }, [clocked, clockDivIdx])
+  useEffect(() => { setParam("stable", stable ? 1 : 0, 0.0) }, [stable])
   // Balance dry path when exactly one input is connected
   useEffect(() => {
     if (!workletRef.current) return
@@ -266,8 +270,9 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
 
       <div className="flex-grow" />
 
-      <div className="flex items-center justify-center">
+      <div className="flex flex-col items-center gap-2">
         <ToggleSwitch label="Sync" value={clocked} onValueChange={setClocked} />
+        <ToggleSwitch label="Stable" value={stable} onValueChange={setStable} />
       </div>
 
       <div className="flex-grow" />

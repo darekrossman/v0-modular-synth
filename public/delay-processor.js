@@ -11,6 +11,7 @@
 const TIME_MIN = 0.01;
 const TIME_MAX = 2.0;
 const FB_MAX   = 0.95;
+const MAX_BUFFERS = 8; // Maximum number of concurrent delay buffers
 
 class DelayProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -29,6 +30,8 @@ class DelayProcessor extends AudioWorkletProcessor {
       { name: "clockDiv",  defaultValue: 0,    minValue: 0,        maxValue: 15,       automationRate: "k-rate" }, // Division index for synced times
       // Dry mono balance: when enabled, dry path uses mono sum for both channels
       { name: "dryMono",   defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
+      // Stable mode: when enabled, time changes don't affect playing delays
+      { name: "stable",    defaultValue: 0.0,  minValue: 0.0,      maxValue: 1.0,      automationRate: "k-rate" },
     ];
   }
 
@@ -39,19 +42,41 @@ class DelayProcessor extends AudioWorkletProcessor {
 
     // Max buffer: TIME_MAX + a little guard
     this.cap = Math.max(2048, Math.ceil((TIME_MAX + 0.05) * this.sr) + 4);
-    this.bufL = new Float32Array(this.cap);
-    this.bufR = new Float32Array(this.cap);
-    this.w = 0;
-
-    // Feedback LPF states
-    this.lpfL = 0;
-    this.lpfR = 0;
+    
+    // Multi-buffer system for stable mode
+    this.buffers = [];
+    for (let i = 0; i < MAX_BUFFERS; i++) {
+      this.buffers.push({
+        bufL: new Float32Array(this.cap),
+        bufR: new Float32Array(this.cap),
+        w: 0,
+        delaySamples: 0.25 * this.sr,
+        active: false,
+        fadeOut: 0,
+        lpfL: 0,
+        lpfR: 0,
+        energy: 0, // Track buffer energy for auto-deactivation
+        silentSamples: 0, // Count samples below threshold
+        isWriteBuffer: false // Track if this buffer is receiving new input
+      });
+    }
+    
+    // Primary buffer (always index 0, used in classic mode)
+    this.primaryBuffer = this.buffers[0];
+    this.primaryBuffer.active = true;
 
     // Smoothed params (for zipper-free behavior even if host jumps)
     this.tZ = 0.25;  // seconds
     this.fbZ = 0.3;  // 0..FB_MAX
     this.mixZ = 0.5; // 0..1
     this.aParam = 1 - Math.exp(-1 / (this.sr * 0.02)); // ~20ms
+    
+    // Stable mode state
+    this.stableMode = false;
+    this.currentWriteBuffer = 0; // Index of buffer currently receiving input
+    this.lastDelayTime = 0.25;
+    this.lastTimeChangeGlobal = 0; // Global sample index of last time change
+    this.debounceThreshold = this.sr * 0.05; // 50ms debounce for creating new buffers
 
     this.toneAlpha = 1 - Math.exp(-2 * Math.PI * 8000 / this.sr); // set each block
 
@@ -96,6 +121,53 @@ class DelayProcessor extends AudioWorkletProcessor {
     const s1 = buf[i1];
     return s0 + (s1 - s0) * frac;
   }
+  
+  // Find or create a buffer for the new delay time
+  _getOrCreateBuffer(delaySamples) {
+    // First check if we already have a buffer with this delay time
+    for (let i = 0; i < MAX_BUFFERS; i++) {
+      if (this.buffers[i].active && this.buffers[i].isWriteBuffer && 
+          Math.abs(this.buffers[i].delaySamples - delaySamples) < 1) {
+        return i;
+      }
+    }
+    
+    // Find an inactive buffer to use
+    for (let i = 1; i < MAX_BUFFERS; i++) { // Start from 1, keeping 0 as primary
+      if (!this.buffers[i].active) {
+        const buf = this.buffers[i];
+        buf.active = true;
+        buf.delaySamples = delaySamples;
+        buf.fadeOut = 0;
+        // Clear the buffer to prevent old audio from playing
+        buf.bufL.fill(0);
+        buf.bufR.fill(0);
+        buf.w = 0;
+        buf.lpfL = 0;
+        buf.lpfR = 0;
+        buf.energy = 0;
+        buf.silentSamples = 0;
+        buf.isWriteBuffer = true;
+        return i;
+      }
+    }
+    
+    // All buffers are active - find the one with lowest energy that's not the write buffer
+    let lowestEnergyIdx = -1;
+    let lowestEnergy = Infinity;
+    for (let i = 1; i < MAX_BUFFERS; i++) {
+      if (!this.buffers[i].isWriteBuffer && this.buffers[i].energy < lowestEnergy) {
+        lowestEnergy = this.buffers[i].energy;
+        lowestEnergyIdx = i;
+      }
+    }
+    
+    if (lowestEnergyIdx >= 0) {
+      // Start fading out the lowest energy buffer
+      this.buffers[lowestEnergyIdx].fadeOut = 0.01; // Start fade immediately
+    }
+    return -1; // Signal that we're at capacity
+  }
 
   process(inputs, outputs, params) {
     const out = outputs[0];
@@ -125,6 +197,7 @@ class DelayProcessor extends AudioWorkletProcessor {
     const clocked    = params.clocked[0] >= 0.5;
     const clockDivIdx = Math.round(params.clockDiv[0]);
     const dryMono    = params.dryMono[0] >= 0.5;
+    const stable     = params.stable[0] >= 0.5;
 
     // Update tone LPF coefficient once per block
     this.toneAlpha = 1 - Math.exp(-2 * Math.PI * Math.max(10, toneHz) / this.sr);
@@ -160,9 +233,14 @@ class DelayProcessor extends AudioWorkletProcessor {
       const cIn = inClock  ? inClock[i]  : 0;
 
       // effective targets with CV & hard clamp
-      let tEff  = clockTimeSec != null
-        ? clockTimeSec
-        : (baseTime + (tCv * timeCvAmt) * timeSpan);
+      let tEff;
+      if (clockTimeSec != null) {
+        // In sync mode, CV modulates the clock-derived time
+        tEff = clockTimeSec + (tCv * timeCvAmt) * timeSpan;
+      } else {
+        // In free mode, CV modulates the base time
+        tEff = baseTime + (tCv * timeCvAmt) * timeSpan;
+      }
       if (tEff < TIME_MIN) tEff = TIME_MIN;
       if (tEff > TIME_MAX) tEff = TIME_MAX;
 
@@ -170,60 +248,149 @@ class DelayProcessor extends AudioWorkletProcessor {
       if (fbEff < 0) fbEff = 0;
       if (fbEff > FB_MAX) fbEff = FB_MAX;
 
-      // smooth parameters a bit (in-worklet, so UI doesn’t have to)
-      this.tZ  += aP * (tEff  - this.tZ);
+      // Handle delay time changes
+      if (stable) {
+        // Stable mode: check if we need to create a new buffer
+        const timeDiff = Math.abs(tEff - this.lastDelayTime);
+        const samplesSinceLastChange = (this.globalSampleIndex + i) - this.lastTimeChangeGlobal;
+        
+        if (timeDiff > 0.001 && samplesSinceLastChange > this.debounceThreshold) {
+          // Significant time change after debounce period
+          // Mark current write buffer as no longer receiving input
+          if (this.currentWriteBuffer >= 0) {
+            this.buffers[this.currentWriteBuffer].isWriteBuffer = false;
+          }
+          
+          const newDelaySamples = tEff * this.sr;
+          const newBufferIdx = this._getOrCreateBuffer(newDelaySamples);
+          
+          if (newBufferIdx >= 0) {
+            this.currentWriteBuffer = newBufferIdx;
+            this.lastDelayTime = tEff;
+            this.lastTimeChangeGlobal = this.globalSampleIndex + i;
+          }
+        }
+        this.tZ = tEff; // Keep tZ updated for display purposes
+      } else {
+        // Classic mode - use primary buffer with smoothing
+        this.tZ  += aP * (tEff  - this.tZ);
+        this.currentWriteBuffer = 0;
+        this.primaryBuffer.delaySamples = this.tZ * this.sr;
+        this.primaryBuffer.isWriteBuffer = true;
+        // Deactivate all other buffers in classic mode
+        for (let j = 1; j < MAX_BUFFERS; j++) {
+          this.buffers[j].active = false;
+          this.buffers[j].isWriteBuffer = false;
+        }
+      }
+      
       this.fbZ += aP * (fbEff - this.fbZ);
       this.mixZ+= aP * (baseMix - this.mixZ);
 
-      const delaySamples = this.tZ * this.sr;
-
-      // read current delayed samples BEFORE we write this sample
-      const yL_read = this._read(this.bufL, this.w, delaySamples);
-      const yR_read = this._read(this.bufR, this.w, delaySamples);
-
-      let yL = 0, yR = 0;
-      let wL = 0, wR = 0;
-
-      switch (mode) {
-        case 0: { // MONO
-          const xM = 0.5 * (xL + xR);
-          const yM = this._read(this.bufL, this.w, delaySamples); // use L buffer as mono
-          // feedback LPF on mono stream
-          this.lpfL += this.toneAlpha * (yM - this.lpfL);
-          const fbSig = this.lpfL * this.fbZ;
-          wL = xM + fbSig; // write mono into L buffer only
-          this.bufL[this.w] = wL;
-          // copy last R slot forward so ping-pong->mono switch is benign
-          this.bufR[this.w] = this.bufR[(this.w + this.cap - 1) % this.cap];
-          yL = yM;
-          yR = yM;
-          break;
+      // Process ALL active buffers - they all need to apply feedback
+      let yL_total = 0, yR_total = 0;
+      let activeCount = 0;
+      const silenceThreshold = 0.0001; // -80dB
+      
+      for (let bufIdx = 0; bufIdx < MAX_BUFFERS; bufIdx++) {
+        const buf = this.buffers[bufIdx];
+        if (!buf.active) continue;
+        
+        // Read delayed signal from this buffer
+        const yL_delayed = this._read(buf.bufL, buf.w, buf.delaySamples);
+        const yR_delayed = this._read(buf.bufR, buf.w, buf.delaySamples);
+        
+        // Apply feedback to ALL buffers (not just write buffer)
+        // This is crucial - every buffer must process its own feedback loop
+        let feedL = 0, feedR = 0;
+        
+        if (buf.isWriteBuffer) {
+          // Write buffer gets input + feedback
+          switch (mode) {
+            case 0: { // MONO
+              const xM = 0.5 * (xL + xR);
+              buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
+              feedL = xM + buf.lpfL * this.fbZ;
+              feedR = feedL; // Same for R in mono
+              break;
+            }
+            case 1: { // STEREO
+              buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
+              buf.lpfR += this.toneAlpha * (yR_delayed - buf.lpfR);
+              feedL = xL + buf.lpfL * this.fbZ;
+              feedR = xR + buf.lpfR * this.fbZ;
+              break;
+            }
+            default: { // PING_PONG
+              buf.lpfL += this.toneAlpha * (yR_delayed - buf.lpfL);
+              buf.lpfR += this.toneAlpha * (yL_delayed - buf.lpfR);
+              feedL = xL + buf.lpfL * this.fbZ;
+              feedR = xR + buf.lpfR * this.fbZ;
+              break;
+            }
+          }
+        } else {
+          // Non-write buffers only process feedback (no new input)
+          switch (mode) {
+            case 0: { // MONO
+              buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
+              feedL = buf.lpfL * this.fbZ;
+              feedR = feedL;
+              break;
+            }
+            case 1: { // STEREO
+              buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
+              buf.lpfR += this.toneAlpha * (yR_delayed - buf.lpfR);
+              feedL = buf.lpfL * this.fbZ;
+              feedR = buf.lpfR * this.fbZ;
+              break;
+            }
+            default: { // PING_PONG
+              buf.lpfL += this.toneAlpha * (yR_delayed - buf.lpfL);
+              buf.lpfR += this.toneAlpha * (yL_delayed - buf.lpfR);
+              feedL = buf.lpfL * this.fbZ;
+              feedR = buf.lpfR * this.fbZ;
+              break;
+            }
+          }
         }
-        case 1: { // STEREO (independent)
-          // LPF in each feedback path
-          this.lpfL += this.toneAlpha * (yL_read - this.lpfL);
-          this.lpfR += this.toneAlpha * (yR_read - this.lpfR);
-          wL = xL + this.lpfL * this.fbZ;
-          wR = xR + this.lpfR * this.fbZ;
-          this.bufL[this.w] = wL;
-          this.bufR[this.w] = wR;
-          yL = yL_read;
-          yR = yR_read;
-          break;
+        
+        // Write the feedback back into the buffer
+        buf.bufL[buf.w] = feedL;
+        buf.bufR[buf.w] = feedR;
+        
+        // Check for silence and deactivate if needed
+        const currentEnergy = Math.abs(yL_delayed) + Math.abs(yR_delayed);
+        if (currentEnergy < silenceThreshold && !buf.isWriteBuffer) {
+          buf.silentSamples++;
+          if (buf.silentSamples > this.sr * 0.05) { // 50ms of silence
+            buf.active = false;
+            buf.silentSamples = 0;
+            // Clear buffer on deactivation
+            buf.bufL.fill(0);
+            buf.bufR.fill(0);
+            continue;
+          }
+        } else {
+          buf.silentSamples = 0;
         }
-        default: { // 2: PING_PONG (cross feedback)
-          // cross-feed through LPF
-          this.lpfL += this.toneAlpha * (yR_read - this.lpfL); // R → L
-          this.lpfR += this.toneAlpha * (yL_read - this.lpfR); // L → R
-          wL = xL + this.lpfL * this.fbZ;
-          wR = xR + this.lpfR * this.fbZ;
-          this.bufL[this.w] = wL;
-          this.bufR[this.w] = wR;
-          yL = yL_read;
-          yR = yR_read;
-          break;
-        }
+        
+        // Add to output mix
+        yL_total += yL_delayed;
+        yR_total += yR_delayed;
+        activeCount++;
       }
+      
+      // Normalize mixed output to prevent clipping
+      if (activeCount > 1) {
+        const norm = 1.0 / Math.sqrt(activeCount);
+        yL_total *= norm;
+        yR_total *= norm;
+      }
+
+      // Use the mixed output from all buffers
+      let yL = yL_total;
+      let yR = yR_total;
 
       // Equal-power mix
       const dry = Math.cos(this.mixZ * Math.PI * 0.5);
@@ -239,8 +406,14 @@ class DelayProcessor extends AudioWorkletProcessor {
         outR[i] = dry * xR + wet * yR;
       }
 
-      // advance write index
-      this.w++; if (this.w >= this.cap) this.w = 0;
+      // Advance write indices for all active buffers
+      for (let bufIdx = 0; bufIdx < MAX_BUFFERS; bufIdx++) {
+        const buf = this.buffers[bufIdx];
+        if (buf.active) {
+          buf.w++;
+          if (buf.w >= this.cap) buf.w = 0;
+        }
+      }
 
       // clock rising-edge detection for 48 PPQ
       // Consider threshold ~0.1 for generic pulses

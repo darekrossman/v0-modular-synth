@@ -278,7 +278,6 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
               label="Trig"
-              size="lg"
               feel="rubber"
             />
           </div>
