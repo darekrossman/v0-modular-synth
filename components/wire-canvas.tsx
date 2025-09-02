@@ -187,7 +187,8 @@ export function WireCanvas() {
   } = useConnections()
 
   const svgRef = useRef<SVGSVGElement | null>(null)
-  const staticLayerRef = useRef<SVGGElement | null>(null)
+  const staticRingLayerRef = useRef<SVGGElement | null>(null)
+  const staticWireLayerRef = useRef<SVGGElement | null>(null)
   const tempPathRef = useRef<SVGPathElement | null>(null)
   const tempShadowPathRef = useRef<SVGPathElement | null>(null)
   const tempColorRef = useRef<string>("#fff")
@@ -327,19 +328,57 @@ export function WireCanvas() {
   const endRingMap = useRef(new Map<string, SVGGElement>())
 
   const ensureEdgeDom = (edge: ConnectionEdge) => {
-    const layer = staticLayerRef.current
-    if (!layer || groupMap.current.has(edge.id)) return
+    const ringLayer = staticRingLayerRef.current
+    const wireLayer = staticWireLayerRef.current
+    if (!ringLayer || !wireLayer) return
+    if (groupMap.current.has(edge.id)) return
 
+    // Create ring group per edge
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g")
     g.setAttribute("data-edge-id", edge.id)
 
-    // Shadow path (rendered first, behind the main wire)
+    // Create end rings
+    const startRing = document.createElementNS("http://www.w3.org/2000/svg", "g")
+    const startCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+    startCircle.setAttribute("r", "10")
+    startCircle.setAttribute("fill", "none")
+    startCircle.setAttribute("stroke-width", "6")
+    const startTriangle = document.createElementNS("http://www.w3.org/2000/svg", "path")
+    startTriangle.setAttribute("d", "M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7")
+    startTriangle.setAttribute("fill", "none")
+    startTriangle.setAttribute("stroke-width", "6")
+    startCircle.setAttribute("stroke-opacity", "1")
+    startTriangle.setAttribute("stroke-opacity", "1")
+    startRing.appendChild(startCircle)
+    startRing.appendChild(startTriangle)
+    startRing.setAttribute("class", "wire-start-ring")
+
+    const endRing = document.createElementNS("http://www.w3.org/2000/svg", "g")
+    const endCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+    endCircle.setAttribute("r", "10")
+    endCircle.setAttribute("fill", "none")
+    endCircle.setAttribute("stroke-width", "6")
+    endCircle.setAttribute("stroke-opacity", "1")
+    const endTriangle = document.createElementNS("http://www.w3.org/2000/svg", "path")
+    endTriangle.setAttribute("d", "M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7")
+    endTriangle.setAttribute("fill", "none")
+    endTriangle.setAttribute("stroke-width", "6")
+    endTriangle.setAttribute("stroke-opacity", "1")
+    endRing.appendChild(endCircle)
+    endRing.appendChild(endTriangle)
+    endRing.setAttribute("class", "wire-end-ring")
+
+    g.appendChild(startRing)
+    g.appendChild(endRing)
+    ringLayer.appendChild(g)
+
+    // Create wire paths in wire layer
     const shadowPath = document.createElementNS("http://www.w3.org/2000/svg", "path")
     shadowPath.setAttribute("fill", "none")
     shadowPath.setAttribute("stroke", "black")
-    shadowPath.setAttribute("stroke-width", String(thicknessRef.current))  // Same width as wire
+    shadowPath.setAttribute("stroke-width", String(thicknessRef.current))
     shadowPath.setAttribute("stroke-opacity", String(0.15 * opacityRef.current))
-    shadowPath.setAttribute("stroke-linecap", "round")  // Round end caps
+    shadowPath.setAttribute("stroke-linecap", "round")
     shadowPath.setAttribute("vector-effect", "non-scaling-stroke")
     shadowPath.setAttribute("filter", "url(#wireShadowBlur)")
 
@@ -347,51 +386,12 @@ export function WireCanvas() {
     p.setAttribute("fill", "none")
     p.setAttribute("stroke-width", "6")
     p.setAttribute("stroke-opacity", String(opacityRef.current))
-    p.setAttribute("stroke-linecap", "round")  // Round end caps
+    p.setAttribute("stroke-linecap", "round")
     p.setAttribute("vector-effect", "non-scaling-stroke")
 
-    // Create end rings that rotate with wire direction
-    // Create triangular-pointed ring shapes
-    const startRing = document.createElementNS("http://www.w3.org/2000/svg", "g")
-    // Create a group with a circle and triangle
-    const startCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    startCircle.setAttribute("r", "10")
-    startCircle.setAttribute("fill", "none")
-    startCircle.setAttribute("stroke-width", "6")  // Extra thick ring
-    const startTriangle = document.createElementNS("http://www.w3.org/2000/svg", "path")
-    // Rounded triangle tip using arc for smooth connection
-    startTriangle.setAttribute("d", "M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7")
-    startTriangle.setAttribute("fill", "none")
-    startTriangle.setAttribute("stroke-width", "6")  // Extra thick triangle
-    startRing.appendChild(startCircle)
-    startRing.appendChild(startTriangle)
-    // Ring attributes are set on child elements
-    startCircle.setAttribute("stroke-opacity", "1")
-    startTriangle.setAttribute("stroke-opacity", "1")
-    startRing.setAttribute("class", "wire-start-ring")
-
-    const endRing = document.createElementNS("http://www.w3.org/2000/svg", "g")
-    const endCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    endCircle.setAttribute("r", "10")
-    endCircle.setAttribute("fill", "none")
-    endCircle.setAttribute("stroke-width", "6")  // Extra thick ring
-    endCircle.setAttribute("stroke-opacity", "1")
-    const endTriangle = document.createElementNS("http://www.w3.org/2000/svg", "path")
-    // Rounded triangle tip using arc for smooth connection
-    endTriangle.setAttribute("d", "M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7")
-    endTriangle.setAttribute("fill", "none")
-    endTriangle.setAttribute("stroke-width", "6")  // Extra thick triangle
-    endTriangle.setAttribute("stroke-opacity", "1")
-    endRing.appendChild(endCircle)
-    endRing.appendChild(endTriangle)
-    endRing.setAttribute("class", "wire-end-ring")
-
-    // Render order: shadow, rings, then wire
-    g.appendChild(shadowPath)
-    g.appendChild(startRing)
-    g.appendChild(endRing)
-    g.appendChild(p)
-    layer.appendChild(g)
+    // Ensure shadow behind wire within the wire layer
+    wireLayer.appendChild(shadowPath)
+    wireLayer.appendChild(p)
 
     groupMap.current.set(edge.id, g)
     pathMap.current.set(edge.id, p)
@@ -403,9 +403,11 @@ export function WireCanvas() {
   const pruneMissingEdges = (present: Set<string>) => {
     for (const [id, g] of groupMap.current) {
       if (!present.has(id)) {
-        try {
-          g.remove()
-        } catch { }
+        try { g.remove() } catch { }
+        const p = pathMap.current.get(id)
+        const sp = shadowPathMap.current.get(id)
+        try { p?.remove() } catch { }
+        try { sp?.remove() } catch { }
         groupMap.current.delete(id)
         pathMap.current.delete(id)
         shadowPathMap.current.delete(id)
@@ -512,11 +514,9 @@ export function WireCanvas() {
   useEffect(() => {
     return () => {
       if (rafId.current) cancelAnimationFrame(rafId.current)
-      groupMap.current.forEach((g) => {
-        try {
-          g.remove()
-        } catch { }
-      })
+      groupMap.current.forEach((g) => { try { g.remove() } catch { } })
+      pathMap.current.forEach((p) => { try { p.remove() } catch { } })
+      shadowPathMap.current.forEach((sp) => { try { sp.remove() } catch { } })
       groupMap.current.clear()
       pathMap.current.clear()
       shadowPathMap.current.clear()
@@ -561,7 +561,7 @@ export function WireCanvas() {
           <path d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7" fill="none" strokeWidth="6" strokeOpacity={1} />
         </g>
 
-        {/* Temp wire path */}
+        {/* Temp wire path (must be above temp rings, so moved after rings) */}
         <path
           ref={tempPathRef}
           stroke={tempColorRef.current}
@@ -573,8 +573,9 @@ export function WireCanvas() {
         />
       </g>
 
-      {/* Static wires layer (imperative) */}
-      <g ref={staticLayerRef} />
+      {/* Static layers: rings first, wires above */}
+      <g ref={staticRingLayerRef} />
+      <g ref={staticWireLayerRef} />
 
       {/* Hidden keyed list keeps React aware of edges */}
       <g style={{ display: "none" }}>
