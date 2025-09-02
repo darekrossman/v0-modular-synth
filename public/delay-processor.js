@@ -53,11 +53,15 @@ class DelayProcessor extends AudioWorkletProcessor {
         delaySamples: 0.25 * this.sr,
         active: false,
         fadeOut: 0,
+        fadeIn: 0, // Fade-in envelope for smooth activation
         lpfL: 0,
         lpfR: 0,
         energy: 0, // Track buffer energy for auto-deactivation
         silentSamples: 0, // Count samples below threshold
-        isWriteBuffer: false // Track if this buffer is receiving new input
+        isWriteBuffer: false, // Track if this buffer is receiving new input
+        // DC blocker state (high-pass filter to remove DC offset)
+        dcBlockerL: { x1: 0, y1: 0 },
+        dcBlockerR: { x1: 0, y1: 0 }
       });
     }
     
@@ -139,6 +143,7 @@ class DelayProcessor extends AudioWorkletProcessor {
         buf.active = true;
         buf.delaySamples = delaySamples;
         buf.fadeOut = 0;
+        buf.fadeIn = 0; // Start fade-in from 0
         // Clear the buffer to prevent old audio from playing
         buf.bufL.fill(0);
         buf.bufR.fill(0);
@@ -148,6 +153,9 @@ class DelayProcessor extends AudioWorkletProcessor {
         buf.energy = 0;
         buf.silentSamples = 0;
         buf.isWriteBuffer = true;
+        // Reset DC blocker state
+        buf.dcBlockerL = { x1: 0, y1: 0 };
+        buf.dcBlockerR = { x1: 0, y1: 0 };
         return i;
       }
     }
@@ -291,14 +299,31 @@ class DelayProcessor extends AudioWorkletProcessor {
       let yL_total = 0, yR_total = 0;
       let activeCount = 0;
       const silenceThreshold = 0.0001; // -80dB
+      const fadeInSpeed = 1.0 / (this.sr * 0.01); // 10ms fade-in
+      const fadeOutSpeed = 1.0 / (this.sr * 0.02); // 20ms fade-out
+      const dcBlockerCoeff = 0.995; // DC blocker coefficient
       
       for (let bufIdx = 0; bufIdx < MAX_BUFFERS; bufIdx++) {
         const buf = this.buffers[bufIdx];
         if (!buf.active) continue;
         
         // Read delayed signal from this buffer
-        const yL_delayed = this._read(buf.bufL, buf.w, buf.delaySamples);
-        const yR_delayed = this._read(buf.bufR, buf.w, buf.delaySamples);
+        let yL_delayed = this._read(buf.bufL, buf.w, buf.delaySamples);
+        let yR_delayed = this._read(buf.bufR, buf.w, buf.delaySamples);
+        
+        // Apply DC blocker (high-pass filter to remove DC offset)
+        // y[n] = x[n] - x[n-1] + coeff * y[n-1]
+        const dcL = buf.dcBlockerL;
+        const yL_dc = yL_delayed - dcL.x1 + dcBlockerCoeff * dcL.y1;
+        dcL.x1 = yL_delayed;
+        dcL.y1 = yL_dc;
+        yL_delayed = yL_dc;
+        
+        const dcR = buf.dcBlockerR;
+        const yR_dc = yR_delayed - dcR.x1 + dcBlockerCoeff * dcR.y1;
+        dcR.x1 = yR_delayed;
+        dcR.y1 = yR_dc;
+        yR_delayed = yR_dc;
         
         // Apply feedback to ALL buffers (not just write buffer)
         // This is crucial - every buffer must process its own feedback loop
@@ -359,25 +384,49 @@ class DelayProcessor extends AudioWorkletProcessor {
         buf.bufL[buf.w] = feedL;
         buf.bufR[buf.w] = feedR;
         
-        // Check for silence and deactivate if needed
+        // Check for silence and initiate fade-out if needed
         const currentEnergy = Math.abs(yL_delayed) + Math.abs(yR_delayed);
-        if (currentEnergy < silenceThreshold && !buf.isWriteBuffer) {
+        if (currentEnergy < silenceThreshold && !buf.isWriteBuffer && buf.fadeOut === 0) {
           buf.silentSamples++;
           if (buf.silentSamples > this.sr * 0.05) { // 50ms of silence
-            buf.active = false;
+            buf.fadeOut = 0.001; // Start fade-out
             buf.silentSamples = 0;
-            // Clear buffer on deactivation
-            buf.bufL.fill(0);
-            buf.bufR.fill(0);
-            continue;
           }
-        } else {
+        } else if (buf.fadeOut === 0) {
           buf.silentSamples = 0;
         }
         
-        // Add to output mix
-        yL_total += yL_delayed;
-        yR_total += yR_delayed;
+        // Apply fade-in envelope for smooth activation
+        let envelope = 1.0;
+        if (buf.fadeIn < 1.0) {
+          buf.fadeIn += fadeInSpeed;
+          if (buf.fadeIn > 1.0) buf.fadeIn = 1.0;
+          // Cosine curve for smooth fade-in
+          envelope = (1.0 - Math.cos(buf.fadeIn * Math.PI)) * 0.5;
+        }
+        
+        // Apply fade-out envelope if buffer is being deactivated
+        if (buf.fadeOut > 0) {
+          const fadeOutEnv = 1.0 - buf.fadeOut;
+          // Cosine curve for smooth fade-out
+          envelope *= (1.0 + Math.cos(buf.fadeOut * Math.PI)) * 0.5;
+          buf.fadeOut += fadeOutSpeed;
+          if (buf.fadeOut >= 1.0) {
+            buf.active = false;
+            buf.fadeOut = 0;
+            buf.fadeIn = 0;
+            // Clear buffer on deactivation
+            buf.bufL.fill(0);
+            buf.bufR.fill(0);
+            buf.dcBlockerL = { x1: 0, y1: 0 };
+            buf.dcBlockerR = { x1: 0, y1: 0 };
+            continue;
+          }
+        }
+        
+        // Add to output mix with envelope applied
+        yL_total += yL_delayed * envelope;
+        yR_total += yR_delayed * envelope;
         activeCount++;
       }
       

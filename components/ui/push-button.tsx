@@ -30,7 +30,7 @@ const feelVariants = {
   plastic:
     "bg-red-500 active:bg-red-700",
   rubber:
-    "bg-radial from-neutral-400 from-40% to-neutral-500 hover:from-neutral-500/80 active:from-red-600 active:from-10% active:to-red-300 border-b border-b-black/40 active:border-b-black/5 active:border-t-red-700/50 shadow-xs active:shadow-none transition active:scale-95",
+    "bg-yellow-500 active:bg-red-500",
 }
 
 export function PushButton({
@@ -54,7 +54,7 @@ export function PushButton({
       <button
         className={cn(
           // Base push button styling
-          "inline-flex items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer p-[1px]",
+          "inline-flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer p-[1px]",
           feelClasses,
           // Size variant
           sizeClasses.button,
