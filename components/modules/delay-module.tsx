@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useConnections } from '@/components/connection-manager';
 import { ModuleContainer } from '@/components/module-container';
 import { useModulePatch } from '@/components/patch-manager';
@@ -120,8 +120,6 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     // light smoothing for clicks-free updates
     p.setTargetAtTime(v, ac.currentTime, tSmooth);
   };
-
-
 
   useModuleInit(async () => {
     if (workletRef.current) return;

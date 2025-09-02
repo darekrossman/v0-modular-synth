@@ -1,11 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ModuleContainer } from '@/components/module-container';
 import { useModulePatch } from '@/components/patch-manager';
 import { Port } from '@/components/port';
 import { Knob } from '@/components/ui/knob';
-import { PushButton } from '@/components/ui/push-button';
 import { useModuleInit } from '@/hooks/use-module-init';
 import { getAudioContext } from '@/lib/helpers';
 

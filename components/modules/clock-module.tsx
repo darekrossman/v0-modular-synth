@@ -1,10 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ModuleContainer } from '@/components/module-container';
 import { Port } from '@/components/port';
 import { Knob } from '@/components/ui/knob';
-import { PushButton } from '@/components/ui/push-button';
 import { useModuleInit } from '@/hooks/use-module-init';
 import { getAudioContext } from '@/lib/helpers';
 import { cn, mapLinear } from '@/lib/utils';
@@ -136,15 +135,15 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
 
   const makeDivHandler =
     (paramName: string, setState: (v: number[]) => void) =>
-      (value: number[]) => {
-        const v01 = value[0] ?? 0;
-        const idx = Math.round(v01 * (SEL_COUNT - 1)); // 0..8
-        setState([v01]);
-        const ac = audioContextRef.current;
-        const node = nodeRef.current;
-        if (ac && node)
-          node.parameters.get(paramName)?.setValueAtTime(idx, ac.currentTime);
-      };
+    (value: number[]) => {
+      const v01 = value[0] ?? 0;
+      const idx = Math.round(v01 * (SEL_COUNT - 1)); // 0..8
+      setState([v01]);
+      const ac = audioContextRef.current;
+      const node = nodeRef.current;
+      if (ac && node)
+        node.parameters.get(paramName)?.setValueAtTime(idx, ac.currentTime);
+    };
 
   const handleDiv1Change = useCallback(makeDivHandler('div1', setDiv1), []);
   const handleDiv2Change = useCallback(makeDivHandler('div2', setDiv2), []);
