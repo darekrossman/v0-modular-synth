@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Plus, Trash2, Settings as SettingsIcon, X } from "lucide-react"
 import { SettingsProvider, useSettings } from "@/components/settings-context"
 import { SettingsDialog } from "@/components/settings-dialog"
+import { useToast } from "@/hooks/use-toast"
 
 type ModuleType =
   | "oscillator"
@@ -173,9 +174,10 @@ const DraggableModuleItem = memo(({ module, index, rackModules, onDelete, onDrag
 DraggableModuleItem.displayName = 'DraggableModuleItem'
 
 function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }: SynthPlaygroundContentProps) {
-  const { loadDefaultPatch, currentPatch } = usePatchManager()
+  const { loadDefaultPatch, currentPatch, updateCurrentPatch } = usePatchManager()
   const { connections, removeConnection } = useConnections()
   const { open } = useSettings()
+  const { toast } = useToast()
   const [isModuleDialogOpen, setIsModuleDialogOpen] = useState(false)
 
   // Drag state
@@ -208,9 +210,26 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
   // Keyboard shortcut listener
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Only trigger if not typing in an input/textarea and key is 'm'
+      // Only trigger if not typing in an input/textarea
+      if (['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
+        return
+      }
+
+      // Ctrl+S to save patch
+      if (event.key.toLowerCase() === 's' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault()
+        if (currentPatch) {
+          updateCurrentPatch()
+          toast({
+            title: "Patch saved",
+            description: `"${currentPatch.name}" has been saved successfully.`,
+          })
+        }
+        return
+      }
+
+      // M key to open module dialog
       if (event.key.toLowerCase() === 'm' &&
-        !['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName) &&
         !event.ctrlKey && !event.metaKey && !event.altKey) {
         event.preventDefault()
         setIsModuleDialogOpen(prev => !prev)
@@ -219,7 +238,7 @@ function SynthPlaygroundContent({ modules, setModules, addModule, removeModule }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [currentPatch, updateCurrentPatch, toast])
 
   const handleDeleteModule = useCallback((moduleId: string) => {
     connections.forEach((connection) => {
