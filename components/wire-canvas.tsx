@@ -57,39 +57,38 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
     const tension = 1 - d
     const sag = calculateWirePhysics(dist, dx, dy, tension, shadowOffset)
 
-    // Calculate control points for natural catenary curve
-    let cp1x, cp2x, cp1y, cp2y
-
-    // Control point positions should interpolate based on tension
-    // At tension = 1 (slack = 0), control points are on the straight line
-    // At tension = 0 (slack = 1), control points create maximum curve
+    // Gravity-aligned midpoint sag construction (direction-agnostic)
+    // Compute sag amplitude (already in 'sag') along gravity g = (0, 1)
     const slack = 1 - tension
-
-    // Smooth transition based on how vertical the wire is
     const horizontalness = dist > 0 ? Math.abs(dx) / dist : 0
     const verticalness = 1.0 - horizontalness
 
-    // For horizontal spread, reduce for vertical wires
-    const minHorizontal = 0.01
-    const horizontalFactor = Math.max(minHorizontal, horizontalness)
+    // Midpoint of chord
+    const midx0 = (a.x + b.x) * 0.5
+    const midy0 = (a.y + b.y) * 0.5
+    // Apply sag downward in screen space
+    const midx = midx0
+    const midy = midy0 + sag
 
-    // Base control point positions (for straight line)
-    const straightCp1x = a.x + dx * 0.35
-    const straightCp2x = a.x + dx * 0.65
-    const straightCp1y = a.y + dy * 0.35
-    const straightCp2y = a.y + dy * 0.65
+    // Build a quadratic that passes through (midx, midy) at t=0.5
+    // Solve for quadratic control P1 so that B(0.5) = m
+    const q1x = 2 * midx - 0.5 * (a.x + b.x)
+    const q1y = 2 * midy - 0.5 * (a.y + b.y)
 
-    // Saggy control point positions (with catenary adjustment)
-    const sagCp1x = a.x + dx * 0.35 * horizontalFactor
-    const sagCp2x = a.x + dx * 0.65 * horizontalFactor
-    const sagCp1y = a.y + dy * (0.35 - verticalness * 0.1) + sag
-    const sagCp2y = a.y + dy * (0.65 + verticalness * 0.1) + sag
+    // Convert quadratic (P0=a, P1=q1, P2=b) to cubic (C1, C2)
+    let cp1x = a.x + (2 / 3) * (q1x - a.x)
+    let cp1y = a.y + (2 / 3) * (q1y - a.y)
+    let cp2x = b.x + (2 / 3) * (q1x - b.x)
+    let cp2y = b.y + (2 / 3) * (q1y - b.y)
 
-    // Interpolate between straight and saggy based on slack
-    cp1x = straightCp1x + (sagCp1x - straightCp1x) * slack
-    cp2x = straightCp2x + (sagCp2x - straightCp2x) * slack
-    cp1y = straightCp1y + (sagCp1y - straightCp1y) * slack
-    cp2y = straightCp2y + (sagCp2y - straightCp2y) * slack
+    // Endpoint lead-down bias to encourage downward tangents near rings
+    // Scales with slack and verticalness, leaving horizontal runs mostly unchanged
+    const leadBias = 0.35 * slack * verticalness
+    if (leadBias > 0) {
+      const biasAmount = leadBias * sag
+      cp1y += biasAmount
+      cp2y += biasAmount
+    }
 
     // Always calculate tangent vectors and apply offsets consistently
     // At t=0, tangent points from start toward first control point
@@ -102,25 +101,38 @@ function makeSagPath(droop: number, shadowOffset: number = 0, clipRadius: number
     const endTangentY = b.y - cp2y
     const endTangentDist = Math.hypot(endTangentX, endTangentY)
 
-    // Calculate unit vectors with sensible defaults for zero-length tangents
+    // Calculate unit vectors with continuous blending toward gravity to avoid flips
     let startUnitX, startUnitY, endUnitX, endUnitY
+    const gx = 0, gy = 1
+    const startBlend = Math.max(0, Math.min(1, (8 - startTangentDist) / 8)) * slack
+    const endBlend = Math.max(0, Math.min(1, (8 - endTangentDist) / 8)) * slack
 
-    if (startTangentDist > 0.001) {
-      startUnitX = startTangentX / startTangentDist
-      startUnitY = startTangentY / startTangentDist
-    } else {
-      // Default: wire leaves downward due to sag
-      startUnitX = 0
-      startUnitY = 1
+    // Blend start tangent toward gravity
+    {
+      const sx = (1 - startBlend) * startTangentX + startBlend * gx
+      const sy = (1 - startBlend) * startTangentY + startBlend * gy
+      const sLen = Math.hypot(sx, sy)
+      if (sLen > 0.0001) {
+        startUnitX = sx / sLen
+        startUnitY = sy / sLen
+      } else {
+        startUnitX = 0
+        startUnitY = 1
+      }
     }
 
-    if (endTangentDist > 0.001) {
-      endUnitX = endTangentX / endTangentDist
-      endUnitY = endTangentY / endTangentDist
-    } else {
-      // Default: wire arrives from above (opposite of start)
-      endUnitX = 0
-      endUnitY = 1  // Points down (wire comes from above, so tangent at end points down)
+    // Blend end tangent toward gravity (incoming direction is b - cp2)
+    {
+      const ex = (1 - endBlend) * endTangentX + endBlend * gx
+      const ey = (1 - endBlend) * endTangentY + endBlend * gy
+      const eLen = Math.hypot(ex, ey)
+      if (eLen > 0.0001) {
+        endUnitX = ex / eLen
+        endUnitY = ey / eLen
+      } else {
+        endUnitX = 0
+        endUnitY = 1
+      }
     }
 
     // Always apply offsets if clipRadius > 0
