@@ -68,6 +68,8 @@ class DelayProcessor extends AudioWorkletProcessor {
     // Primary buffer (always index 0, used in classic mode)
     this.primaryBuffer = this.buffers[0];
     this.primaryBuffer.active = true;
+    this.primaryBuffer.isWriteBuffer = true; // CRITICAL: Must be set on init!
+    this.primaryBuffer.fadeIn = 1.0; // Start fully faded in
 
     // Smoothed params (for zipper-free behavior even if host jumps)
     this.tZ = 0.25;  // seconds
@@ -81,6 +83,15 @@ class DelayProcessor extends AudioWorkletProcessor {
     this.lastDelayTime = 0.25;
     this.lastTimeChangeGlobal = 0; // Global sample index of last time change
     this.debounceThreshold = this.sr * 0.05; // 50ms debounce for creating new buffers
+    
+    // Input gating and windowing for smooth transitions
+    this.inputGate = 1.0; // Gate level for input during transitions
+    this.inputGateTarget = 1.0;
+    this.inputGateSpeed = 1.0 / (this.sr * 0.005); // 5ms gate transitions
+    this.bufferTransition = false; // Flag for buffer transition in progress
+    this.transitionBuffer = -1; // Buffer being transitioned to
+    this.transitionProgress = 0; // Progress of windowed transition (0-1)
+    this.transitionSpeed = 1.0 / (this.sr * 0.025); // 25ms window for buffer switching
 
     this.toneAlpha = 1 - Math.exp(-2 * Math.PI * 8000 / this.sr); // set each block
 
@@ -262,18 +273,17 @@ class DelayProcessor extends AudioWorkletProcessor {
         const timeDiff = Math.abs(tEff - this.lastDelayTime);
         const samplesSinceLastChange = (this.globalSampleIndex + i) - this.lastTimeChangeGlobal;
         
-        if (timeDiff > 0.001 && samplesSinceLastChange > this.debounceThreshold) {
+        if (timeDiff > 0.001 && samplesSinceLastChange > this.debounceThreshold && !this.bufferTransition) {
           // Significant time change after debounce period
-          // Mark current write buffer as no longer receiving input
-          if (this.currentWriteBuffer >= 0) {
-            this.buffers[this.currentWriteBuffer].isWriteBuffer = false;
-          }
-          
           const newDelaySamples = tEff * this.sr;
           const newBufferIdx = this._getOrCreateBuffer(newDelaySamples);
           
           if (newBufferIdx >= 0) {
-            this.currentWriteBuffer = newBufferIdx;
+            // Start windowed transition to new buffer
+            this.bufferTransition = true;
+            this.transitionBuffer = newBufferIdx;
+            this.transitionProgress = 0;
+            this.inputGateTarget = 0; // Start gating input
             this.lastDelayTime = tEff;
             this.lastTimeChangeGlobal = this.globalSampleIndex + i;
           }
@@ -287,6 +297,12 @@ class DelayProcessor extends AudioWorkletProcessor {
         this.primaryBuffer.delaySamples = this.tZ * this.sr;
         this.primaryBuffer.isWriteBuffer = true;
         this.primaryBuffer.fadeIn = 1.0; // No fade-in needed for primary buffer
+        // Reset transition state in classic mode
+        this.bufferTransition = false;
+        this.transitionBuffer = -1;
+        this.transitionProgress = 0;
+        this.inputGate = 1.0;
+        this.inputGateTarget = 1.0;
         // Deactivate all other buffers in classic mode
         for (let j = 1; j < MAX_BUFFERS; j++) {
           this.buffers[j].active = false;
@@ -327,58 +343,75 @@ class DelayProcessor extends AudioWorkletProcessor {
         dcR.y1 = yR_dc;
         yR_delayed = yR_dc;
         
-        // Apply feedback to ALL buffers (not just write buffer)
-        // This is crucial - every buffer must process its own feedback loop
-        let feedL = 0, feedR = 0;
+        // Calculate input mix for windowed buffer switching FIRST
+        let inputMix = 0;
         
-        if (buf.isWriteBuffer) {
-          // Write buffer gets input + feedback
-          switch (mode) {
-            case 0: { // MONO
-              const xM = 0.5 * (xL + xR);
-              buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
-              feedL = xM + buf.lpfL * this.fbZ;
-              feedR = feedL; // Same for R in mono
-              break;
-            }
-            case 1: { // STEREO
-              buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
-              buf.lpfR += this.toneAlpha * (yR_delayed - buf.lpfR);
-              feedL = xL + buf.lpfL * this.fbZ;
-              feedR = xR + buf.lpfR * this.fbZ;
-              break;
-            }
-            default: { // PING_PONG
-              buf.lpfL += this.toneAlpha * (yR_delayed - buf.lpfL);
-              buf.lpfR += this.toneAlpha * (yL_delayed - buf.lpfR);
-              feedL = xL + buf.lpfL * this.fbZ;
-              feedR = xR + buf.lpfR * this.fbZ;
-              break;
-            }
+        // Simplified logic to avoid edge cases
+        if (this.bufferTransition) {
+          // During transition: fade between old and new buffers
+          if (bufIdx === this.currentWriteBuffer) {
+            // Old write buffer - fade out
+            inputMix = 1.0 - this.transitionProgress;
+          } else if (bufIdx === this.transitionBuffer) {
+            // New buffer - fade in
+            inputMix = this.transitionProgress;
           }
         } else {
-          // Non-write buffers only process feedback (no new input)
-          switch (mode) {
-            case 0: { // MONO
-              buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
-              feedL = buf.lpfL * this.fbZ;
-              feedR = feedL;
-              break;
+          // Normal operation: only write buffer gets input
+          if (buf.isWriteBuffer) {
+            inputMix = 1.0;
+          }
+        }
+        
+        // Apply feedback to ALL buffers
+        // Write buffers get input + feedback, others get feedback only
+        let feedL = 0, feedR = 0;
+        
+        // Determine if this buffer should receive input
+        const shouldReceiveInput = inputMix > 0;
+        
+        switch (mode) {
+          case 0: { // MONO
+            buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
+            const fbSig = buf.lpfL * this.fbZ;
+            if (shouldReceiveInput) {
+              // Write buffer: input + feedback
+              const xM = 0.5 * (xL + xR) * this.inputGate * inputMix;
+              feedL = xM + fbSig;
+            } else {
+              // Read-only buffer: feedback only
+              feedL = fbSig;
             }
-            case 1: { // STEREO
-              buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
-              buf.lpfR += this.toneAlpha * (yR_delayed - buf.lpfR);
+            feedR = feedL; // Same for R in mono
+            break;
+          }
+          case 1: { // STEREO
+            buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL);
+            buf.lpfR += this.toneAlpha * (yR_delayed - buf.lpfR);
+            if (shouldReceiveInput) {
+              // Write buffer: input + feedback
+              feedL = (xL * this.inputGate * inputMix) + buf.lpfL * this.fbZ;
+              feedR = (xR * this.inputGate * inputMix) + buf.lpfR * this.fbZ;
+            } else {
+              // Read-only buffer: feedback only
               feedL = buf.lpfL * this.fbZ;
               feedR = buf.lpfR * this.fbZ;
-              break;
             }
-            default: { // PING_PONG
-              buf.lpfL += this.toneAlpha * (yR_delayed - buf.lpfL);
-              buf.lpfR += this.toneAlpha * (yL_delayed - buf.lpfR);
+            break;
+          }
+          default: { // PING_PONG
+            buf.lpfL += this.toneAlpha * (yR_delayed - buf.lpfL);
+            buf.lpfR += this.toneAlpha * (yL_delayed - buf.lpfR);
+            if (shouldReceiveInput) {
+              // Write buffer: input + feedback
+              feedL = (xL * this.inputGate * inputMix) + buf.lpfL * this.fbZ;
+              feedR = (xR * this.inputGate * inputMix) + buf.lpfR * this.fbZ;
+            } else {
+              // Read-only buffer: feedback only
               feedL = buf.lpfL * this.fbZ;
               feedR = buf.lpfR * this.fbZ;
-              break;
             }
+            break;
           }
         }
         
@@ -457,6 +490,44 @@ class DelayProcessor extends AudioWorkletProcessor {
         outR[i] = dry * xR + wet * yR;
       }
 
+      // Update input gate smoothly
+      if (this.inputGate < this.inputGateTarget) {
+        this.inputGate += this.inputGateSpeed;
+        if (this.inputGate > this.inputGateTarget) this.inputGate = this.inputGateTarget;
+      } else if (this.inputGate > this.inputGateTarget) {
+        this.inputGate -= this.inputGateSpeed;
+        if (this.inputGate < this.inputGateTarget) this.inputGate = this.inputGateTarget;
+      }
+      
+      // Update windowed transition progress
+      if (this.bufferTransition) {
+        this.transitionProgress += this.transitionSpeed;
+        
+        if (this.transitionProgress >= 0.5 && this.inputGateTarget === 0) {
+          // Halfway through transition, start bringing input gate back up
+          this.inputGateTarget = 1.0;
+        }
+        
+        if (this.transitionProgress >= 1.0) {
+          // Transition complete
+          this.transitionProgress = 1.0;
+          this.bufferTransition = false;
+          
+          // Only complete transition if we have a valid target buffer
+          if (this.transitionBuffer >= 0 && this.transitionBuffer < MAX_BUFFERS) {
+            // Mark old buffer as no longer receiving input
+            if (this.currentWriteBuffer >= 0) {
+              this.buffers[this.currentWriteBuffer].isWriteBuffer = false;
+            }
+            
+            // Switch to new buffer
+            this.currentWriteBuffer = this.transitionBuffer;
+            this.buffers[this.currentWriteBuffer].isWriteBuffer = true;
+          }
+          this.transitionBuffer = -1;
+        }
+      }
+      
       // Advance write indices for all active buffers
       for (let bufIdx = 0; bufIdx < MAX_BUFFERS; bufIdx++) {
         const buf = this.buffers[bufIdx];
