@@ -283,8 +283,10 @@ class DelayProcessor extends AudioWorkletProcessor {
         // Classic mode - use primary buffer with smoothing
         this.tZ  += aP * (tEff  - this.tZ);
         this.currentWriteBuffer = 0;
+        this.primaryBuffer.active = true; // Ensure primary buffer is active
         this.primaryBuffer.delaySamples = this.tZ * this.sr;
         this.primaryBuffer.isWriteBuffer = true;
+        this.primaryBuffer.fadeIn = 1.0; // No fade-in needed for primary buffer
         // Deactivate all other buffers in classic mode
         for (let j = 1; j < MAX_BUFFERS; j++) {
           this.buffers[j].active = false;
