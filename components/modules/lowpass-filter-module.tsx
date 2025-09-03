@@ -1,21 +1,21 @@
-'use client';
+'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useConnections } from '@/components/connection-manager';
-import { ModuleContainer } from '@/components/module-container';
-import { useModulePatch } from '@/components/patch-manager';
-import { Port } from '@/components/port';
-import { Knob } from '@/components/ui/knob';
-import { useModuleInit } from '@/hooks/use-module-init';
-import { getAudioContext } from '@/lib/helpers';
-import * as utils from '@/lib/utils';
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useConnections } from '@/components/connection-manager'
+import { ModuleContainer } from '@/components/module-container'
+import { useModulePatch } from '@/components/patch-manager'
+import { Port } from '@/components/port'
+import { Knob } from '@/components/ui/knob'
+import { useModuleInit } from '@/hooks/use-module-init'
+import { getAudioContext } from '@/lib/helpers'
+import * as utils from '@/lib/utils'
 
 // Optional: wire these if your host expects them
-const getParameters = () => {};
-const setParameters = (_: any) => {};
+const getParameters = () => {}
+const setParameters = (_: any) => {}
 
-const MIN_CUTOFF = 20;
-const MAX_CUTOFF = 20000;
+const MIN_CUTOFF = 20
+const MAX_CUTOFF = 20000
 
 export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
   // Register with patch manager and get initial parameters
@@ -29,177 +29,177 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
     input2Level: input2Level[0],
     input3Level: input3Level[0],
     cvAttenuation: cvAttenuation[0],
-  }));
+  }))
 
-  const [cutoff, setCutoff] = useState([initialParameters?.cutoff ?? 1.0]);
+  const [cutoff, setCutoff] = useState([initialParameters?.cutoff ?? 1.0])
   const [resonance, setResonance] = useState([
     initialParameters?.resonance ?? 0.0,
-  ]);
-  const [drive, setDrive] = useState([initialParameters?.drive ?? 0.0]);
-  const [resComp, setResComp] = useState([initialParameters?.resComp ?? 0.6]);
-  const [fbSat, setFbSat] = useState([initialParameters?.fbSat ?? 0.09]);
+  ])
+  const [drive, setDrive] = useState([initialParameters?.drive ?? 0.0])
+  const [resComp, setResComp] = useState([initialParameters?.resComp ?? 0.6])
+  const [fbSat, setFbSat] = useState([initialParameters?.fbSat ?? 0.09])
   const [input1Level, setInput1Level] = useState([
     initialParameters?.input1Level ?? 1,
-  ]);
+  ])
   const [input2Level, setInput2Level] = useState([
     initialParameters?.input2Level ?? 1,
-  ]);
+  ])
   const [input3Level, setInput3Level] = useState([
     initialParameters?.input3Level ?? 1,
-  ]);
+  ])
   const [cvAttenuation, setCvAttenuation] = useState([
     initialParameters?.cvAttenuation ?? 1,
-  ]);
+  ])
 
-  const [postGain] = useState(1.1); // Keeping as constant since it's calculated from drive
+  const [postGain] = useState(1.1) // Keeping as constant since it's calculated from drive
 
-  const acRef = useRef<AudioContext | null>(null);
+  const acRef = useRef<AudioContext | null>(null)
 
   // Treat input gain nodes as the *actual port* nodes
-  const in1Ref = useRef<GainNode | null>(null);
-  const in2Ref = useRef<GainNode | null>(null);
-  const in3Ref = useRef<GainNode | null>(null);
+  const in1Ref = useRef<GainNode | null>(null)
+  const in2Ref = useRef<GainNode | null>(null)
+  const in3Ref = useRef<GainNode | null>(null)
 
-  const mixRef = useRef<GainNode | null>(null);
+  const mixRef = useRef<GainNode | null>(null)
 
-  const cutoffCVInRef = useRef<GainNode | null>(null);
-  const resCVInRef = useRef<GainNode | null>(null);
+  const cutoffCVInRef = useRef<GainNode | null>(null)
+  const resCVInRef = useRef<GainNode | null>(null)
 
-  const workletRef = useRef<AudioWorkletNode | null>(null);
-  const outRef = useRef<GainNode | null>(null);
+  const workletRef = useRef<AudioWorkletNode | null>(null)
+  const outRef = useRef<GainNode | null>(null)
 
-  const { registerAudioNode } = useConnections();
+  const { registerAudioNode } = useConnections()
 
   // ---- helpers --------------------------------------------------------------
   const setMono = (node: AudioNode) => {
     try {
-      (node as any).channelCount = 1;
-      (node as any).channelCountMode = 'explicit';
-      (node as any).channelInterpretation = 'discrete';
+      ;(node as any).channelCount = 1
+      ;(node as any).channelCountMode = 'explicit'
+      ;(node as any).channelInterpretation = 'discrete'
     } catch {}
-  };
+  }
 
-  const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+  const clamp01 = (x: number) => Math.max(0, Math.min(1, x))
 
   // Update parameters via useEffect like other modules
   useEffect(() => {
-    const ac = acRef.current;
-    const w = workletRef.current;
-    if (!ac || !w) return;
-    const cutHz = utils.mapExponential(cutoff[0], MIN_CUTOFF, MAX_CUTOFF);
-    w.parameters.get('cutoff')?.setTargetAtTime(cutHz, ac.currentTime, 0.05); // Slower for stability
-  }, [cutoff]);
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
+    const cutHz = utils.mapExponential(cutoff[0], MIN_CUTOFF, MAX_CUTOFF)
+    w.parameters.get('cutoff')?.setTargetAtTime(cutHz, ac.currentTime, 0.05) // Slower for stability
+  }, [cutoff])
 
   useEffect(() => {
-    const ac = acRef.current;
-    const w = workletRef.current;
-    if (!ac || !w) return;
-    const resNorm = Math.min(0.995, clamp01(resonance[0]) ** 0.95);
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
+    const resNorm = Math.min(0.995, clamp01(resonance[0]) ** 0.95)
     w.parameters
       .get('resonance')
-      ?.setTargetAtTime(resNorm, ac.currentTime, 0.05); // Slower for stability
-  }, [resonance]);
+      ?.setTargetAtTime(resNorm, ac.currentTime, 0.05) // Slower for stability
+  }, [resonance])
 
   useEffect(() => {
-    const ac = acRef.current;
-    const w = workletRef.current;
-    if (!ac || !w) return;
-    w.parameters.get('drive')?.setTargetAtTime(drive[0], ac.currentTime, 0.05);
-    const pg = postGain + 0.1 * drive[0];
-    w.parameters.get('postGain')?.setTargetAtTime(pg, ac.currentTime, 0.05);
-  }, [drive, postGain]);
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
+    w.parameters.get('drive')?.setTargetAtTime(drive[0], ac.currentTime, 0.05)
+    const pg = postGain + 0.1 * drive[0]
+    w.parameters.get('postGain')?.setTargetAtTime(pg, ac.currentTime, 0.05)
+  }, [drive, postGain])
 
   useEffect(() => {
-    const ac = acRef.current;
-    const w = workletRef.current;
-    if (!ac || !w) return;
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
     w.parameters
       .get('resComp')
-      ?.setTargetAtTime(resComp[0], ac.currentTime, 0.05);
-  }, [resComp]);
+      ?.setTargetAtTime(resComp[0], ac.currentTime, 0.05)
+  }, [resComp])
 
   useEffect(() => {
-    const ac = acRef.current;
-    const w = workletRef.current;
-    if (!ac || !w) return;
-    w.parameters.get('fbSat')?.setTargetAtTime(fbSat[0], ac.currentTime, 0.05);
-  }, [fbSat]);
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
+    w.parameters.get('fbSat')?.setTargetAtTime(fbSat[0], ac.currentTime, 0.05)
+  }, [fbSat])
 
   useEffect(() => {
-    const ac = acRef.current;
-    const w = workletRef.current;
-    if (!ac || !w) return;
+    const ac = acRef.current
+    const w = workletRef.current
+    if (!ac || !w) return
     // CV attenuation is handled in the worklet
     w.parameters
       .get('cvAmount')
-      ?.setTargetAtTime(cvAttenuation[0], ac.currentTime, 0.05);
-  }, [cvAttenuation]);
+      ?.setTargetAtTime(cvAttenuation[0], ac.currentTime, 0.05)
+  }, [cvAttenuation])
 
   useEffect(() => {
-    const t = acRef.current?.currentTime ?? 0;
-    in1Ref.current?.gain.setTargetAtTime(input1Level[0], t, 0.03); // Slower for stability
-  }, [input1Level]);
+    const t = acRef.current?.currentTime ?? 0
+    in1Ref.current?.gain.setTargetAtTime(input1Level[0], t, 0.03) // Slower for stability
+  }, [input1Level])
 
   useEffect(() => {
-    const t = acRef.current?.currentTime ?? 0;
-    in2Ref.current?.gain.setTargetAtTime(input2Level[0], t, 0.03); // Slower for stability
-  }, [input2Level]);
+    const t = acRef.current?.currentTime ?? 0
+    in2Ref.current?.gain.setTargetAtTime(input2Level[0], t, 0.03) // Slower for stability
+  }, [input2Level])
 
   useEffect(() => {
-    const t = acRef.current?.currentTime ?? 0;
-    in3Ref.current?.gain.setTargetAtTime(input3Level[0], t, 0.03); // Slower for stability
-  }, [input3Level]);
+    const t = acRef.current?.currentTime ?? 0
+    in3Ref.current?.gain.setTargetAtTime(input3Level[0], t, 0.03) // Slower for stability
+  }, [input3Level])
 
   useModuleInit(async () => {
-    if (workletRef.current) return; // Already initialized
+    if (workletRef.current) return // Already initialized
 
-    const ac = getAudioContext();
-    acRef.current = ac;
+    const ac = getAudioContext()
+    acRef.current = ac
 
-    await ac.audioWorklet.addModule('/ladder-filter-processor.js');
+    await ac.audioWorklet.addModule('/ladder-filter-processor.js')
 
     // Inputs as ports (mono)
-    in1Ref.current = ac.createGain();
-    setMono(in1Ref.current);
-    in1Ref.current.gain.value = input1Level[0];
-    in2Ref.current = ac.createGain();
-    setMono(in2Ref.current);
-    in2Ref.current.gain.value = input2Level[0];
-    in3Ref.current = ac.createGain();
-    setMono(in3Ref.current);
-    in3Ref.current.gain.value = input3Level[0];
+    in1Ref.current = ac.createGain()
+    setMono(in1Ref.current)
+    in1Ref.current.gain.value = input1Level[0]
+    in2Ref.current = ac.createGain()
+    setMono(in2Ref.current)
+    in2Ref.current.gain.value = input2Level[0]
+    in3Ref.current = ac.createGain()
+    setMono(in3Ref.current)
+    in3Ref.current.gain.value = input3Level[0]
 
     // Register inputs with new system
-    registerAudioNode(`${moduleId}-audio-in-1`, in1Ref.current, 'input');
-    registerAudioNode(`${moduleId}-audio-in-2`, in2Ref.current, 'input');
-    registerAudioNode(`${moduleId}-audio-in-3`, in3Ref.current, 'input');
+    registerAudioNode(`${moduleId}-audio-in-1`, in1Ref.current, 'input')
+    registerAudioNode(`${moduleId}-audio-in-2`, in2Ref.current, 'input')
+    registerAudioNode(`${moduleId}-audio-in-3`, in3Ref.current, 'input')
 
     // CV inputs - connect directly to worklet for audio-rate modulation
-    cutoffCVInRef.current = ac.createGain();
-    cutoffCVInRef.current.gain.value = 1;
-    resCVInRef.current = ac.createGain();
-    resCVInRef.current.gain.value = 1;
+    cutoffCVInRef.current = ac.createGain()
+    cutoffCVInRef.current.gain.value = 1
+    resCVInRef.current = ac.createGain()
+    resCVInRef.current.gain.value = 1
     registerAudioNode(
       `${moduleId}-cutoff-cv-in`,
       cutoffCVInRef.current,
       'input',
-    );
+    )
     registerAudioNode(
       `${moduleId}-resonance-cv-in`,
       resCVInRef.current,
       'input',
-    );
+    )
 
     // Mixer (mono)
-    mixRef.current = ac.createGain();
-    setMono(mixRef.current);
-    mixRef.current.gain.value = 1;
-    in1Ref.current.connect(mixRef.current);
-    in2Ref.current.connect(mixRef.current);
-    in3Ref.current.connect(mixRef.current);
+    mixRef.current = ac.createGain()
+    setMono(mixRef.current)
+    mixRef.current.gain.value = 1
+    in1Ref.current.connect(mixRef.current)
+    in2Ref.current.connect(mixRef.current)
+    in3Ref.current.connect(mixRef.current)
 
     // Worklet with CV inputs
-    const initCut = utils.mapExponential(cutoff[0], MIN_CUTOFF, MAX_CUTOFF);
+    const initCut = utils.mapExponential(cutoff[0], MIN_CUTOFF, MAX_CUTOFF)
     workletRef.current = new AudioWorkletNode(ac, 'ladder-filter-processor', {
       numberOfInputs: 3, // audio, cutoff CV, resonance CV
       numberOfOutputs: 1,
@@ -216,20 +216,20 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
         fbSat: fbSat[0],
         cvAmount: cvAttenuation[0],
       },
-    } as any);
+    } as any)
 
     // Connect audio and CV inputs to worklet
-    mixRef.current.connect(workletRef.current!, 0, 0); // audio input
-    cutoffCVInRef.current.connect(workletRef.current!, 0, 1); // cutoff CV
-    resCVInRef.current.connect(workletRef.current!, 0, 2); // resonance CV
+    mixRef.current.connect(workletRef.current, 0, 0) // audio input
+    cutoffCVInRef.current.connect(workletRef.current, 0, 1) // cutoff CV
+    resCVInRef.current.connect(workletRef.current, 0, 2) // resonance CV
 
     // Output (mono) + register as port
-    outRef.current = ac.createGain();
-    setMono(outRef.current);
-    outRef.current.gain.value = 1;
-    workletRef.current!.connect(outRef.current);
-    registerAudioNode(`${moduleId}-audio-out`, outRef.current, 'output');
-  }, moduleId);
+    outRef.current = ac.createGain()
+    setMono(outRef.current)
+    outRef.current.gain.value = 1
+    workletRef.current.connect(outRef.current)
+    registerAudioNode(`${moduleId}-audio-out`, outRef.current, 'output')
+  }, moduleId)
 
   return (
     <ModuleContainer title="Filter" moduleId={moduleId}>
@@ -358,5 +358,5 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
         </div>
       </div>
     </ModuleContainer>
-  );
+  )
 }

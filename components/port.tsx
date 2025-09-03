@@ -1,26 +1,25 @@
 // port.tsx
-"use client"
+'use client'
 
-import { useCallback, useMemo, useRef, useEffect, useState } from "react"
-import { cn } from "@/lib/utils"
-import { TextLabel } from "./text-label"
-import { useConnections } from "./connection-manager"
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
+import { useConnections } from './connection-manager'
+import { TextLabel } from './text-label'
 
-type PortKind = "audio" | "cv" | "any"
+type PortKind = 'audio' | 'cv' | 'any'
 
 export interface PortProps {
   id: string
-  type: "input" | "output"
+  type: 'input' | 'output'
   label: string
   // ⬇️ add "any"
-  audioType: "audio" | "cv" | "gate" | "trig" | "any"
+  audioType: 'audio' | 'cv' | 'gate' | 'trig' | 'any'
   audioNode?: AudioNode
   className?: string
   indicator?: boolean
 }
 
 function voltageToColor(voltage: number): string {
-
   const v = Math.max(-10, Math.min(10, voltage))
 
   if (v > 0) {
@@ -32,8 +31,26 @@ function voltageToColor(voltage: number): string {
   }
 }
 
-export function Port({ id, type, label, audioType, audioNode, className, indicator = true }: PortProps) {
-  const { registerPort, unregisterPort, registerAudioNode, beginDrag, updateDrag, endDrag, getConnectedWireColor, getDragColor, connections } = useConnections()
+export function Port({
+  id,
+  type,
+  label,
+  audioType,
+  audioNode,
+  className,
+  indicator = true,
+}: PortProps) {
+  const {
+    registerPort,
+    unregisterPort,
+    registerAudioNode,
+    beginDrag,
+    updateDrag,
+    endDrag,
+    getConnectedWireColor,
+    getDragColor,
+    connections,
+  } = useConnections()
   const nodeRef = useRef<HTMLDivElement | null>(null)
   const [signalValue, setSignalValue] = useState(0)
   const [wireColor, setWireColor] = useState<string | null>(null)
@@ -56,8 +73,8 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
 
   // ⬇️ map to connection-manager kind, treating "any" as "any"
   const kind: PortKind = useMemo(() => {
-    if (audioType === "any") return "any"
-    return audioType === "audio" ? "audio" : "cv" // gate/trig treated as cv
+    if (audioType === 'any') return 'any'
+    return audioType === 'audio' ? 'audio' : 'cv' // gate/trig treated as cv
   }, [audioType])
 
   // Register AudioNode (safe if undefined early)
@@ -65,7 +82,6 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
     if (audioNode) {
       // If your registerAudioNode takes only (id, node), the extra arg is ignored
       // If it takes (id, node, direction), this still works.
-      // @ts-ignore - support both signatures
       registerAudioNode(id, audioNode, type)
     }
   }, [id, type, audioNode, registerAudioNode])
@@ -107,9 +123,10 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
       const instantValue = dataArray[0] * 5 // Scale to -5 to +5V range
 
       // For CV signals, use instantaneous; for audio, use RMS
-      const value = audioType === 'cv' || audioType === 'gate' || audioType === 'trig'
-        ? instantValue
-        : rms * 10 // Scale RMS for visibility
+      const value =
+        audioType === 'cv' || audioType === 'gate' || audioType === 'trig'
+          ? instantValue
+          : rms * 10 // Scale RMS for visibility
 
       setSignalValue(value)
 
@@ -125,39 +142,41 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
       if (analyzerRef.current) {
         try {
           audioNode.disconnect(analyzerRef.current)
-        } catch { }
+        } catch {}
         analyzerRef.current = null
       }
     }
   }, [showIndicator, audioNode, audioType])
 
   // Callback ref guarantees we only register with a real Element
-  const setNodeRef = useCallback((el: HTMLDivElement | null) => {
-    if (el) {
-      nodeRef.current = el
-      // NOTE: moduleId derivation: "<moduleId>-<port-name...>"
-      const moduleId = id.split("-").slice(0, -2).join("-") || id
-      // @ts-ignore support both registerPort shapes
-      registerPort(
-        // Some apps expect (meta, el); others expect (id, meta)
-        // We pass (id, meta) here as per your current app usage.
-        id,
-        {
-          el,                 // must be an Element for ResizeObserver
-          direction: type,    // "input" | "output"
-          kind,               // "audio" | "cv" | "any"
-          moduleId,
-        }
-      )
-    } else {
-      unregisterPort(id)
-      nodeRef.current = null
-    }
-  }, [id, type, kind, registerPort, unregisterPort])
+  const setNodeRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (el) {
+        nodeRef.current = el
+        // NOTE: moduleId derivation: "<moduleId>-<port-name...>"
+        const moduleId = id.split('-').slice(0, -2).join('-') || id
+        registerPort(
+          // Some apps expect (meta, el); others expect (id, meta)
+          // We pass (id, meta) here as per your current app usage.
+          id,
+          {
+            el, // must be an Element for ResizeObserver
+            direction: type, // "input" | "output"
+            kind, // "audio" | "cv" | "any"
+            moduleId,
+          },
+        )
+      } else {
+        unregisterPort(id)
+        nodeRef.current = null
+      }
+    },
+    [id, type, kind, registerPort, unregisterPort],
+  )
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
-      ; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     beginDrag(id, e.clientX, e.clientY)
   }
   const onPointerMove = (e: React.PointerEvent) => {
@@ -166,24 +185,37 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
     }
   }
   const onPointerUp = (e: React.PointerEvent) => {
-    const elAtPoint = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-    const toId = elAtPoint?.closest("[data-port-id]")?.getAttribute("data-port-id") || undefined
+    const elAtPoint = document.elementFromPoint(
+      e.clientX,
+      e.clientY,
+    ) as HTMLElement | null
+    const toId =
+      elAtPoint?.closest('[data-port-id]')?.getAttribute('data-port-id') ||
+      undefined
     endDrag(toId)
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { }
+    try {
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    } catch {}
   }
 
   return (
-    <div className={cn("flex flex-col items-center gap-1 h-[54px] px-1 pt-1 pb-1.5 w-11 bg-neutral-400/50 rounded-sm relative", {
-      "bg-transparent shadow-[inset_0_0_0_2px_oklch(80%_0_0)] rounded-sm": type === "input"
-
-    }, className)}>
+    <div
+      className={cn(
+        'flex flex-col items-center gap-1 h-[54px] px-1 pt-1 pb-1.5 w-11 bg-neutral-400/50 rounded-sm relative',
+        {
+          'bg-transparent shadow-[inset_0_0_0_2px_oklch(80%_0_0)] rounded-sm':
+            type === 'input',
+        },
+        className,
+      )}
+    >
       <TextLabel>{label}</TextLabel>
       <div
         ref={setNodeRef}
         data-port-id={id}
         data-port-kind={kind}
         className={cn(
-          "relative w-5.5 h-5.5 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]",
+          'relative w-5.5 h-5.5 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]',
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -191,13 +223,17 @@ export function Port({ id, type, label, audioType, audioNode, className, indicat
       >
         <div className="absolute inset-[-3px] border border-black/50 rounded-full" />
 
-        {wireColor ? <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
-          style={{
-            backgroundColor: voltageToColor(signalValue),
-            boxShadow: `0 0 3px ${voltageToColor(signalValue)}`
-          }}
-        /> : <div className="absolute inset-[3px] rounded-full bg-neutral-900" />}
+        {wireColor ? (
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
+            style={{
+              backgroundColor: voltageToColor(signalValue),
+              boxShadow: `0 0 3px ${voltageToColor(signalValue)}`,
+            }}
+          />
+        ) : (
+          <div className="absolute inset-[3px] rounded-full bg-neutral-900" />
+        )}
       </div>
     </div>
   )

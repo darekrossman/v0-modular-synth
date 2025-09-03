@@ -1,6 +1,7 @@
-"use client"
+'use client'
 
-import React, { createContext, useContext, useMemo, useState } from "react"
+import type React from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 
 type SettingsState = Record<string, unknown>
 
@@ -13,10 +14,16 @@ interface SettingsContextValue {
   toggle: () => void
 }
 
-const SettingsContext = createContext<SettingsContextValue | undefined>(undefined)
+const SettingsContext = createContext<SettingsContextValue | undefined>(
+  undefined,
+)
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<SettingsState>({ wireTension: 0.55, wireOpacity: 0.6, wireThickness: 5 })
+  const [settings, setSettings] = useState<SettingsState>({
+    wireTension: 0.55,
+    wireOpacity: 0.8,
+    wireThickness: 5,
+  })
   const [isOpen, setIsOpen] = useState(false)
 
   const value = useMemo<SettingsContextValue>(
@@ -31,11 +38,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     [settings, isOpen],
   )
 
-  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
+  return (
+    <SettingsContext.Provider value={value}>
+      {children}
+    </SettingsContext.Provider>
+  )
 }
 
 export function useSettings(): SettingsContextValue {
   const ctx = useContext(SettingsContext)
-  if (!ctx) throw new Error("useSettings must be used within a SettingsProvider")
+  if (!ctx)
+    throw new Error('useSettings must be used within a SettingsProvider')
   return ctx
 }

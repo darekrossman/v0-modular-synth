@@ -1,15 +1,18 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu"
+  ChevronDown,
+  Copy,
+  Download,
+  FolderOpen,
+  Plus,
+  RotateCcw,
+  Save,
+  Trash2,
+  Upload,
+} from 'lucide-react'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -17,12 +20,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { usePatchManager, type Patch } from "./patch-manager"
-import { ChevronDown, Save, FolderOpen, Download, Upload, Copy, Trash2, Plus, RotateCcw } from "lucide-react"
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { type Patch, usePatchManager } from './patch-manager'
 
 export function PatchDropdown() {
   const {
@@ -45,18 +55,19 @@ export function PatchDropdown() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
 
-  const [patchName, setPatchName] = useState("")
-  const [patchDescription, setPatchDescription] = useState("")
-  const [importJson, setImportJson] = useState("")
-  const [exportJson, setExportJson] = useState("")
-  const [duplicateName, setDuplicateName] = useState("")
-  const [selectedPatchForDuplicate, setSelectedPatchForDuplicate] = useState<Patch | null>(null)
+  const [patchName, setPatchName] = useState('')
+  const [patchDescription, setPatchDescription] = useState('')
+  const [importJson, setImportJson] = useState('')
+  const [exportJson, setExportJson] = useState('')
+  const [duplicateName, setDuplicateName] = useState('')
+  const [selectedPatchForDuplicate, setSelectedPatchForDuplicate] =
+    useState<Patch | null>(null)
 
   const handleSaveAs = () => {
     if (patchName.trim()) {
       savePatch(patchName.trim(), patchDescription.trim() || undefined)
-      setPatchName("")
-      setPatchDescription("")
+      setPatchName('')
+      setPatchDescription('')
       setSaveAsDialogOpen(false)
     }
   }
@@ -71,7 +82,7 @@ export function PatchDropdown() {
       const patch = importPatch(importJson.trim())
       if (patch) {
         loadPatch(patch)
-        setImportJson("")
+        setImportJson('')
         setImportDialogOpen(false)
       }
     }
@@ -86,7 +97,7 @@ export function PatchDropdown() {
   const handleDuplicate = () => {
     if (selectedPatchForDuplicate && duplicateName.trim()) {
       duplicatePatch(selectedPatchForDuplicate, duplicateName.trim())
-      setDuplicateName("")
+      setDuplicateName('')
       setSelectedPatchForDuplicate(null)
       setDuplicateDialogOpen(false)
     }
@@ -100,9 +111,9 @@ export function PatchDropdown() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="sm" className="min-w-32">
-            <span className="truncate">{currentPatch?.name || "No Patch"}</span>
-            <ChevronDown className="w-4 h-4 ml-2" />
+          <Button size="sm">
+            Load Patch
+            <ChevronDown className="w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
@@ -142,11 +153,16 @@ export function PatchDropdown() {
               <DropdownMenuLabel>Available Patches</DropdownMenuLabel>
               {availablePatches.map((patch) => (
                 <div key={patch.name} className="flex items-center">
-                  <DropdownMenuItem className="flex-1" onClick={() => loadPatch(patch)}>
+                  <DropdownMenuItem
+                    className="flex-1"
+                    onClick={() => loadPatch(patch)}
+                  >
                     <FolderOpen className="w-4 h-4 mr-2" />
                     <span className="truncate">{patch.name}</span>
-                    {patch.name === "Default Patch" && (
-                      <span className="ml-2 text-xs text-muted-foreground">(Default)</span>
+                    {patch.name === 'Default Patch' && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (Default)
+                      </span>
                     )}
                   </DropdownMenuItem>
                   <div className="flex gap-1 px-1">
@@ -174,7 +190,7 @@ export function PatchDropdown() {
                     >
                       <Copy className="w-3 h-3" />
                     </Button>
-                    {patch.name !== "Default Patch" && (
+                    {patch.name !== 'Default Patch' && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -201,12 +217,14 @@ export function PatchDropdown() {
           <DialogHeader>
             <DialogTitle>Save Patch</DialogTitle>
             <DialogDescription>
-              Update "{currentPatch?.name}" with the current synthesizer configuration.
+              Update "{currentPatch?.name}" with the current synthesizer
+              configuration.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-muted-foreground">
-              This will overwrite the existing patch "{currentPatch?.name}" with your current settings.
+              This will overwrite the existing patch "{currentPatch?.name}" with
+              your current settings.
             </p>
           </div>
           <DialogFooter>
@@ -223,7 +241,9 @@ export function PatchDropdown() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Save As New Patch</DialogTitle>
-            <DialogDescription>Save the current synthesizer configuration as a new patch.</DialogDescription>
+            <DialogDescription>
+              Save the current synthesizer configuration as a new patch.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
@@ -247,7 +267,10 @@ export function PatchDropdown() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSaveAsDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setSaveAsDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleSaveAs} disabled={!patchName.trim()}>
@@ -262,7 +285,9 @@ export function PatchDropdown() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Import Patch</DialogTitle>
-            <DialogDescription>Paste a patch JSON to import it into the synthesizer.</DialogDescription>
+            <DialogDescription>
+              Paste a patch JSON to import it into the synthesizer.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
@@ -278,7 +303,10 @@ export function PatchDropdown() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setImportDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleImport} disabled={!importJson.trim()}>
@@ -293,19 +321,32 @@ export function PatchDropdown() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Export Patch</DialogTitle>
-            <DialogDescription>Copy this JSON to share or backup your patch.</DialogDescription>
+            <DialogDescription>
+              Copy this JSON to share or backup your patch.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="export-json">Patch JSON</Label>
-              <Textarea id="export-json" value={exportJson} readOnly rows={10} className="font-mono text-sm" />
+              <Textarea
+                id="export-json"
+                value={exportJson}
+                readOnly
+                rows={10}
+                className="font-mono text-sm"
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setExportDialogOpen(false)}
+            >
               Close
             </Button>
-            <Button onClick={() => copyToClipboard(exportJson)}>Copy to Clipboard</Button>
+            <Button onClick={() => copyToClipboard(exportJson)}>
+              Copy to Clipboard
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -315,7 +356,10 @@ export function PatchDropdown() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Duplicate Patch</DialogTitle>
-            <DialogDescription>Create a copy of "{selectedPatchForDuplicate?.name}" with a new name.</DialogDescription>
+            <DialogDescription>
+              Create a copy of "{selectedPatchForDuplicate?.name}" with a new
+              name.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
@@ -329,7 +373,10 @@ export function PatchDropdown() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDuplicateDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleDuplicate} disabled={!duplicateName.trim()}>
