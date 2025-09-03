@@ -1,19 +1,19 @@
-import type { ComponentType } from 'react';
-import { ADSRModule } from '@/components/modules/adsr-module';
-import { ClockModule } from '@/components/modules/clock-module';
-import { DelayModule } from '@/components/modules/delay-module';
-import { EuclidModule } from '@/components/modules/euclid-module';
-import { KeyboardCVModule } from '@/components/modules/keyboard-cv-module';
-import { LFOModule } from '@/components/modules/lfo-module';
-import { LowPassFilterModule } from '@/components/modules/lowpass-filter-module';
-import { OscillatorModule } from '@/components/modules/oscillator-module';
-import { OutputModule } from '@/components/modules/output-module';
-import { QuantizerModule } from '@/components/modules/quantizer-module';
-import { RandomModule } from '@/components/modules/random-module';
-import { ReverbModule } from '@/components/modules/reverb-module';
-import { SequencerModule } from '@/components/modules/sequencer-module';
-import { SimpleOscilloscopeModule } from '@/components/modules/simple-oscilloscope-module';
-import { VCAModule } from '@/components/modules/vca-module';
+import type { ComponentType } from 'react'
+import { ADSRModule } from '@/components/modules/adsr-module'
+import { ClockModule } from '@/components/modules/clock-module'
+import { DelayModule } from '@/components/modules/delay-module'
+import { EuclidModule } from '@/components/modules/euclid-module'
+import { KeyboardCVModule } from '@/components/modules/keyboard-cv-module'
+import { LFOModule } from '@/components/modules/lfo-module'
+import { LowPassFilterModule } from '@/components/modules/lowpass-filter-module'
+import { OscillatorModule } from '@/components/modules/oscillator-module'
+import { OutputModule } from '@/components/modules/output-module'
+import { QuantizerModule } from '@/components/modules/quantizer-module'
+import { RandomModule } from '@/components/modules/random-module'
+import { ReverbModule } from '@/components/modules/reverb-module'
+import { ScopeModule } from '@/components/modules/scope'
+import { SequencerModule } from '@/components/modules/sequencer-module'
+import { VCAModule } from '@/components/modules/vca-module'
 
 export type ModuleType =
   | 'oscillator'
@@ -25,28 +25,27 @@ export type ModuleType =
   | 'lowpass-filter'
   | 'reverb'
   | 'delay'
-  | 'oscilloscope'
   | 'scope'
   | 'clock'
   | 'sequencer'
   | 'random'
   | 'quantizer'
-  | 'euclid';
+  | 'euclid'
 
 export interface ModuleInstance {
-  id: string;
-  type: ModuleType;
-  rack?: number;
-  order?: number;
+  id: string
+  type: ModuleType
+  rack?: number
+  order?: number
 }
 
-export type ModuleComponent = ComponentType<{ moduleId: string }>;
+export type ModuleComponent = ComponentType<{ moduleId: string }>
 
 export interface ModuleCatalogEntry {
-  type: ModuleType;
-  name: string;
-  description: string;
-  component: ModuleComponent;
+  type: ModuleType
+  name: string
+  description: string
+  component: ModuleComponent
 }
 
 export const availableModules: ModuleCatalogEntry[] = [
@@ -126,7 +125,7 @@ export const availableModules: ModuleCatalogEntry[] = [
     type: 'scope' as ModuleType,
     name: 'Scope',
     description: 'Single-channel oscilloscope',
-    component: SimpleOscilloscopeModule,
+    component: ScopeModule,
   },
   {
     type: 'sequencer' as ModuleType,
@@ -140,4 +139,4 @@ export const availableModules: ModuleCatalogEntry[] = [
     description: 'Voltage-controlled amplifier',
     component: VCAModule,
   },
-];
+]
