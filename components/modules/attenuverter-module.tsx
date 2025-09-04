@@ -16,12 +16,12 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
     gains: gains,
   }))
 
-  // Initialize gains with saved values or defaults
+  // Initialize gains with saved values or defaults (8 channels)
   const [gains, setGains] = useState<number[]>(
     Array.isArray(initialParameters?.gains) &&
-      initialParameters?.gains.length === 6
+      initialParameters?.gains.length === 8
       ? (initialParameters.gains as number[])
-      : [0, 0, 0, 0, 0, 0],
+      : [0, 0, 0, 0, 0, 0, 0, 0],
   )
 
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -39,16 +39,16 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
 
     await ac.audioWorklet.addModule('/attenuverter-processor.js')
 
-    // Check initial connections for mask parameters
-    const masks = Array.from({ length: 6 }, (_, i) =>
+    // Check initial connections for mask parameters (8 channels)
+    const masks = Array.from({ length: 8 }, (_, i) =>
       connections.some((c) => c.to === `${moduleId}-in-${i + 1}`) ? 1 : 0,
     )
 
     // Create the worklet node with initial parameters
     const node = new AudioWorkletNode(ac, 'attenuverter-processor', {
-      numberOfInputs: 6,
-      numberOfOutputs: 6,
-      outputChannelCount: [1, 1, 1, 1, 1, 1],
+      numberOfInputs: 8,
+      numberOfOutputs: 8,
+      outputChannelCount: [1, 1, 1, 1, 1, 1, 1, 1],
       parameterData: {
         g0: gains[0],
         g1: gains[1],
@@ -56,24 +56,28 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
         g3: gains[3],
         g4: gains[4],
         g5: gains[5],
+        g6: gains[6],
+        g7: gains[7],
         m0: masks[0],
         m1: masks[1],
         m2: masks[2],
         m3: masks[3],
         m4: masks[4],
         m5: masks[5],
+        m6: masks[6],
+        m7: masks[7],
       },
     })
     workletRef.current = node
 
     // Explicitly set all parameters to activate them
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       node.parameters.get(`g${i}`)?.setValueAtTime(gains[i], ac.currentTime)
       node.parameters.get(`m${i}`)?.setValueAtTime(masks[i], ac.currentTime)
     }
 
     // Create input gain nodes and connect to worklet
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       const inGain = ac.createGain()
       inGain.gain.value = 1
       inRefs.current[i] = inGain
@@ -81,7 +85,7 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
     }
 
     // Create output gain nodes and connect from worklet
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       const outGain = ac.createGain()
       outGain.gain.value = 1
       node.connect(outGain, i, 0)
@@ -101,8 +105,8 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
     const node = workletRef.current
     if (!ac || !node) return
 
-    // Update mask for each input based on connections
-    for (let i = 0; i < 6; i++) {
+    // Update mask for each input based on connections (8 channels)
+    for (let i = 0; i < 8; i++) {
       const isConnected = connections.some(
         (c) => c.to === `${moduleId}-in-${i + 1}`,
       )
@@ -134,7 +138,7 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
     <ModuleContainer title="Attenuverter" moduleId={moduleId}>
       <div className="flex flex-col gap-3 py-2">
         <div className="grid gap-3">
-          {Array.from({ length: 6 }, (_, i) => (
+          {Array.from({ length: 8 }, (_, i) => (
             <div
               key={i}
               className="grid grid-cols-[auto_1fr_auto] items-center gap-3"

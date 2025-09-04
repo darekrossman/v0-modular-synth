@@ -1,13 +1,13 @@
-// Attenuverter Processor with Normalization (6-channel)
+// Attenuverter Processor with Normalization (8-channel)
 // Each channel scales its input by a gain factor [-1, 1]
 // Normalization:
 //   - Channel 0: defaults to 10V when no input connected
-//   - Channels 1-5: cascade from channel above when no input connected
+//   - Channels 1-7: cascade from channel above when no input connected
 
 class AttenuverterProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     const params = []
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       params.push({
         name: `g${i}`,
         defaultValue: 0,
@@ -32,10 +32,10 @@ class AttenuverterProcessor extends AudioWorkletProcessor {
     
     // Process each sample in the block
     for (let s = 0; s < blockSize; s++) {
-      const sources = new Float32Array(6)
+      const sources = new Float32Array(8)
       
       // Determine the source for each channel
-      for (let ch = 0; ch < 6; ch++) {
+      for (let ch = 0; ch < 8; ch++) {
         const input = inputs[ch]?.[0]
         const mask = parameters[`m${ch}`][0] ?? 0
         
@@ -52,7 +52,7 @@ class AttenuverterProcessor extends AudioWorkletProcessor {
       }
       
       // Apply gains and output
-      for (let ch = 0; ch < 6; ch++) {
+      for (let ch = 0; ch < 8; ch++) {
         const output = outputs[ch]?.[0]
         const gain = parameters[`g${ch}`][0] ?? 0
         

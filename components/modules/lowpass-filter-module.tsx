@@ -241,8 +241,8 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
           data-param="cutoff"
           label="Cutoff"
         />
-        <div className="flex flex-col items-center gap-5">
-          <div className="flex gap-4">
+        <div className="flex flex-col items-center gap-6">
+          <div className="flex gap-5">
             <Knob
               value={resonance}
               onValueChange={setResonance}
@@ -258,51 +258,53 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
               label="Drive"
             />
           </div>
-          <div className="flex gap-2">
-            <Knob
-              value={cvAttenuation}
-              onValueChange={setCvAttenuation}
-              size="sm"
-              data-param="cvAttenuation"
-              label="CV Amt"
-            />
-            <Knob
-              value={resComp}
-              onValueChange={setResComp}
-              size="sm"
-              data-param="resComp"
-              label="R Comp"
-            />
-            <Knob
-              value={fbSat}
-              onValueChange={setFbSat}
-              size="sm"
-              data-param="fbSat"
-              label="FB Sat"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Knob
-              value={input1Level}
-              onValueChange={setInput1Level}
-              size="sm"
-              data-param="input1Level"
-              label="IN 1"
-            />
-            <Knob
-              value={input2Level}
-              onValueChange={setInput2Level}
-              size="sm"
-              data-param="input2Level"
-              label="IN 2"
-            />
-            <Knob
-              value={input3Level}
-              onValueChange={setInput3Level}
-              size="sm"
-              data-param="input3Level"
-              label="IN 3"
-            />
+          <div className="flex flex-col items-center gap-3.5">
+            <div className="flex gap-2">
+              <Knob
+                value={cvAttenuation}
+                onValueChange={setCvAttenuation}
+                size="sm"
+                data-param="cvAttenuation"
+                label="CV Amt"
+              />
+              {/* <Knob
+                value={resComp}
+                onValueChange={setResComp}
+                size="sm"
+                data-param="resComp"
+                label="R Comp"
+              /> */}
+              {/* <Knob
+                value={fbSat}
+                onValueChange={setFbSat}
+                size="sm"
+                data-param="fbSat"
+                label="FB Sat"
+              /> */}
+            </div>
+            <div className="flex gap-4">
+              <Knob
+                value={input1Level}
+                onValueChange={setInput1Level}
+                size="sm"
+                data-param="input1Level"
+                label="IN 1"
+              />
+              <Knob
+                value={input2Level}
+                onValueChange={setInput2Level}
+                size="sm"
+                data-param="input2Level"
+                label="IN 2"
+              />
+              <Knob
+                value={input3Level}
+                onValueChange={setInput3Level}
+                size="sm"
+                data-param="input3Level"
+                label="IN 3"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -310,7 +312,7 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
       <div className="flex-grow" />
 
       <div className="flex flex-col gap-2">
-        <div className="flex justify-between items-end gap-2">
+        <div className="flex justify-between items-end gap-0">
           <Port
             id={`${moduleId}-audio-in-1`}
             type="input"
@@ -333,7 +335,7 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
             audioNode={in3Ref.current ?? undefined}
           />
         </div>
-        <div className="flex justify-between items-end gap-2">
+        <div className="flex justify-between items-end gap-0">
           <Port
             id={`${moduleId}-cutoff-cv-in`}
             type="input"

@@ -321,7 +321,7 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
   return (
     <ModuleContainer title="LFO" moduleId={moduleId}>
       {/* Wave buttons */}
-      <div className="grid grid-cols-6 gap-0.5 mx-auto">
+      <div className="grid grid-cols-3 gap-0.5 mx-auto">
         {[0, 1, 2, 3, 4, 5].map((s) => (
           <Button
             key={s}
@@ -365,7 +365,7 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
           <Knob value={ampAmt} onValueChange={setAmpAmt} size="xs" />
           <Knob value={offAmt} onValueChange={setOffAmt} size="xs" />
         </div>
-        <div className="flex justify-between items-end gap-2">
+        <div className="flex justify-between items-end gap-0">
           <Port
             id={`${moduleId}-rate-cv-in`}
             type="input"
@@ -395,7 +395,7 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
             audioNode={offInRef.current ?? undefined}
           />
         </div>
-        <div className="flex justify-between items-end gap-2">
+        <div className="flex justify-between items-end gap-0">
           <Port
             id={`${moduleId}-sync-in`}
             type="input"

@@ -58,18 +58,18 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
 
     const sizeClasses = {
       xs: 'w-5 h-5',
-      sm: 'w-8 h-8',
-      md: 'w-12 h-12',
-      lg: 'w-20 h-20',
+      sm: 'w-7 h-7',
+      md: 'w-10 h-10',
+      lg: 'w-18 h-18',
     }
 
     // SVG viewBox and radius configuration for each size
-    const svgConfig = {
-      xs: { viewBox: 24, radius: 10, strokeWidth: 3 },
-      sm: { viewBox: 32, radius: 14, strokeWidth: 3.5 },
-      md: { viewBox: 48, radius: 21, strokeWidth: 4 },
-      lg: { viewBox: 80, radius: 36, strokeWidth: 6 },
-    }
+    // const svgConfig = {
+    //   xs: { viewBox: 24, radius: 10, strokeWidth: 3 },
+    //   sm: { viewBox: 32, radius: 10, strokeWidth: 3.5 },
+    //   md: { viewBox: 48, radius: 21, strokeWidth: 4 },
+    //   lg: { viewBox: 80, radius: 32, strokeWidth: 6 },
+    // }
 
     const skirtSizeClass = {
       xs: 'p-[0px]',
@@ -80,16 +80,16 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
 
     const tickSizeClasses = {
       xs: { length: 'w-[1px] h-[1px]', radius: 14, fontSize: 'text-[7px]' },
-      sm: { length: 'w-[1px] h-[2px]', radius: 19, fontSize: 'text-[7px]' },
-      md: { length: 'w-[2px] h-[3px]', radius: 28, fontSize: 'text-[7px]' },
-      lg: { length: 'w-[2px] h-[6px]', radius: 45, fontSize: 'text-[7px]' },
+      sm: { length: 'w-[1px] h-[2px]', radius: 16, fontSize: 'text-[7px]' },
+      md: { length: 'w-[1px] h-[2px]', radius: 23, fontSize: 'text-[7px]' },
+      lg: { length: 'w-[2px] h-[6px]', radius: 42, fontSize: 'text-[7px]' },
     }
 
     const padSizeClasses = {
-      xs: 'w-6 gap-1.5',
-      sm: 'w-10 gap-2.5',
-      md: 'w-[60px] gap-3.5',
-      lg: 'w-[100px] gap-4.5',
+      xs: 'gap-1.5',
+      sm: 'gap-2.5',
+      md: 'gap-2.5',
+      lg: 'gap-4.5',
     }
 
     const smallStroke = size === 'xs' || size === 'sm'
@@ -110,23 +110,26 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
 
         // Compute delta from the last processed event to make modifier toggling smooth
         const deltaY = anchorYRef.current - e.clientY // Inverted: up = increase
-        
+
         let newValue
-        
+
         if (steps && steps > 1) {
           // For stepped knobs, use a different approach:
           // Calculate how many pixels per step
           const pixelsPerStep = e.shiftKey ? 40 : 15 // Fewer pixels = easier to change
-          
+
           // Use Math.trunc instead of Math.floor to handle negative deltas correctly
           const stepChange = Math.trunc(deltaY / pixelsPerStep)
-          
+
           // Convert current value to step index
           const currentStep = Math.round(anchorValueRef.current * (steps - 1))
-          const newStep = Math.max(0, Math.min(steps - 1, currentStep + stepChange))
-          
+          const newStep = Math.max(
+            0,
+            Math.min(steps - 1, currentStep + stepChange),
+          )
+
           newValue = newStep / (steps - 1)
-          
+
           // Only update anchor if we actually changed steps
           if (newStep !== currentStep) {
             // Reset the anchor point relative to the new step position
@@ -142,7 +145,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
               : turnSpeed === 'fast'
                 ? 1 / 110
                 : 1 / 220
-          
+
           const effectiveSensitivity = e.shiftKey
             ? baseSensitivity / 10
             : baseSensitivity

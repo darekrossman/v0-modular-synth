@@ -281,7 +281,7 @@ export function Racks({
       <Header openAddModuleDialog={() => setIsModuleDialogOpen(true)} />
 
       <div className="flex-1 flex flex-col">
-        <div className="p-1 border-b border-border h-[580px] bg-neutral-900">
+        <div className="p-1 border-b border-border h-[520px] bg-neutral-900">
           <div
             ref={rack1Ref}
             className="flex overflow-x-auto relative items-stretch h-full"
