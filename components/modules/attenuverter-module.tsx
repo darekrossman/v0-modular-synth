@@ -38,10 +38,10 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
     audioContextRef.current = ac
 
     await ac.audioWorklet.addModule('/attenuverter-processor.js')
-    
+
     // Check initial connections for mask parameters
     const masks = Array.from({ length: 6 }, (_, i) =>
-      connections.some(c => c.to === `${moduleId}-in-${i + 1}`) ? 1 : 0
+      connections.some((c) => c.to === `${moduleId}-in-${i + 1}`) ? 1 : 0,
     )
 
     // Create the worklet node with initial parameters
@@ -65,7 +65,7 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
       },
     })
     workletRef.current = node
-    
+
     // Explicitly set all parameters to activate them
     for (let i = 0; i < 6; i++) {
       node.parameters.get(`g${i}`)?.setValueAtTime(gains[i], ac.currentTime)
@@ -94,17 +94,21 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
     outRefs.current[0].connect(sink)
     sink.connect(ac.destination)
   }, moduleId)
-  
+
   // Update mask parameters when connections change
   useEffect(() => {
     const ac = audioContextRef.current
     const node = workletRef.current
     if (!ac || !node) return
-    
+
     // Update mask for each input based on connections
     for (let i = 0; i < 6; i++) {
-      const isConnected = connections.some(c => c.to === `${moduleId}-in-${i + 1}`)
-      node.parameters.get(`m${i}`)?.setValueAtTime(isConnected ? 1 : 0, ac.currentTime)
+      const isConnected = connections.some(
+        (c) => c.to === `${moduleId}-in-${i + 1}`,
+      )
+      node.parameters
+        .get(`m${i}`)
+        ?.setValueAtTime(isConnected ? 1 : 0, ac.currentTime)
     }
   }, [connections, moduleId])
 
@@ -138,7 +142,6 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
               <Port
                 id={`${moduleId}-in-${i + 1}`}
                 type="input"
-                label={`IN${i + 1}`}
                 audioType="any"
                 audioNode={inRefs.current[i] ?? undefined}
               />
@@ -147,16 +150,11 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
                   size="sm"
                   defaultValue={[gains[i] / 2 + 0.5]}
                   onValueChange={setGainAtIndex(i)}
-                  label={`Ch ${i + 1}`}
                 />
-                <TextLabel variant="control" className="text-[10px]">
-                  -1 .. 1
-                </TextLabel>
               </div>
               <Port
                 id={`${moduleId}-out-${i + 1}`}
                 type="output"
-                label={`OUT${i + 1}`}
                 audioType="any"
                 audioNode={outRefs.current[i] ?? undefined}
               />

@@ -11,8 +11,7 @@ type PortKind = 'audio' | 'cv' | 'any'
 export interface PortProps {
   id: string
   type: 'input' | 'output'
-  label: string
-  // ⬇️ add "any"
+  label?: string
   audioType: 'audio' | 'cv' | 'gate' | 'trig' | 'any'
   audioNode?: AudioNode
   className?: string
@@ -120,11 +119,15 @@ export function Port({
 
       // Get the instantaneous value (for CV signals)
       // Use the first sample as representative of DC offset
-      const instantValue = dataArray[0] * 5 // Scale to -5 to +5V range
+      // CV signals are already in voltage range (modules output actual voltages)
+      const instantValue = dataArray[0]
 
       // For CV signals, use instantaneous; for audio, use RMS
       const value =
-        audioType === 'cv' || audioType === 'gate' || audioType === 'trig'
+        audioType === 'cv' ||
+        audioType === 'gate' ||
+        audioType === 'trig' ||
+        audioType === 'any'
           ? instantValue
           : rms * 10 // Scale RMS for visibility
 
@@ -201,15 +204,17 @@ export function Port({
   return (
     <div
       className={cn(
-        'flex flex-col items-center gap-1 h-[54px] px-1 pt-1 pb-1.5 w-11 bg-neutral-400/50 rounded-sm relative',
+        'flex flex-col items-center gap-1 h-[54px] bg-neutral-400/50 rounded-sm relative',
         {
+          'size-11 justify-center': !label,
+          'h-[54px] px-1 pt-1 pb-1.5 w-11': label,
           'bg-transparent shadow-[inset_0_0_0_2px_oklch(80%_0_0)] rounded-sm':
             type === 'input',
         },
         className,
       )}
     >
-      <TextLabel>{label}</TextLabel>
+      {label && <TextLabel>{label}</TextLabel>}
       <div
         ref={setNodeRef}
         data-port-id={id}

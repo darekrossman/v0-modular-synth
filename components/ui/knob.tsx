@@ -110,32 +110,58 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
 
         // Compute delta from the last processed event to make modifier toggling smooth
         const deltaY = anchorYRef.current - e.clientY // Inverted: up = increase
-        // Map turnSpeed to base sensitivity (units per pixel)
-        const baseSensitivity =
-          turnSpeed === 'slow'
-            ? 1 / 440
-            : turnSpeed === 'fast'
-              ? 1 / 110
-              : 1 / 220
-        const effectiveSensitivity = e.shiftKey
-          ? baseSensitivity / 10
-          : baseSensitivity
-
-        let newValue = Math.max(
-          0,
-          Math.min(1, anchorValueRef.current + deltaY * effectiveSensitivity),
-        )
-
+        
+        let newValue
+        
         if (steps && steps > 1) {
-          newValue = Math.round(newValue * (steps - 1)) / (steps - 1)
+          // For stepped knobs, use a different approach:
+          // Calculate how many pixels per step
+          const pixelsPerStep = e.shiftKey ? 40 : 15 // Fewer pixels = easier to change
+          
+          // Use Math.trunc instead of Math.floor to handle negative deltas correctly
+          const stepChange = Math.trunc(deltaY / pixelsPerStep)
+          
+          // Convert current value to step index
+          const currentStep = Math.round(anchorValueRef.current * (steps - 1))
+          const newStep = Math.max(0, Math.min(steps - 1, currentStep + stepChange))
+          
+          newValue = newStep / (steps - 1)
+          
+          // Only update anchor if we actually changed steps
+          if (newStep !== currentStep) {
+            // Reset the anchor point relative to the new step position
+            // This prevents accumulating fractional pixels
+            anchorYRef.current = e.clientY
+            anchorValueRef.current = newValue
+          }
+        } else {
+          // Map turnSpeed to base sensitivity (units per pixel)
+          const baseSensitivity =
+            turnSpeed === 'slow'
+              ? 1 / 440
+              : turnSpeed === 'fast'
+                ? 1 / 110
+                : 1 / 220
+          
+          const effectiveSensitivity = e.shiftKey
+            ? baseSensitivity / 10
+            : baseSensitivity
+
+          newValue = Math.max(
+            0,
+            Math.min(1, anchorValueRef.current + deltaY * effectiveSensitivity),
+          )
         }
 
         const newValueArray = [newValue]
 
         // Persist value for subsequent incremental deltas
         currentValueRef.current = newValue
-        anchorYRef.current = e.clientY
-        anchorValueRef.current = newValue
+        // Don't update anchors here for stepped knobs - we do it above when step changes
+        if (!steps || steps <= 1) {
+          anchorYRef.current = e.clientY
+          anchorValueRef.current = newValue
+        }
 
         if (!isControlled) {
           setInternalValue(newValueArray)
