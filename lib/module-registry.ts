@@ -1,17 +1,19 @@
 import type { ComponentType } from 'react'
 import { ADSRModule } from '@/components/modules/adsr-module'
+import { AttenuverterModule } from '@/components/modules/attenuverter-module'
 import { ClockModule } from '@/components/modules/clock-module'
 import { DelayModule } from '@/components/modules/delay-module'
 import { EuclidModule } from '@/components/modules/euclid-module'
 import { KeyboardCVModule } from '@/components/modules/keyboard-cv-module'
 import { LFOModule } from '@/components/modules/lfo-module'
 import { LowPassFilterModule } from '@/components/modules/lowpass-filter-module'
+import { MixerVCAModule } from '@/components/modules/mixer-vca-module'
 import { OscillatorModule } from '@/components/modules/oscillator-module'
 import { OutputModule } from '@/components/modules/output-module'
 import { QuantizerModule } from '@/components/modules/quantizer-module'
 import { RandomModule } from '@/components/modules/random-module'
 import { ReverbModule } from '@/components/modules/reverb-module'
-import { ScopeModule } from '@/components/modules/scope'
+import { ScopeModule } from '@/components/modules/scope-module'
 import { SequencerModule } from '@/components/modules/sequencer-module'
 import { VCAModule } from '@/components/modules/vca-module'
 
@@ -19,6 +21,7 @@ export type ModuleType =
   | 'oscillator'
   | 'lfo'
   | 'vca'
+  | 'mixer-vca'
   | 'output'
   | 'adsr'
   | 'keyboard-cv'
@@ -31,6 +34,7 @@ export type ModuleType =
   | 'random'
   | 'quantizer'
   | 'euclid'
+  | 'attenuverter'
 
 export interface ModuleInstance {
   id: string
@@ -138,5 +142,17 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'VCA',
     description: 'Voltage-controlled amplifier',
     component: VCAModule,
+  },
+  {
+    type: 'mixer-vca' as ModuleType,
+    name: 'Mixer VCA',
+    description: '4-channel mixer with per-channel VCAs and master VCA',
+    component: MixerVCAModule,
+  },
+  {
+    type: 'attenuverter' as ModuleType,
+    name: 'Attenuverter',
+    description: '6-channel attenuverter with normalized inputs',
+    component: AttenuverterModule,
   },
 ]

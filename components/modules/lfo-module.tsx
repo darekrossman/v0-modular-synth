@@ -1,43 +1,43 @@
-'use client';
+'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ModuleContainer } from '@/components/module-container';
-import { useModulePatch } from '@/components/patch-manager';
-import { Port } from '@/components/port';
-import { Button } from '@/components/ui/button';
-import { Knob } from '@/components/ui/knob';
-import { KnobV2 } from '@/components/ui/knob-v2';
-import { useModuleInit } from '@/hooks/use-module-init';
-import { getAudioContext } from '@/lib/helpers';
-import { mapLinear } from '@/lib/utils';
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ModuleContainer } from '@/components/module-container'
+import { useModulePatch } from '@/components/patch-manager'
+import { Port } from '@/components/port'
+import { Button } from '@/components/ui/button'
+import { Knob } from '@/components/ui/knob'
+import { KnobV2 } from '@/components/ui/knob-v2'
+import { useModuleInit } from '@/hooks/use-module-init'
+import { getAudioContext } from '@/lib/helpers'
+import { mapLinear } from '@/lib/utils'
 
 // ---------- ranges ----------
-const FREQ_MIN = 0.0005,
-  FREQ_MAX = 30;
+const FREQ_MIN = 0.5,
+  FREQ_MAX = 100
 const PW_MIN = 0.01,
-  PW_MAX = 0.99;
+  PW_MAX = 0.99
 const AMP_MIN = 0,
-  AMP_MAX = 2;
+  AMP_MAX = 2
 const OFF_MIN = -1,
-  OFF_MAX = 1;
+  OFF_MAX = 1
 const SLEW_MIN = 0,
-  SLEW_MAX = 1;
+  SLEW_MAX = 1
 const RATEAMT_MIN = 0,
-  RATEAMT_MAX = 4;
+  RATEAMT_MAX = 4
 const PWAMT_MIN = 0,
-  PWAMT_MAX = 1;
+  PWAMT_MAX = 1
 const AMPAMT_MIN = 0,
-  AMPAMT_MAX = 2; // NEW: Amp CV depth
+  AMPAMT_MAX = 2 // NEW: Amp CV depth
 const OFFAMT_MIN = 0,
-  OFFAMT_MAX = 2; // NEW: Offset CV depth
+  OFFAMT_MAX = 2 // NEW: Offset CV depth
 
 const invMapLinear = (value: number, min: number, max: number) => {
-  if (max === min) return 0;
-  const t = (value - min) / (max - min);
-  return Math.max(0, Math.min(1, t));
-};
+  if (max === min) return 0
+  const t = (value - min) / (max - min)
+  return Math.max(0, Math.min(1, t))
+}
 
-type Shape = 0 | 1 | 2 | 3 | 4 | 5;
+type Shape = 0 | 1 | 2 | 3 | 4 | 5
 
 const icons: Record<Shape, React.ReactNode> = {
   0: (
@@ -100,19 +100,19 @@ const icons: Record<Shape, React.ReactNode> = {
       />
     </svg>
   ),
-};
+}
 
 export function LFOModule({ moduleId }: { moduleId: string }) {
   // Defaults (physical)
-  const DEFAULT_FREQ = 0.5;
-  const DEFAULT_PW = 0.5;
-  const DEFAULT_AMP = 0.5;
-  const DEFAULT_OFF = 0.5;
-  const DEFAULT_SLEW = 0;
-  const DEFAULT_RATEAMT = 1;
-  const DEFAULT_PWAMT = 1;
-  const DEFAULT_AMPAMT = 1; // NEW
-  const DEFAULT_OFFAMT = 1; // NEW
+  const DEFAULT_FREQ = 0.5
+  const DEFAULT_PW = 0.5
+  const DEFAULT_AMP = 0.5
+  const DEFAULT_OFF = 0.5
+  const DEFAULT_SLEW = 0
+  const DEFAULT_RATEAMT = 1
+  const DEFAULT_PWAMT = 1
+  const DEFAULT_AMPAMT = 1 // NEW
+  const DEFAULT_OFFAMT = 1 // NEW
 
   // Register with patch manager and get initial parameters
   const { initialParameters } = useModulePatch(moduleId, () => ({
@@ -126,119 +126,119 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
     pwAmt: mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX),
     ampAmt: mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX),
     offAmt: mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX),
-  }));
+  }))
 
   // UI state (normalized 0..1)
-  const [shape, setShape] = useState<Shape>(initialParameters?.shape ?? 0);
+  const [shape, setShape] = useState<Shape>(initialParameters?.shape ?? 0)
   const [freq, setFreq] = useState([
     invMapLinear(
       initialParameters?.freq ?? mapLinear(DEFAULT_FREQ, FREQ_MIN, FREQ_MAX),
       FREQ_MIN,
       FREQ_MAX,
     ),
-  ]);
+  ])
   const [pw, setPw] = useState([
     invMapLinear(
       initialParameters?.pw ?? mapLinear(DEFAULT_PW, PW_MIN, PW_MAX),
       PW_MIN,
       PW_MAX,
     ),
-  ]);
+  ])
   const [amp, setAmp] = useState([
     invMapLinear(
       initialParameters?.amp ?? mapLinear(DEFAULT_AMP, AMP_MIN, AMP_MAX),
       AMP_MIN,
       AMP_MAX,
     ),
-  ]);
+  ])
   const [offset, setOffset] = useState([
     invMapLinear(
       initialParameters?.offset ?? mapLinear(DEFAULT_OFF, OFF_MIN, OFF_MAX),
       OFF_MIN,
       OFF_MAX,
     ),
-  ]);
+  ])
   const [slew, setSlew] = useState([
     invMapLinear(
       initialParameters?.slew ?? mapLinear(DEFAULT_SLEW, SLEW_MIN, SLEW_MAX),
       SLEW_MIN,
       SLEW_MAX,
     ),
-  ]);
+  ])
   const [rateAmt, setRateAmt] = useState([
     invMapLinear(
       initialParameters?.rateAmt ??
-      mapLinear(DEFAULT_RATEAMT, RATEAMT_MIN, RATEAMT_MAX),
+        mapLinear(DEFAULT_RATEAMT, RATEAMT_MIN, RATEAMT_MAX),
       RATEAMT_MIN,
       RATEAMT_MAX,
     ),
-  ]);
+  ])
   const [pwAmt, setPwAmt] = useState([
     invMapLinear(
       initialParameters?.pwAmt ??
-      mapLinear(DEFAULT_PWAMT, PWAMT_MIN, PWAMT_MAX),
+        mapLinear(DEFAULT_PWAMT, PWAMT_MIN, PWAMT_MAX),
       PWAMT_MIN,
       PWAMT_MAX,
     ),
-  ]);
+  ])
   const [ampAmt, setAmpAmt] = useState([
     invMapLinear(
       initialParameters?.ampAmt ??
-      mapLinear(DEFAULT_AMPAMT, AMPAMT_MIN, AMPAMT_MAX),
+        mapLinear(DEFAULT_AMPAMT, AMPAMT_MIN, AMPAMT_MAX),
       AMPAMT_MIN,
       AMPAMT_MAX,
     ),
-  ]);
+  ])
   const [offAmt, setOffAmt] = useState([
     invMapLinear(
       initialParameters?.offAmt ??
-      mapLinear(DEFAULT_OFFAMT, OFFAMT_MIN, OFFAMT_MAX),
+        mapLinear(DEFAULT_OFFAMT, OFFAMT_MIN, OFFAMT_MAX),
       OFFAMT_MIN,
       OFFAMT_MAX,
     ),
-  ]);
+  ])
 
   // graph
-  const acRef = useRef<AudioContext | null>(null);
-  const workletRef = useRef<AudioWorkletNode | null>(null);
+  const acRef = useRef<AudioContext | null>(null)
+  const workletRef = useRef<AudioWorkletNode | null>(null)
 
   // inputs (ports)
-  const rateInRef = useRef<GainNode | null>(null);
-  const pwInRef = useRef<GainNode | null>(null);
-  const ampInRef = useRef<GainNode | null>(null);
-  const offInRef = useRef<GainNode | null>(null);
-  const syncInRef = useRef<GainNode | null>(null);
+  const rateInRef = useRef<GainNode | null>(null)
+  const pwInRef = useRef<GainNode | null>(null)
+  const ampInRef = useRef<GainNode | null>(null)
+  const offInRef = useRef<GainNode | null>(null)
+  const syncInRef = useRef<GainNode | null>(null)
 
   // outputs (ports)
-  const outBipRef = useRef<GainNode | null>(null);
-  const outUniRef = useRef<GainNode | null>(null);
+  const outBipRef = useRef<GainNode | null>(null)
+  const outUniRef = useRef<GainNode | null>(null)
 
   const setParam = (name: string, v: number, t?: number) => {
     const ac = acRef.current,
-      w = workletRef.current;
-    if (!ac || !w) return;
-    const p = w.parameters.get(name);
-    if (p) p.setTargetAtTime(v, ac.currentTime, t ?? 0.01);
-  };
+      w = workletRef.current
+    if (!ac || !w) return
+    const p = w.parameters.get(name)
+    if (p) p.setTargetAtTime(v, ac.currentTime, t ?? 0.01)
+  }
 
   const init = useCallback(async () => {
-    if (workletRef.current) return; // Already initialized
+    if (workletRef.current) return // Already initialized
 
-    const ac = getAudioContext();
-    acRef.current = ac;
-    await ac.audioWorklet.addModule("/lfo-processor.js");
+    const ac = getAudioContext()
+    acRef.current = ac
+    await ac.audioWorklet.addModule('/lfo-processor.js')
 
     // inputs (CV ports)
     const mkIn = () => {
-      const g = ac.createGain();
-      g.gain.value = 1;
-      return g;
-    };
-    rateInRef.current = mkIn();
-    pwInRef.current = mkIn();
-    ampInRef.current = mkIn();
-    offInRef.current = mkIn();
-    syncInRef.current = mkIn();
+      const g = ac.createGain()
+      g.gain.value = 1
+      return g
+    }
+    rateInRef.current = mkIn()
+    pwInRef.current = mkIn()
+    ampInRef.current = mkIn()
+    offInRef.current = mkIn()
+    syncInRef.current = mkIn()
 
     // Map normalized → physical for initial parameterData
     const w = new AudioWorkletNode(ac, 'lfo-processor', {
@@ -260,63 +260,63 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
         offCvAmt: mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX), // NEW
         slew: mapLinear(slew[0], SLEW_MIN, SLEW_MAX),
       },
-    } as any);
-    workletRef.current = w;
+    } as any)
+    workletRef.current = w
 
     // wire CV inputs
-    rateInRef.current.connect(w, 0, 0);
-    pwInRef.current.connect(w, 0, 1);
-    ampInRef.current.connect(w, 0, 2);
-    offInRef.current.connect(w, 0, 3);
-    syncInRef.current.connect(w, 0, 4);
+    rateInRef.current.connect(w, 0, 0)
+    pwInRef.current.connect(w, 0, 1)
+    ampInRef.current.connect(w, 0, 2)
+    offInRef.current.connect(w, 0, 3)
+    syncInRef.current.connect(w, 0, 4)
 
     // Create output port nodes and connect each worklet output directly
-    outBipRef.current = ac.createGain();
-    outBipRef.current.gain.value = 1;
-    outUniRef.current = ac.createGain();
-    outUniRef.current.gain.value = 1;
+    outBipRef.current = ac.createGain()
+    outBipRef.current.gain.value = 1
+    outUniRef.current = ac.createGain()
+    outUniRef.current.gain.value = 1
 
     // IMPORTANT: select output index explicitly
-    w.connect(outBipRef.current, 0, 0); // worklet output 0 → OUT (bipolar)
-    w.connect(outUniRef.current, 1, 0); // worklet output 1 → UNI (unipolar)
+    w.connect(outBipRef.current, 0, 0) // worklet output 0 → OUT (bipolar)
+    w.connect(outUniRef.current, 1, 0) // worklet output 1 → UNI (unipolar)
 
-    console.log('[LFO] initialized');
-  }, [freq, shape, pw, amp, offset, rateAmt, pwAmt, ampAmt, offAmt, slew]);
+    console.log('[LFO] initialized')
+  }, [freq, shape, pw, amp, offset, rateAmt, pwAmt, ampAmt, offAmt, slew])
 
   // Use the module initialization hook
-  const { isReady, initError, retryInit } = useModuleInit(init, 'LFO');
+  const { isReady, initError, retryInit } = useModuleInit(init, 'LFO')
 
   // param pushes
   useEffect(() => {
-    setParam('freq', mapLinear(freq[0], FREQ_MIN, FREQ_MAX));
-  }, [freq]);
+    setParam('freq', mapLinear(freq[0], FREQ_MIN, FREQ_MAX))
+  }, [freq])
   useEffect(() => {
-    setParam('shape', shape);
-  }, [shape]);
+    setParam('shape', shape)
+  }, [shape])
   useEffect(() => {
-    setParam('pw', mapLinear(pw[0], PW_MIN, PW_MAX));
-  }, [pw]);
+    setParam('pw', mapLinear(pw[0], PW_MIN, PW_MAX))
+  }, [pw])
   useEffect(() => {
-    setParam('amp', mapLinear(amp[0], AMP_MIN, AMP_MAX));
-  }, [amp]);
+    setParam('amp', mapLinear(amp[0], AMP_MIN, AMP_MAX))
+  }, [amp])
   useEffect(() => {
-    setParam('offset', mapLinear(offset[0], OFF_MIN, OFF_MAX));
-  }, [offset]);
+    setParam('offset', mapLinear(offset[0], OFF_MIN, OFF_MAX))
+  }, [offset])
   useEffect(() => {
-    setParam('rateCvAmt', mapLinear(rateAmt[0], RATEAMT_MIN, RATEAMT_MAX));
-  }, [rateAmt]);
+    setParam('rateCvAmt', mapLinear(rateAmt[0], RATEAMT_MIN, RATEAMT_MAX))
+  }, [rateAmt])
   useEffect(() => {
-    setParam('pwCvAmt', mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX));
-  }, [pwAmt]);
+    setParam('pwCvAmt', mapLinear(pwAmt[0], PWAMT_MIN, PWAMT_MAX))
+  }, [pwAmt])
   useEffect(() => {
-    setParam('ampCvAmt', mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX));
-  }, [ampAmt]); // NEW
+    setParam('ampCvAmt', mapLinear(ampAmt[0], AMPAMT_MIN, AMPAMT_MAX))
+  }, [ampAmt]) // NEW
   useEffect(() => {
-    setParam('offCvAmt', mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX));
-  }, [offAmt]); // NEW
+    setParam('offCvAmt', mapLinear(offAmt[0], OFFAMT_MIN, OFFAMT_MAX))
+  }, [offAmt]) // NEW
   useEffect(() => {
-    setParam('slew', mapLinear(slew[0], SLEW_MIN, SLEW_MAX));
-  }, [slew]);
+    setParam('slew', mapLinear(slew[0], SLEW_MIN, SLEW_MAX))
+  }, [slew])
 
   return (
     <ModuleContainer title="LFO" moduleId={moduleId}>
@@ -421,5 +421,5 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
         </div>
       </div>
     </ModuleContainer>
-  );
+  )
 }

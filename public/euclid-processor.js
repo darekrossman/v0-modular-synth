@@ -22,14 +22,62 @@
 class EuclidProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: 'run',        defaultValue: 1,    minValue: 0,  maxValue: 1,  automationRate: 'k-rate' },
-      { name: 'divider',    defaultValue: 1,    minValue: 1,  maxValue: 64, automationRate: 'k-rate' },
-      { name: 'gateRatio',  defaultValue: 0.25, minValue: 0,  maxValue: 1,  automationRate: 'k-rate' },
-      { name: 'steps',      defaultValue: 8,    minValue: 1,  maxValue: 16, automationRate: 'k-rate' },
-      { name: 'pulsesNorm', defaultValue: 0.5,  minValue: 0,  maxValue: 1,  automationRate: 'k-rate' },
-      { name: 'rotateNorm', defaultValue: 0,    minValue: 0,  maxValue: 1,  automationRate: 'k-rate' },
-      { name: 'density',    defaultValue: 1.0,  minValue: 0,  maxValue: 1,  automationRate: 'k-rate' },
-      { name: 'accent',     defaultValue: 0.5,  minValue: 0,  maxValue: 1,  automationRate: 'k-rate' },
+      {
+        name: 'run',
+        defaultValue: 1,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'divider',
+        defaultValue: 1,
+        minValue: 1,
+        maxValue: 64,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'gateRatio',
+        defaultValue: 0.25,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'steps',
+        defaultValue: 8,
+        minValue: 1,
+        maxValue: 16,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'pulsesNorm',
+        defaultValue: 0.5,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'rotateNorm',
+        defaultValue: 0,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'density',
+        defaultValue: 1.0,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'accent',
+        defaultValue: 0.5,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
     ]
   }
 
@@ -86,8 +134,8 @@ class EuclidProcessor extends AudioWorkletProcessor {
     if (k === n) return Array(n).fill(true)
 
     // Build two arrays: k ones and n-k zeros
-    let counts = []
-    let remainders = []
+    const counts = []
+    const remainders = []
     let divisor = n - k
     remainders.push(k)
     let level = 0
@@ -136,26 +184,29 @@ class EuclidProcessor extends AudioWorkletProcessor {
 
   _resolveInts(params, inputs) {
     // Resolve steps integer (1..16) from param only
-    let steps = Math.max(1, Math.min(16, Math.round(params.steps[0] || 1)))
+    const steps = Math.max(1, Math.min(16, Math.round(params.steps[0] || 1)))
 
     // Helper: read 0..1 CV only if the input carries a non-zero signal this block
     const readCv01 = (slot) => {
-      if (!(inputs[slot] && inputs[slot][0])) return null
+      if (!inputs[slot]?.[0]) return null
       const ch = inputs[slot][0]
       const n = ch.length | 0
       let active = false
       for (let i = 0; i < n; i++) {
         const a = ch[i]
-        if (a > 1e-5 || a < -1e-5) { active = true; break }
+        if (a > 1e-5 || a < -1e-5) {
+          active = true
+          break
+        }
       }
       if (!active) return null
       const v = ch[0]
-      return isFinite(v) ? Math.max(0, Math.min(1, v / 5)) : null
+      return NumberisFinite(v) ? Math.max(0, Math.min(1, v / 5)) : null
     }
 
     // Pulses: prefer CV if active, else from pulsesNorm
-    let pulsesCv01 = readCv01(2)
-    let pulsesCv = pulsesCv01 == null ? null : Math.round(pulsesCv01 * steps)
+    const pulsesCv01 = readCv01(2)
+    const pulsesCv = pulsesCv01 == null ? null : Math.round(pulsesCv01 * steps)
     let pulses = pulsesCv
     if (pulses == null) {
       const pNorm = params.pulsesNorm[0] ?? 0
@@ -164,12 +215,17 @@ class EuclidProcessor extends AudioWorkletProcessor {
     pulses = Math.max(0, Math.min(steps, pulses | 0))
 
     // Rotate: prefer CV if active, else from rotateNorm
-    let rotateCv01 = readCv01(3)
-    let rotateCv = rotateCv01 == null ? null : Math.round(rotateCv01 * Math.max(0, steps - 1))
+    const rotateCv01 = readCv01(3)
+    const rotateCv =
+      rotateCv01 == null
+        ? null
+        : Math.round(rotateCv01 * Math.max(0, steps - 1))
     let rotate = rotateCv
     if (rotate == null) {
       const rNorm = params.rotateNorm[0] ?? 0
-      rotate = Math.round(Math.max(0, Math.min(1, rNorm)) * Math.max(0, steps - 1))
+      rotate = Math.round(
+        Math.max(0, Math.min(1, rNorm)) * Math.max(0, steps - 1),
+      )
     }
     rotate = Math.max(0, Math.min(Math.max(0, steps - 1), rotate | 0))
 
@@ -182,7 +238,11 @@ class EuclidProcessor extends AudioWorkletProcessor {
   }
 
   _maybeRecomputePattern(steps, pulses, rotate) {
-    if (steps !== this.stepsLen || pulses !== this.pulses || rotate !== this.rotate) {
+    if (
+      steps !== this.stepsLen ||
+      pulses !== this.pulses ||
+      rotate !== this.rotate
+    ) {
       this.stepsLen = steps
       this.pulses = pulses
       this.rotate = rotate
@@ -206,7 +266,10 @@ class EuclidProcessor extends AudioWorkletProcessor {
       this.step = (this.step + 1) % this.stepsLen
 
       // compute gate length in samples
-      const stepSamples = Math.max(1, Math.floor(this.ticksPerStep * this.samplesPerTick))
+      const stepSamples = Math.max(
+        1,
+        Math.floor(this.ticksPerStep * this.samplesPerTick),
+      )
       const desired = Math.max(0, Math.min(1, gateRatio))
       const gateSamples = Math.max(1, Math.floor(stepSamples * desired))
 
@@ -236,30 +299,42 @@ class EuclidProcessor extends AudioWorkletProcessor {
 
   process(inputs, outputs, parameters) {
     const outGate = outputs[0][0]
-    const outAcc  = outputs[1] ? outputs[1][0] : null
+    const outAcc = outputs[1] ? outputs[1][0] : null
     const n = outGate.length
 
     const run = (parameters.run[0] || 0) > 0.5
-    const desiredDiv = Math.max(1, Math.min(64, Math.round(parameters.divider[0] || 1)))
+    const desiredDiv = Math.max(
+      1,
+      Math.min(64, Math.round(parameters.divider[0] || 1)),
+    )
     const gateRatio = parameters.gateRatio[0] ?? 0.25
     if (desiredDiv !== this.currentDivider) this.pendingDivider = desiredDiv
 
     // Resolve steps/pulses/rotate/density, recompute pattern if needed
-    const { steps, pulses, rotate, density } = this._resolveInts(parameters, inputs)
+    const { steps, pulses, rotate, density } = this._resolveInts(
+      parameters,
+      inputs,
+    )
     // Accent probability from param with CV scaling
     let accentProb = parameters.accent[0] ?? 0.5
-    const accCv01 = (function(slot){
-      if (!(inputs[slot] && inputs[slot][0])) return null
+    const accCv01 = ((slot) => {
+      if (!inputs[slot]?.[0]) return null
       const ch = inputs[slot][0]
       const n = ch.length | 0
-      for (let i = 0; i < n; i++) { const a = ch[i]; if (a > 1e-5 || a < -1e-5) { return Math.max(0, Math.min(1, (ch[0]||0) / 5)) } }
+      for (let i = 0; i < n; i++) {
+        const a = ch[i]
+        if (a > 1e-5 || a < -1e-5) {
+          return Math.max(0, Math.min(1, (ch[0] || 0) / 5))
+        }
+      }
       return null
     })(5)
-    if (accCv01 != null) accentProb = Math.max(0, Math.min(1, accentProb * accCv01))
+    if (accCv01 != null)
+      accentProb = Math.max(0, Math.min(1, accentProb * accCv01))
     this._maybeRecomputePattern(steps, pulses, rotate)
 
-    const inClock = inputs[0] && inputs[0][0] ? inputs[0][0] : null
-    const inReset = inputs[1] && inputs[1][0] ? inputs[1][0] : null
+    const inClock = inputs[0]?.[0] ? inputs[0][0] : null
+    const inReset = inputs[1]?.[0] ? inputs[1][0] : null
 
     let last = this.lastClock
     for (let i = 0; i < n; i++) {

@@ -12,15 +12,33 @@
 
 class RandomProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
-    const atten = (name) => ({ name, defaultValue: 1, minValue: 0, maxValue: 1, automationRate: 'k-rate' })
-    const offset = (name) => ({ name, defaultValue: 0, minValue: -5, maxValue: 5, automationRate: 'k-rate' })
+    const atten = (name) => ({
+      name,
+      defaultValue: 1,
+      minValue: 0,
+      maxValue: 1,
+      automationRate: 'k-rate',
+    })
+    const offset = (name) => ({
+      name,
+      defaultValue: 0,
+      minValue: -5,
+      maxValue: 5,
+      automationRate: 'k-rate',
+    })
     return [
-      atten('atten1'), offset('offset1'),
-      atten('atten2'), offset('offset2'),
-      atten('atten3'), offset('offset3'),
-      atten('atten4'), offset('offset4'),
-      atten('atten5'), offset('offset5'),
-      atten('atten6'), offset('offset6'),
+      atten('atten1'),
+      offset('offset1'),
+      atten('atten2'),
+      offset('offset2'),
+      atten('atten3'),
+      offset('offset3'),
+      atten('atten4'),
+      offset('offset4'),
+      atten('atten5'),
+      offset('offset5'),
+      atten('atten6'),
+      offset('offset6'),
     ]
   }
 
@@ -54,12 +72,18 @@ class RandomProcessor extends AudioWorkletProcessor {
 
     // fetch k-rate params once
     const att = [
-      parameters.atten1[0], parameters.offset1[0],
-      parameters.atten2[0], parameters.offset2[0],
-      parameters.atten3[0], parameters.offset3[0],
-      parameters.atten4[0], parameters.offset4[0],
-      parameters.atten5[0], parameters.offset5[0],
-      parameters.atten6[0], parameters.offset6[0],
+      parameters.atten1[0],
+      parameters.offset1[0],
+      parameters.atten2[0],
+      parameters.offset2[0],
+      parameters.atten3[0],
+      parameters.offset3[0],
+      parameters.atten4[0],
+      parameters.offset4[0],
+      parameters.atten5[0],
+      parameters.offset5[0],
+      parameters.atten6[0],
+      parameters.offset6[0],
     ]
 
     // Sample frames per quantum
@@ -67,11 +91,11 @@ class RandomProcessor extends AudioWorkletProcessor {
 
     for (let i = 0; i < n; i++) {
       // Read input1 sample (used for normalled logic)
-      const s1 = inputs[0] && inputs[0][0] ? inputs[0][0][i] : 0
+      const s1 = inputs[0]?.[0] ? inputs[0][0][i] : 0
 
       for (let ch = 0; ch < 6; ch++) {
         // source sample from this input
-        let s = (inputs[ch] && inputs[ch][0]) ? inputs[ch][0][i] : 0
+        let s = inputs[ch]?.[0] ? inputs[ch][0][i] : 0
 
         // NORMALLED: if channel ch has (near) zero while input 1 has signal,
         // treat the effective input as input1. This covers "no cable" nicely
@@ -86,8 +110,8 @@ class RandomProcessor extends AudioWorkletProcessor {
         this._lastIn[ch] = s
 
         // apply atten + offset, clamp to ±10 V for safety
-        const a = att[ch * 2 + 0]   // 0..1
-        const o = att[ch * 2 + 1]   // -5..+5
+        const a = att[ch * 2 + 0] // 0..1
+        const o = att[ch * 2 + 1] // -5..+5
         let v = this._held[ch] * a + o
         if (v > 10) v = 10
         else if (v < -10) v = -10

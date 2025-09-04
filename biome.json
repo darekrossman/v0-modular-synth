@@ -21,7 +21,8 @@
       "suspicious": {
         "noArrayIndexKey": "off",
         "noExplicitAny": "off",
-        "noImplicitAnyLet": "off"
+        "noImplicitAnyLet": "off",
+        "noApproximativeNumericConstant": "off"
       },
       "correctness": {
         "useExhaustiveDependencies": "off",

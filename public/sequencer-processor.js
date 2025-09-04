@@ -18,11 +18,35 @@
 class SequencerProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: "run", defaultValue: 1, minValue: 0, maxValue: 1, automationRate: "k-rate" },
+      {
+        name: 'run',
+        defaultValue: 1,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
       // divider is the direct step multiple: 1,2,4,8,16,32,64
-      { name: "divider", defaultValue: 1, minValue: 1, maxValue: 64, automationRate: "k-rate" },
-      { name: "gateRatio", defaultValue: 0.25, minValue: 0, maxValue: 1, automationRate: "k-rate" },
-      { name: "octave", defaultValue: 3, minValue: 0, maxValue: 8, automationRate: "k-rate" },
+      {
+        name: 'divider',
+        defaultValue: 1,
+        minValue: 1,
+        maxValue: 64,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'gateRatio',
+        defaultValue: 0.25,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'octave',
+        defaultValue: 3,
+        minValue: 0,
+        maxValue: 8,
+        automationRate: 'k-rate',
+      },
     ]
   }
 
@@ -57,14 +81,22 @@ class SequencerProcessor extends AudioWorkletProcessor {
 
     this.port.onmessage = (e) => {
       const { type, value } = e.data || {}
-      if (type === "steps" && Array.isArray(value) && value.length === this.STEPS) {
+      if (
+        type === 'steps' &&
+        Array.isArray(value) &&
+        value.length === this.STEPS
+      ) {
         this.enable = value.map(Boolean)
-      } else if (type === "pitches" && Array.isArray(value) && value.length === this.STEPS) {
+      } else if (
+        type === 'pitches' &&
+        Array.isArray(value) &&
+        value.length === this.STEPS
+      ) {
         this.pitches = value.map((v) => {
           const f = Number.isFinite(v) ? v : 0.5
           return Math.max(0, Math.min(1, f))
         })
-      } else if (type === "reset") {
+      } else if (type === 'reset') {
         this.ppqCount = 0
         this.gateCountSamples = 0
         this.step = -1
@@ -73,7 +105,7 @@ class SequencerProcessor extends AudioWorkletProcessor {
   }
 
   _resolveOctaveParam(octParam) {
-    if (!isFinite(octParam)) return 3
+    if (!Number.isFinite(octParam)) return 3
     if (octParam >= 0 && octParam <= 1.0001) return Math.round(octParam * 8) // normalized
     return Math.round(Math.max(0, Math.min(8, octParam))) // absolute
   }
@@ -102,7 +134,10 @@ class SequencerProcessor extends AudioWorkletProcessor {
       // If step is inactive, currentPitch remains unchanged (holds last active value)
 
       // --- Gate: fraction of step length in *samples*
-      const stepSamples = Math.max(1, Math.floor(this.ticksPerStep * this.samplesPerTick))
+      const stepSamples = Math.max(
+        1,
+        Math.floor(this.ticksPerStep * this.samplesPerTick),
+      )
       const desired = Math.max(0, Math.min(1, gateRatio))
       const gateSamples = Math.max(1, Math.floor(stepSamples * desired))
 
@@ -111,14 +146,14 @@ class SequencerProcessor extends AudioWorkletProcessor {
         // Inform UI gate is on for this step
         this.gateOn = true
         this.gateStep = this.step
-        this.port.postMessage({ type: "gate", step: this.step, on: true })
+        this.port.postMessage({ type: 'gate', step: this.step, on: true })
       } else {
         this.gateOn = false
         this.gateStep = this.step
       }
 
       // Notify UI
-      this.port.postMessage({ type: "step", value: this.step })
+      this.port.postMessage({ type: 'step', value: this.step })
     }
   }
 
@@ -129,14 +164,17 @@ class SequencerProcessor extends AudioWorkletProcessor {
 
     const run = (parameters.run[0] || 0) > 0.5
     // Treat divider as direct integer (1..64)
-    const desiredDiv = Math.max(1, Math.min(64, Math.round(parameters.divider[0] || 1)))
+    const desiredDiv = Math.max(
+      1,
+      Math.min(64, Math.round(parameters.divider[0] || 1)),
+    )
     const gateRatio = parameters.gateRatio[0] ?? 0.25
     if (desiredDiv !== this.currentDivider) this.pendingDivider = desiredDiv
 
     const octParam = parameters.octave[0]
     const baseOct = this._resolveOctaveParam(octParam)
 
-    const in0 = inputs[0] && inputs[0][0] ? inputs[0][0] : null
+    const in0 = inputs[0]?.[0] ? inputs[0][0] : null
     let last = this.lastClock
 
     for (let i = 0; i < n; i++) {
@@ -171,7 +209,7 @@ class SequencerProcessor extends AudioWorkletProcessor {
       // Post a single gate-off event when counter expires
       if (this.gateOn && this.gateCountSamples <= 0) {
         this.gateOn = false
-        this.port.postMessage({ type: "gate", step: this.gateStep, on: false })
+        this.port.postMessage({ type: 'gate', step: this.gateStep, on: false })
       }
 
       outPitch[i] = this.currentPitch
@@ -183,5 +221,4 @@ class SequencerProcessor extends AudioWorkletProcessor {
   }
 }
 
-
-registerProcessor("sequencer-processor", SequencerProcessor)
+registerProcessor('sequencer-processor', SequencerProcessor)

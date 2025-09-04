@@ -112,7 +112,7 @@ export function PatchDropdown() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="sm">
-            Load Patch
+            Patch
             <ChevronDown className="w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>

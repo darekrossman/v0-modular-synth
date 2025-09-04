@@ -11,25 +11,30 @@ import { mapLinear } from '@/lib/utils'
 
 export function ScopeModule({ moduleId }: { moduleId: string }) {
   // Minimal state for controls only
-  const [timeDiv, setTimeDiv] = useState([0.2]) // 0..1 -> 5ms..2s
+  const [timeDiv, setTimeDiv] = useState([0.2]) // 0..1 -> 5ms..6s
   const [voltsIndex, setVoltsIndex] = useState([4]) // 0..4 => 0.25,0.5,1,2,5
   const [triggerEnabled, setTriggerEnabled] = useState(true)
   const [triggerLevelNorm, setTriggerLevelNorm] = useState([0.5]) // normalized 0..1 to -scale..+scale
+  const [triggerSource, setTriggerSource] = useState<0 | 1>(0) // 0=CH1, 1=CH2
 
   const voltsOptions = [0.25, 0.5, 1, 2, 5]
 
   // Audio nodes
   const acRef = useRef<AudioContext | null>(null)
   const workletRef = useRef<AudioWorkletNode | null>(null)
-  const inputRef = useRef<GainNode | null>(null)
+  const input1Ref = useRef<GainNode | null>(null)
+  const input2Ref = useRef<GainNode | null>(null)
+  const mergerRef = useRef<ChannelMergerNode | null>(null)
   const pullRef = useRef<GainNode | null>(null)
   const framePendingRef = useRef<boolean>(false)
 
   // Canvas and data
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const samplesLineRef = useRef<Float32Array | null>(null)
-  const samplesMinRef = useRef<Float32Array | null>(null)
-  const samplesMaxRef = useRef<Float32Array | null>(null)
+  const samplesMin1Ref = useRef<Float32Array | null>(null)
+  const samplesMax1Ref = useRef<Float32Array | null>(null)
+  const samplesMin2Ref = useRef<Float32Array | null>(null)
+  const samplesMax2Ref = useRef<Float32Array | null>(null)
   const drawRef = useRef<() => void>(() => {})
 
   const ensureCanvasSize = useCallback(() => {
@@ -58,39 +63,57 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     const ac = getAudioContext()
     acRef.current = ac
 
-    await ac.audioWorklet.addModule('/simple-oscilloscope-processor.js')
-    const input = ac.createGain()
-    input.gain.value = 1
-    const node = new AudioWorkletNode(ac, 'simple-oscilloscope-processor', {
+    await ac.audioWorklet.addModule('/scope-processor.js')
+    const in1 = ac.createGain()
+    const in2 = ac.createGain()
+    in1.gain.value = 1
+    in2.gain.value = 1
+    const merger = ac.createChannelMerger(2)
+    const node = new AudioWorkletNode(ac, 'scope-processor', {
       numberOfInputs: 1,
       numberOfOutputs: 1,
-      outputChannelCount: [1],
-      channelCount: 1,
+      outputChannelCount: [2],
+      channelCount: 2,
       channelCountMode: 'explicit',
       channelInterpretation: 'speakers',
     })
-    input.connect(node)
+    in1.connect(merger, 0, 0)
+    in2.connect(merger, 0, 1)
+    merger.connect(node)
     // Keep processor pulled by routing to silent gain -> destination
     const pull = ac.createGain()
     pull.gain.value = 0
     node.connect(pull)
     pull.connect(ac.destination)
     workletRef.current = node
-    inputRef.current = input
+    input1Ref.current = in1
+    input2Ref.current = in2
+    mergerRef.current = merger
     pullRef.current = pull
 
     node.port.onmessage = (e) => {
       const d = e.data || {}
       if (d.type === 'frame') {
-        if (d.samplesMin && d.samplesMax) {
-          samplesMinRef.current = new Float32Array(d.samplesMin)
-          samplesMaxRef.current = new Float32Array(d.samplesMax)
+        if (d.ch1Min && d.ch1Max && d.ch2Min && d.ch2Max) {
+          samplesMin1Ref.current = new Float32Array(d.ch1Min)
+          samplesMax1Ref.current = new Float32Array(d.ch1Max)
+          samplesMin2Ref.current = new Float32Array(d.ch2Min)
+          samplesMax2Ref.current = new Float32Array(d.ch2Max)
+          samplesLineRef.current = null
+        } else if (d.samplesMin && d.samplesMax) {
+          // Legacy single-channel fallback
+          samplesMin1Ref.current = new Float32Array(d.samplesMin)
+          samplesMax1Ref.current = new Float32Array(d.samplesMax)
+          samplesMin2Ref.current = null
+          samplesMax2Ref.current = null
           samplesLineRef.current = null
         } else if (d.samples) {
           // Back-compat fallback to averaged line
           samplesLineRef.current = new Float32Array(d.samples)
-          samplesMinRef.current = null
-          samplesMaxRef.current = null
+          samplesMin1Ref.current = null
+          samplesMax1Ref.current = null
+          samplesMin2Ref.current = null
+          samplesMax2Ref.current = null
         }
         // Schedule a draw on the next animation frame for smoother pacing
         if (!framePendingRef.current) {
@@ -112,7 +135,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
       node.port.postMessage({ type: 'config', outPixels: rectW })
     }
     const t = ac.currentTime
-    const winSec = mapLinear(timeDiv[0], 0.001, 2)
+    const winSec = mapLinear(timeDiv[0], 0.001, 6)
     node.parameters.get('windowSec')?.setValueAtTime(winSec, t)
     node.parameters
       .get('triggerEnabled')
@@ -120,6 +143,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     node.parameters.get('triggerLevel')?.setValueAtTime(0, t)
     // Default to AUTO behavior when trigger is enabled
     node.parameters.get('autoMode')?.setValueAtTime(1, t)
+    node.parameters.get('triggerSource')?.setValueAtTime(triggerSource, t)
   }, moduleId)
 
   // Cleanup on unmount
@@ -145,7 +169,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     const node = workletRef.current
     const c = canvasRef.current
     if (!node || !c) return
-    const windowSec = mapLinear(timeDiv[0], 0.001, 2)
+    const windowSec = mapLinear(timeDiv[0], 0.001, 6)
     const voltsPerDiv = voltsOptions[voltsIndex[0]] || 1
     const fullScaleVolts = voltsPerDiv * 5 // 5 divisions up/down
     const trigLevel = mapLinear(
@@ -161,8 +185,11 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     node.parameters.get('triggerLevel')?.setTargetAtTime(trigLevel, now, 0.01)
     // Keep AUTO on by default; easy to change to NORM later if needed
     node.parameters.get('autoMode')?.setTargetAtTime(1, now, 0.01)
+    node.parameters
+      .get('triggerSource')
+      ?.setTargetAtTime(triggerSource, now, 0.01)
     // Keep pixel width synced only on resize handler
-  }, [timeDiv, voltsIndex, triggerEnabled, triggerLevelNorm])
+  }, [timeDiv, voltsIndex, triggerEnabled, triggerLevelNorm, triggerSource])
 
   // Draw grid and trace
   const draw = useCallback(() => {
@@ -220,7 +247,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
       )
       const y = voltsToY(trigLevel)
       ctx.setLineDash([6, 5])
-      ctx.strokeStyle = '#ff8800'
+      ctx.strokeStyle = triggerSource === 0 ? '#ffa500' : '#00bfff'
       ctx.lineWidth = 1.5
       ctx.beginPath()
       ctx.moveTo(0, y)
@@ -230,12 +257,19 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     }
 
     // Trace rendering: prefer min/max bars for accuracy; fallback to line
-    const minData = samplesMinRef.current
-    const maxData = samplesMaxRef.current
-    if (minData && maxData && minData.length > 0 && maxData.length > 0) {
+    const min1 = samplesMin1Ref.current
+    const max1 = samplesMax1Ref.current
+    const min2 = samplesMin2Ref.current
+    const max2 = samplesMax2Ref.current
+    const drawTrace = (
+      minData: Float32Array,
+      maxData: Float32Array,
+      barColor: string,
+      lineColor: string,
+    ) => {
       const len = Math.min(w, minData.length, maxData.length)
       // 1) Peak bars with light alpha to show amplitude envelope
-      ctx.strokeStyle = 'rgba(0,255,122,0.35)'
+      ctx.strokeStyle = barColor
       ctx.lineWidth = 1
       ctx.lineCap = 'butt'
       ctx.beginPath()
@@ -243,7 +277,6 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
         const yMin = Math.max(0, Math.min(h, voltsToY(minData[x])))
         const yMax = Math.max(0, Math.min(h, voltsToY(maxData[x])))
         if (Math.abs(yMax - yMin) < 0.5) {
-          // Ensure plateaus remain visible: draw a 1px dot
           ctx.moveTo(x + 0.5, yMin)
           ctx.lineTo(x + 0.5, yMin + 0.5)
         } else {
@@ -253,8 +286,8 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
       }
       ctx.stroke()
 
-      // 2) Midline to reveal horizontal segments (plateaus)
-      ctx.strokeStyle = '#00ff7a'
+      // 2) Midline
+      ctx.strokeStyle = lineColor
       ctx.lineWidth = 1.5
       ctx.lineJoin = 'round'
       ctx.lineCap = 'round'
@@ -266,7 +299,15 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
         else ctx.lineTo(x, y)
       }
       ctx.stroke()
-    } else if (lineData && lineData.length > 0) {
+    }
+
+    if (min1 && max1 && min1.length > 0 && max1.length > 0) {
+      drawTrace(min1, max1, 'rgba(0,255,122,0.35)', '#00ff7a') // CH1: green
+    }
+    if (min2 && max2 && min2.length > 0 && max2.length > 0) {
+      drawTrace(min2, max2, 'rgba(0,191,255,0.35)', '#00bfff') // CH2: cyan
+    }
+    if (!min1 && !max1 && lineData && lineData.length > 0) {
       ctx.strokeStyle = '#00ff7a'
       ctx.lineWidth = 2
       ctx.lineJoin = 'round'
@@ -282,7 +323,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     }
 
     // Time/div readout in bottom-right (windowSec/10)
-    const windowSec = mapLinear(timeDiv[0], 0.001, 2)
+    const windowSec = mapLinear(timeDiv[0], 0.001, 6)
     const timePerDiv = windowSec / 10
     const formatTime = (t: number) => {
       if (t >= 1) return `${t.toFixed(2)} s/div`
@@ -300,7 +341,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     ctx.textAlign = 'right'
     ctx.textBaseline = 'alphabetic'
     ctx.fillText(label, w - 4 - pad, h - 4 - 3)
-  }, [voltsIndex, triggerEnabled, triggerLevelNorm, timeDiv])
+  }, [voltsIndex, triggerEnabled, triggerLevelNorm, timeDiv, triggerSource])
 
   // Keep a ref to the latest draw function so message handler uses fresh state
   useEffect(() => {
@@ -337,19 +378,19 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
   }, [ensureCanvasSize])
 
   return (
-    <ModuleContainer moduleId={moduleId} title="Scope (Simple)">
+    <ModuleContainer moduleId={moduleId} title="Scope">
       <div className="flex flex-col gap-3 h-full">
-        <div className="bg-black relative w-[315px] h-[300px] rounded-xs overflow-hidden">
+        <div className="bg-black relative w-[300px] h-[300px] overflow-hidden ml-[-16px] mr-[-16px]">
           <canvas ref={canvasRef} className="w-full h-full" />
         </div>
 
-        <div className="flex justify-between items-start">
-          <div className="flex gap-6">
+        <div className="flex justify-between items-center gap-6">
+          <div className="flex flex-1 gap-6">
             <Knob
               value={timeDiv}
               onValueChange={setTimeDiv}
               size="sm"
-              label="Time/Div"
+              label="ms/Div"
             />
 
             <Knob
@@ -358,37 +399,63 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
                 setVoltsIndex([Math.max(0, Math.min(4, Math.round(v[0] * 4)))])
               }
               size="sm"
-              label="Volts/Div"
+              label="V/Div"
               steps={5}
               tickLabels={['', '', '', '', '']}
             />
+
             <Knob
               value={triggerLevelNorm}
               onValueChange={setTriggerLevelNorm}
               size="sm"
-              label="Trig Lvl"
+              label="Trig"
             />
           </div>
 
-          <Button
-            variant={triggerEnabled ? 'default' : 'secondary'}
-            size="xs"
-            className="px-2"
-            onClick={() => setTriggerEnabled((s) => !s)}
-          >
-            Auto
-          </Button>
+          <div className="flex flex-col items-stretch gap-1">
+            <Button
+              variant={triggerEnabled ? 'default' : 'secondary'}
+              size="xs"
+              className="px-2"
+              onClick={() => setTriggerEnabled((s) => !s)}
+            >
+              Trig
+            </Button>
+            <Button
+              variant={triggerSource === 0 ? 'default' : 'secondary'}
+              size="xs"
+              className="px-2"
+              onClick={() => setTriggerSource(0)}
+            >
+              CH1
+            </Button>
+            <Button
+              variant={triggerSource === 1 ? 'default' : 'secondary'}
+              size="xs"
+              className="px-2"
+              onClick={() => setTriggerSource(1)}
+            >
+              CH2
+            </Button>
+          </div>
         </div>
 
         <div className="flex-1" />
 
-        <div className="flex justify-start">
+        <div className="flex justify-start gap-2">
           <Port
-            id={`${moduleId}-in`}
+            id={`${moduleId}-ch1-in`}
             type="input"
             audioType="any"
-            label="IN"
-            audioNode={inputRef.current ?? undefined}
+            label="CH1"
+            audioNode={input1Ref.current ?? undefined}
+          />
+          <Port
+            id={`${moduleId}-ch2-in`}
+            type="input"
+            audioType="any"
+            label="CH2"
+            audioNode={input2Ref.current ?? undefined}
           />
         </div>
       </div>

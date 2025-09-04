@@ -12,23 +12,41 @@
 class QuantizerProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: 'key', defaultValue: 0, minValue: 0, maxValue: 11, automationRate: 'k-rate' },
-      { name: 'hold', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
-      { name: 'transpose', defaultValue: 0, minValue: -96, maxValue: 96, automationRate: 'k-rate' },
+      {
+        name: 'key',
+        defaultValue: 0,
+        minValue: 0,
+        maxValue: 11,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'hold',
+        defaultValue: 0,
+        minValue: 0,
+        maxValue: 1,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'transpose',
+        defaultValue: 0,
+        minValue: -96,
+        maxValue: 96,
+        automationRate: 'k-rate',
+      },
     ]
   }
 
   constructor() {
     super()
-    this.mask12 = 0xFFF // default: chromatic (all on)
+    this.mask12 = 0xfff // default: chromatic (all on)
     this.lastTrig = 0
     this.latchedVolts = 0
 
     this.port.onmessage = (e) => {
       const d = e.data || {}
       if (d.type === 'scale' && typeof d.mask12 === 'number') {
-        this.mask12 = d.mask12 & 0xFFF
-        if (this.mask12 === 0) this.mask12 = 0xFFF
+        this.mask12 = d.mask12 & 0xfff
+        if (this.mask12 === 0) this.mask12 = 0xfff
       }
     }
   }
@@ -36,7 +54,7 @@ class QuantizerProcessor extends AudioWorkletProcessor {
   // Find nearest allowed semitone (0..11) to 'note' (0..11 float), given key rotation
   nearestInScale(note, key) {
     // Rotate mask by key
-    const mask = ((this.mask12 << key) | (this.mask12 >>> (12 - key))) & 0xFFF
+    const mask = ((this.mask12 << key) | (this.mask12 >>> (12 - key))) & 0xfff
     let best = 0
     let bestDist = 1e9
     for (let n = 0; n < 12; n++) {
@@ -44,7 +62,8 @@ class QuantizerProcessor extends AudioWorkletProcessor {
       // distance on circular chroma (choose nearest direction)
       let d = Math.abs(n - note)
       if (d > 6) d = 12 - d
-      if (d < bestDist || (d === bestDist && n >= note)) { // bias to upwards on tie
+      if (d < bestDist || (d === bestDist && n >= note)) {
+        // bias to upwards on tie
         bestDist = d
         best = n
       }
@@ -55,10 +74,10 @@ class QuantizerProcessor extends AudioWorkletProcessor {
   quantizeVolts(volts, key) {
     // Convert voltage to semitones (1V/oct standard)
     const inputSemitones = volts * 12
-    
+
     // Get the rotated scale mask for the current key
-    const mask = ((this.mask12 << key) | (this.mask12 >>> (12 - key))) & 0xFFF
-    
+    const mask = ((this.mask12 << key) | (this.mask12 >>> (12 - key))) & 0xfff
+
     // Build array of valid notes in the scale
     const validNotes = []
     for (let i = 0; i < 12; i++) {
@@ -66,16 +85,16 @@ class QuantizerProcessor extends AudioWorkletProcessor {
         validNotes.push(i)
       }
     }
-    
+
     // If no valid notes, return input unchanged
     if (validNotes.length === 0) return volts
-    
+
     // Find the closest valid note across all octaves
     // We'll check the current octave and adjacent ones to avoid discontinuities
     const centerOctave = Math.floor(inputSemitones / 12)
     let bestSemitone = centerOctave * 12
     let bestDistance = Infinity
-    
+
     // Check octaves around the current position
     for (let oct = centerOctave - 1; oct <= centerOctave + 1; oct++) {
       for (const note of validNotes) {
@@ -87,15 +106,15 @@ class QuantizerProcessor extends AudioWorkletProcessor {
         }
       }
     }
-    
+
     // Convert back to voltage
     return bestSemitone / 12
   }
 
   process(inputs, outputs, parameters) {
-    const pitchIn = inputs[0] && inputs[0][0] ? inputs[0][0] : null
-    const trigIn = inputs[1] && inputs[1][0] ? inputs[1][0] : null
-    const out = outputs[0] && outputs[0][0] ? outputs[0][0] : null
+    const pitchIn = inputs[0]?.[0] ? inputs[0][0] : null
+    const trigIn = inputs[1]?.[0] ? inputs[1][0] : null
+    const out = outputs[0]?.[0] ? outputs[0][0] : null
     if (!out) return true
 
     const n = out.length
