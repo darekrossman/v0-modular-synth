@@ -204,12 +204,12 @@ export function Port({
   return (
     <div
       className={cn(
-        'flex flex-col items-center gap-1 h-[54px] bg-neutral-400/50 rounded-sm relative',
+        'flex flex-col items-center justify-center gap-1 rounded-sm relative',
         {
           'size-11 justify-center': !label,
-          'h-[54px] px-1 pt-1 pb-1.5 w-11': label,
-          'bg-transparent shadow-[inset_0_0_0_2px_oklch(80%_0_0)] rounded-sm':
-            type === 'input',
+          'w-10 h-12': label,
+          // '': type === 'output',
+          'bg-transparent': type === 'input',
         },
         className,
       )}
@@ -220,7 +220,7 @@ export function Port({
         data-port-id={id}
         data-port-kind={kind}
         className={cn(
-          'relative w-5.5 h-5.5 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]',
+          'relative w-6 h-6 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]',
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

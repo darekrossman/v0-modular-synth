@@ -343,21 +343,21 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
             <Port
               id={`${moduleId}-gate-in`}
               type="input"
-              label="Gate In"
+              label="Gate"
               audioType="cv"
               audioNode={gateInputRef.current ?? undefined}
             />
             <Port
               id={`${moduleId}-inv-out`}
               type="output"
-              label="INV OUT"
+              label="INV"
               audioType="cv"
               audioNode={invOutRef.current ?? undefined}
             />
             <Port
               id={`${moduleId}-env-out`}
               type="output"
-              label="Env Out"
+              label="Out"
               audioType="cv"
               audioNode={envOutRef.current ?? undefined}
             />

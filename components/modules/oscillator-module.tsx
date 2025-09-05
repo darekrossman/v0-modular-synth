@@ -260,28 +260,20 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
           tickLabels={[0, 1, 2, 3, 4, 5, 6, 7, 8]}
         />
 
-        <div className="flex gap-4 justify-center">
-          <Knob
-            value={[tuneToKnob(tune[0])]}
-            onValueChange={(v) => setTune([knobToTune(v[0])])}
-            size="sm"
-            label="Tune"
-          />
-          <Knob
+        <Knob
+          value={[tuneToKnob(tune[0])]}
+          onValueChange={(v) => setTune([knobToTune(v[0])])}
+          size="md"
+          label="Tune"
+        />
+        {/* <Knob
             value={[phaseToKnob(phase[0])]}
             onValueChange={(v) => setPhase([knobToPhase(v[0])])}
             size="sm"
             label="Phase"
-          />
-          <Knob
-            value={pulseWidth}
-            onValueChange={setPulseWidth}
-            size="sm"
-            label="PWM"
-          />
-        </div>
+          /> */}
 
-        <div className="flex gap-4 justify-center">
+        <div className="flex gap-6 justify-center">
           <Knob
             value={syncAmount}
             onValueChange={setSyncAmount}
@@ -289,16 +281,10 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
             label="Sync"
           />
           <Knob
-            value={waveformMorph}
-            onValueChange={setWaveformMorph}
+            value={pulseWidth}
+            onValueChange={setPulseWidth}
             size="sm"
-            label="Morph"
-          />
-          <Knob
-            value={fmAmount}
-            onValueChange={setFmAmount}
-            size="sm"
-            label="FM"
+            label="PWM"
           />
         </div>
 
@@ -309,15 +295,18 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
       <div className="flex-grow" />
 
       {/* Ports */}
-      <div className="flex flex-col gap-2">
-        <div className="flex justify-between items-end gap-0">
-          <Port
-            id={`${moduleId}-fm-in`}
-            type="input"
-            audioType="cv"
-            label="FM"
-            audioNode={fmInputRef.current ?? undefined}
-          />
+      <div className="flex flex-col gap-0">
+        <div className="flex items-end gap-0">
+          <div className="flex flex-col items-center gap-2">
+            <Knob value={fmAmount} onValueChange={setFmAmount} size="xs" />
+            <Port
+              id={`${moduleId}-fm-in`}
+              type="input"
+              audioType="cv"
+              label="FM"
+              audioNode={fmInputRef.current ?? undefined}
+            />
+          </div>
           <div className="flex flex-col items-center gap-2">
             <Knob value={morphCvAmt} onValueChange={setMorphCvAmt} size="xs" />
             <Port
@@ -339,7 +328,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
             />
           </div>
         </div>
-        <div className="flex justify-between gap-0">
+        <div className="flex gap-0">
           <Port
             id={`${moduleId}-freq-in`}
             type="input"
@@ -347,20 +336,22 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
             label="Note"
             audioNode={frequencyInputRef.current ?? undefined}
           />
-          <Port
-            id={`${moduleId}-sync-in`}
-            type="input"
-            audioType="audio"
-            label="Sync"
-            audioNode={syncInputRef.current ?? undefined}
-          />
-          <Port
-            id={`${moduleId}-audio-out`}
-            type="output"
-            audioType="audio"
-            label="Out"
-            audioNode={outputRef.current ?? undefined}
-          />
+          <div className="flex items-center bg-neutral-400/50 rounded-sm">
+            <Port
+              id={`${moduleId}-sync-in`}
+              type="input"
+              audioType="audio"
+              label="Sync"
+              audioNode={syncInputRef.current ?? undefined}
+            />
+            <Port
+              id={`${moduleId}-audio-out`}
+              type="output"
+              audioType="audio"
+              label="Out"
+              audioNode={outputRef.current ?? undefined}
+            />
+          </div>
         </div>
       </div>
     </ModuleContainer>
