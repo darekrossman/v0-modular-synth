@@ -384,8 +384,19 @@ export function WireCanvas() {
     startTriangle.setAttribute('stroke-width', '6')
     startCircle.setAttribute('stroke-opacity', '1')
     startTriangle.setAttribute('stroke-opacity', '1')
+    // Inner circle with white outline
+    const startInner = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'circle',
+    )
+    startInner.setAttribute('r', '6')
+    startInner.setAttribute('fill', 'none')
+    startInner.setAttribute('stroke', '#fff')
+    startInner.setAttribute('stroke-width', '2')
+    startInner.setAttribute('vector-effect', 'non-scaling-stroke')
     startRing.appendChild(startCircle)
     startRing.appendChild(startTriangle)
+    startRing.appendChild(startInner)
     startRing.setAttribute('class', 'wire-start-ring')
 
     const endRing = document.createElementNS('http://www.w3.org/2000/svg', 'g')
@@ -405,8 +416,19 @@ export function WireCanvas() {
     endTriangle.setAttribute('fill', 'none')
     endTriangle.setAttribute('stroke-width', '6')
     endTriangle.setAttribute('stroke-opacity', '1')
+    // Inner circle with white outline
+    const endInner = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'circle',
+    )
+    endInner.setAttribute('r', '6')
+    endInner.setAttribute('fill', 'none')
+    endInner.setAttribute('stroke', '#fff')
+    endInner.setAttribute('stroke-width', '2')
+    endInner.setAttribute('vector-effect', 'non-scaling-stroke')
     endRing.appendChild(endCircle)
     endRing.appendChild(endTriangle)
+    endRing.appendChild(endInner)
     endRing.setAttribute('class', 'wire-end-ring')
 
     g.appendChild(startRing)
@@ -648,6 +670,13 @@ export function WireCanvas() {
             strokeWidth="6"
             strokeOpacity={1}
           />
+          <circle
+            r="6"
+            fill="none"
+            stroke="#fff"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+          />
         </g>
 
         {/* Temp end ring */}
@@ -658,6 +687,13 @@ export function WireCanvas() {
             fill="none"
             strokeWidth="6"
             strokeOpacity={1}
+          />
+          <circle
+            r="6"
+            fill="none"
+            stroke="#fff"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
           />
         </g>
 
