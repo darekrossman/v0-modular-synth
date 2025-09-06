@@ -1,54 +1,54 @@
-'use client';
+'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ModuleContainer } from '@/components/module-container';
-import { useModulePatch } from '@/components/patch-manager';
-import { Port } from '@/components/port';
-import { Knob } from '@/components/ui/knob';
-import { useModuleInit } from '@/hooks/use-module-init';
-import { getAudioContext } from '@/lib/helpers';
-import { mapLinear } from '@/lib/utils';
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ModuleContainer } from '@/components/module-container'
+import { useModulePatch } from '@/components/patch-manager'
+import { Port, PortGroup } from '@/components/port'
+import { Knob } from '@/components/ui/knob'
+import { useModuleInit } from '@/hooks/use-module-init'
+import { getAudioContext } from '@/lib/helpers'
+import { mapLinear } from '@/lib/utils'
+import { TextLabel } from '../text-label'
+import { Slider } from '../ui/slider'
 
 export function VCAModule({ moduleId }: { moduleId: string }) {
   // Register with patch manager and get initial parameters
   const { initialParameters } = useModulePatch(moduleId, () => ({
     cvAmount: cvAmount[0],
     offset: offset[0],
-  }));
+  }))
 
   // UI knobs are 0..1
-  const [cvAmount, setCvAmount] = useState([
-    initialParameters?.cvAmount ?? 1.0,
-  ]); // 0..1 attenuator
-  const [offset, setOffset] = useState([initialParameters?.offset ?? 0.0]); // 0..1 base gain
+  const [cvAmount, setCvAmount] = useState([initialParameters?.cvAmount ?? 1.0]) // 0..1 attenuator
+  const [offset, setOffset] = useState([initialParameters?.offset ?? 0.0]) // 0..1 base gain
 
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioInRef = useRef<GainNode | null>(null);
-  const cvInRef = useRef<GainNode | null>(null);
-  const cvAmtInRef = useRef<GainNode | null>(null);
-  const vcaNodeRef = useRef<AudioWorkletNode | null>(null);
-  const audioOutRef = useRef<GainNode | null>(null);
-  const keepAliveRef = useRef<GainNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioInRef = useRef<GainNode | null>(null)
+  const cvInRef = useRef<GainNode | null>(null)
+  const cvAmtInRef = useRef<GainNode | null>(null)
+  const vcaNodeRef = useRef<AudioWorkletNode | null>(null)
+  const audioOutRef = useRef<GainNode | null>(null)
+  const keepAliveRef = useRef<GainNode | null>(null)
 
   useModuleInit(async () => {
-    if (vcaNodeRef.current) return; // Already initialized
+    if (vcaNodeRef.current) return // Already initialized
 
-    const ac = getAudioContext();
-    audioContextRef.current = ac;
+    const ac = getAudioContext()
+    audioContextRef.current = ac
 
-    await ac.audioWorklet.addModule('/vca-processor.js');
+    await ac.audioWorklet.addModule('/vca-processor.js')
 
-    audioInRef.current = ac.createGain();
-    audioInRef.current.gain.value = 1;
+    audioInRef.current = ac.createGain()
+    audioInRef.current.gain.value = 1
 
-    cvInRef.current = ac.createGain();
-    cvInRef.current.gain.value = 1; // treat 1.0 in buffer == 1 V in our CV domain
+    cvInRef.current = ac.createGain()
+    cvInRef.current.gain.value = 1 // treat 1.0 in buffer == 1 V in our CV domain
 
-    cvAmtInRef.current = ac.createGain();
-    cvAmtInRef.current.gain.value = 1;
+    cvAmtInRef.current = ac.createGain()
+    cvAmtInRef.current.gain.value = 1
 
-    audioOutRef.current = ac.createGain();
-    audioOutRef.current.gain.value = 1;
+    audioOutRef.current = ac.createGain()
+    audioOutRef.current.gain.value = 1
 
     const node = new AudioWorkletNode(ac, 'vca-processor', {
       numberOfInputs: 3,
@@ -63,65 +63,78 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
         hardGateDb: -90,
         sat: 0.0,
       },
-    });
-    vcaNodeRef.current = node;
+    })
+    vcaNodeRef.current = node
 
-    audioInRef.current.connect(node, 0, 0);
-    cvInRef.current.connect(node, 0, 1);
-    cvAmtInRef.current.connect(node, 0, 2);
-    node.connect(audioOutRef.current);
+    audioInRef.current.connect(node, 0, 0)
+    cvInRef.current.connect(node, 0, 1)
+    cvAmtInRef.current.connect(node, 0, 2)
+    node.connect(audioOutRef.current)
 
-    keepAliveRef.current = ac.createGain();
-    keepAliveRef.current.gain.value = 0;
-    audioOutRef.current.connect(keepAliveRef.current);
-    keepAliveRef.current.connect(ac.destination);
+    keepAliveRef.current = ac.createGain()
+    keepAliveRef.current.gain.value = 0
+    audioOutRef.current.connect(keepAliveRef.current)
+    keepAliveRef.current.connect(ac.destination)
 
-    console.log('[VCA] initialized (linear, 10V=unity)');
-  }, moduleId);
+    console.log('[VCA] initialized (linear, 10V=unity)')
+  }, moduleId)
 
   useEffect(() => {
     const ac = audioContextRef.current,
-      node = vcaNodeRef.current;
+      node = vcaNodeRef.current
     if (ac && node)
       node.parameters
         .get('cvAmount')
-        ?.setValueAtTime(mapLinear(cvAmount[0], 0, 1), ac.currentTime);
-  }, [cvAmount]);
+        ?.setValueAtTime(mapLinear(cvAmount[0], 0, 1), ac.currentTime)
+  }, [cvAmount])
 
   useEffect(() => {
     const ac = audioContextRef.current,
-      node = vcaNodeRef.current;
+      node = vcaNodeRef.current
     if (ac && node)
       node.parameters
         .get('offset')
-        ?.setValueAtTime(mapLinear(offset[0], 0, 1), ac.currentTime);
-  }, [offset]);
+        ?.setValueAtTime(mapLinear(offset[0], 0, 1), ac.currentTime)
+  }, [offset])
 
   return (
     <ModuleContainer title="VCA" moduleId={moduleId} data-module-id={moduleId}>
-      <div className="flex flex-col flex-1 justify-center items-center gap-6">
-        <Knob value={cvAmount} onValueChange={setCvAmount} label="CV" />
-        <Knob value={offset} onValueChange={setOffset} label="Offset" />
+      <div className="flex flex-col flex-1 justify-center items-center gap-3 mt-4 mb-9">
+        <Slider
+          value={offset}
+          onValueChange={setOffset}
+          orientation="vertical"
+          size="md"
+          min={0}
+          max={1}
+          step={0.01}
+        />
+        <TextLabel variant="control" className="text-xs">
+          Offset
+        </TextLabel>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex justify-between items-end gap-2">
-          <Port
-            id={`${moduleId}-cv-in`}
-            type="input"
-            label="CV"
-            audioType="cv"
-            audioNode={cvInRef.current ?? undefined}
-          />
+      <div className="flex flex-col gap-2 mt-12">
+        <div className="flex items-end">
+          <div className="flex flex-col items-center gap-2">
+            <Knob value={cvAmount} onValueChange={setCvAmount} size="xs" />
+            <Port
+              id={`${moduleId}-cv-in`}
+              type="input"
+              label="CV"
+              audioType="cv"
+              audioNode={cvInRef.current ?? undefined}
+            />
+          </div>
           <Port
             id={`${moduleId}-cv-amt-in`}
             type="input"
-            label="CV Amt"
+            label="Lvl"
             audioType="cv"
             audioNode={cvAmtInRef.current ?? undefined}
           />
         </div>
-        <div className="flex justify-between items-end gap-2">
+        <PortGroup>
           <Port
             id={`${moduleId}-audio-in`}
             type="input"
@@ -136,8 +149,8 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
             audioType="audio"
             audioNode={audioOutRef.current ?? undefined}
           />
-        </div>
+        </PortGroup>
       </div>
     </ModuleContainer>
-  );
+  )
 }

@@ -60,7 +60,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
       xs: 'w-5 h-5',
       sm: 'w-7 h-7',
       md: 'w-10 h-10',
-      lg: 'w-18 h-18',
+      lg: 'w-16 h-16',
     }
 
     // SVG viewBox and radius configuration for each size
@@ -82,7 +82,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
       xs: { length: 'w-[1px] h-[1px]', radius: 14, fontSize: 'text-[7px]' },
       sm: { length: 'w-[1px] h-[2px]', radius: 16, fontSize: 'text-[7px]' },
       md: { length: 'w-[1px] h-[2px]', radius: 23, fontSize: 'text-[7px]' },
-      lg: { length: 'w-[2px] h-[6px]', radius: 42, fontSize: 'text-[7px]' },
+      lg: { length: 'w-[2px] h-[4px]', radius: 36, fontSize: 'text-[7px]' },
     }
 
     const padSizeClasses = {

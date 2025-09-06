@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ModuleContainer } from '@/components/module-container'
 import { useModulePatch } from '@/components/patch-manager'
-import { Port } from '@/components/port'
+import { Port, PortGroup } from '@/components/port'
 import { Button } from '@/components/ui/button'
 import { Knob } from '@/components/ui/knob'
 import { KnobV3 } from '@/components/ui/knob-v3'
@@ -295,7 +295,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
       <div className="flex-grow" />
 
       {/* Ports */}
-      <div className="flex flex-col gap-0">
+      <div className="flex flex-col gap-1">
         <div className="flex items-end gap-0">
           <div className="flex flex-col items-center gap-2">
             <Knob value={fmAmount} onValueChange={setFmAmount} size="xs" />
@@ -336,7 +336,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
             label="Note"
             audioNode={frequencyInputRef.current ?? undefined}
           />
-          <div className="flex items-center bg-neutral-400/50 rounded-sm">
+          <PortGroup>
             <Port
               id={`${moduleId}-sync-in`}
               type="input"
@@ -351,7 +351,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
               label="Out"
               audioNode={outputRef.current ?? undefined}
             />
-          </div>
+          </PortGroup>
         </div>
       </div>
     </ModuleContainer>

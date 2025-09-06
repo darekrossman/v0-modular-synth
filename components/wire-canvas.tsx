@@ -374,14 +374,14 @@ export function WireCanvas() {
     )
     startCircle.setAttribute('r', '10')
     startCircle.setAttribute('fill', 'none')
-    startCircle.setAttribute('stroke-width', '6')
+    startCircle.setAttribute('stroke-width', '5')
     const startTriangle = document.createElementNS(
       'http://www.w3.org/2000/svg',
       'path',
     )
     startTriangle.setAttribute('d', 'M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7')
     startTriangle.setAttribute('fill', 'none')
-    startTriangle.setAttribute('stroke-width', '6')
+    startTriangle.setAttribute('stroke-width', '5')
     startCircle.setAttribute('stroke-opacity', '1')
     startTriangle.setAttribute('stroke-opacity', '1')
     // Inner circle with white outline
@@ -389,7 +389,7 @@ export function WireCanvas() {
       'http://www.w3.org/2000/svg',
       'circle',
     )
-    startInner.setAttribute('r', '6')
+    startInner.setAttribute('r', '7')
     startInner.setAttribute('fill', 'none')
     startInner.setAttribute('stroke', '#fff')
     startInner.setAttribute('stroke-width', '2')
@@ -406,7 +406,7 @@ export function WireCanvas() {
     )
     endCircle.setAttribute('r', '10')
     endCircle.setAttribute('fill', 'none')
-    endCircle.setAttribute('stroke-width', '6')
+    endCircle.setAttribute('stroke-width', '5')
     endCircle.setAttribute('stroke-opacity', '1')
     const endTriangle = document.createElementNS(
       'http://www.w3.org/2000/svg',
@@ -414,14 +414,14 @@ export function WireCanvas() {
     )
     endTriangle.setAttribute('d', 'M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7')
     endTriangle.setAttribute('fill', 'none')
-    endTriangle.setAttribute('stroke-width', '6')
+    endTriangle.setAttribute('stroke-width', '5')
     endTriangle.setAttribute('stroke-opacity', '1')
     // Inner circle with white outline
     const endInner = document.createElementNS(
       'http://www.w3.org/2000/svg',
       'circle',
     )
-    endInner.setAttribute('r', '6')
+    endInner.setAttribute('r', '7')
     endInner.setAttribute('fill', 'none')
     endInner.setAttribute('stroke', '#fff')
     endInner.setAttribute('stroke-width', '2')
@@ -663,7 +663,7 @@ export function WireCanvas() {
 
         {/* Temp start ring */}
         <g ref={tempStartRingRef} style={{ display: 'none' }}>
-          <circle r="10" fill="none" strokeWidth="6" strokeOpacity={1} />
+          <circle r="10" fill="none" strokeWidth="5" strokeOpacity={1} />
           <path
             d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7"
             fill="none"
@@ -671,7 +671,7 @@ export function WireCanvas() {
             strokeOpacity={1}
           />
           <circle
-            r="6"
+            r="7"
             fill="none"
             stroke="#fff"
             strokeWidth="2"
@@ -681,7 +681,7 @@ export function WireCanvas() {
 
         {/* Temp end ring */}
         <g ref={tempEndRingRef} style={{ display: 'none' }}>
-          <circle r="10" fill="none" strokeWidth="6" strokeOpacity={1} />
+          <circle r="10" fill="none" strokeWidth="5" strokeOpacity={1} />
           <path
             d="M 7,-7 L 14,-2 A 2,2 0 0,1 14,2 L 7,7"
             fill="none"
@@ -689,7 +689,7 @@ export function WireCanvas() {
             strokeOpacity={1}
           />
           <circle
-            r="6"
+            r="7"
             fill="none"
             stroke="#fff"
             strokeWidth="2"

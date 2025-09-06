@@ -220,7 +220,7 @@ export function Port({
         data-port-id={id}
         data-port-kind={kind}
         className={cn(
-          'relative w-6 h-6 shrink-0 rounded-full cursor-pointer hover:scale-110 select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]',
+          'relative w-6 h-6 shrink-0 rounded-full cursor-pointer select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]',
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -240,6 +240,14 @@ export function Port({
           <div className="absolute inset-[3px] rounded-full bg-neutral-900" />
         )}
       </div>
+    </div>
+  )
+}
+
+export const PortGroup = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <div className="flex items-center rounded-sm bg-port-background">
+      {children}
     </div>
   )
 }

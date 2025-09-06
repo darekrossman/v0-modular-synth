@@ -40,6 +40,9 @@
   --sidebar-accent-foreground: oklch(0.95 0.013 252.37);
   --sidebar-border: oklch(0.14 0.004 285.82);
   --sidebar-ring: oklch(0.95 0.013 252.37);
+
+  --port-background: oklch(0.8 0.002 240);
+  --module-background: oklch(0.04 0.002 240);
 }
 
 @theme inline {
@@ -81,7 +84,12 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --font-sans: var(--font-geist);
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+
+  --color-port-background: var(--port-background);
+  --color-module-background: var(--module-background);
 }
 
 @layer base {

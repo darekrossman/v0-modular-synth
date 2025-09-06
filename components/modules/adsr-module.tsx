@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ModuleContainer } from '@/components/module-container'
 import { useModulePatch } from '@/components/patch-manager'
-import { Port } from '@/components/port'
+import { Port, PortGroup } from '@/components/port'
 import { TextLabel } from '@/components/text-label'
 import { Knob } from '@/components/ui/knob'
 import { PushButton } from '@/components/ui/push-button'
@@ -347,20 +347,22 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
               audioType="cv"
               audioNode={gateInputRef.current ?? undefined}
             />
-            <Port
-              id={`${moduleId}-inv-out`}
-              type="output"
-              label="INV"
-              audioType="cv"
-              audioNode={invOutRef.current ?? undefined}
-            />
-            <Port
-              id={`${moduleId}-env-out`}
-              type="output"
-              label="Out"
-              audioType="cv"
-              audioNode={envOutRef.current ?? undefined}
-            />
+            <PortGroup>
+              <Port
+                id={`${moduleId}-inv-out`}
+                type="output"
+                label="INV"
+                audioType="cv"
+                audioNode={invOutRef.current ?? undefined}
+              />
+              <Port
+                id={`${moduleId}-env-out`}
+                type="output"
+                label="Out"
+                audioType="cv"
+                audioNode={envOutRef.current ?? undefined}
+              />
+            </PortGroup>
           </div>
         </div>
       </div>
