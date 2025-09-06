@@ -19,8 +19,8 @@ export function TextLabel({
     'font-mono text-xs select-none text-center tracking-[0.05em] [text-box-edge:cap_alphabetic] [text-box-trim:trim-both]'
 
   const variantClasses = {
-    port: 'flex items-center justify-center text-black text-[9px] font-bold text-center leading-[9px] lowercase w-full',
-    control: 'font-bold text-[9px] lowercase text-black leading-[10px]',
+    port: 'flex items-center justify-center text-[9px] font-bold text-center leading-[9px] lowercase w-full',
+    control: 'font-bold text-[9px] lowercase leading-[10px]',
     parameter: 'font-medium mb-2',
   }
 

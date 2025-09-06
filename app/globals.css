@@ -41,8 +41,8 @@
   --sidebar-border: oklch(0.14 0.004 285.82);
   --sidebar-ring: oklch(0.95 0.013 252.37);
 
-  --port-background: oklch(0.8 0.002 240);
-  --module-background: oklch(0.04 0.002 240);
+  --port-background: oklch(0.145 0.002 240);
+  --module-background: oklch(0.95 0.002 240);
 }
 
 @theme inline {

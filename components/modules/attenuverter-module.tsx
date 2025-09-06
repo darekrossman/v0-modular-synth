@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useConnections } from '@/components/connection-manager'
 import { ModuleContainer } from '@/components/module-container'
 import { useModulePatch } from '@/components/patch-manager'
-import { Port } from '@/components/port'
+import { Port, PortGroup } from '@/components/port'
 import { TextLabel } from '@/components/text-label'
 import { Knob } from '@/components/ui/knob'
 import { useModuleInit } from '@/hooks/use-module-init'
 import { getAudioContext } from '@/lib/helpers'
+import { HLine } from '../marks'
 
 export function AttenuverterModule({ moduleId }: { moduleId: string }) {
   // Get initial parameters and set up persistence
@@ -136,19 +137,17 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="Attenuverter" moduleId={moduleId}>
-      <div className="flex flex-col gap-3 py-2">
-        <div className="grid gap-3">
+      <div className="flex flex-col gap-3 flex-1 mt-4">
+        <div className="flex flex-col justify-between flex-1">
           {Array.from({ length: 8 }, (_, i) => (
-            <div
-              key={i}
-              className="grid grid-cols-[auto_1fr_auto] items-center gap-3"
-            >
+            <div key={i} className="flex justify-between items-center">
               <Port
                 id={`${moduleId}-in-${i + 1}`}
                 type="input"
                 audioType="any"
                 audioNode={inRefs.current[i] ?? undefined}
               />
+              <HLine className="ml-[-4px] mr-[6px]" />
               <div className="flex flex-col items-center gap-1 py-1">
                 <Knob
                   size="sm"
@@ -156,12 +155,15 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
                   onValueChange={setGainAtIndex(i)}
                 />
               </div>
-              <Port
-                id={`${moduleId}-out-${i + 1}`}
-                type="output"
-                audioType="any"
-                audioNode={outRefs.current[i] ?? undefined}
-              />
+              <HLine className="mr-[-0px] ml-[6px]" />
+              <PortGroup>
+                <Port
+                  id={`${moduleId}-out-${i + 1}`}
+                  type="output"
+                  audioType="any"
+                  audioNode={outRefs.current[i] ?? undefined}
+                />
+              </PortGroup>
             </div>
           ))}
         </div>

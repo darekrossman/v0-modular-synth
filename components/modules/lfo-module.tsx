@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ModuleContainer } from '@/components/module-container'
 import { useModulePatch } from '@/components/patch-manager'
-import { Port } from '@/components/port'
+import { Port, PortGroup } from '@/components/port'
 import { Button } from '@/components/ui/button'
 import { Knob } from '@/components/ui/knob'
 import { KnobV2 } from '@/components/ui/knob-v2'
 import { useModuleInit } from '@/hooks/use-module-init'
 import { getAudioContext } from '@/lib/helpers'
 import { mapLinear } from '@/lib/utils'
+import { VLine } from '../marks'
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group'
 
 // ---------- ranges ----------
 const FREQ_MIN = 0.5,
@@ -321,34 +323,32 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
   return (
     <ModuleContainer title="LFO" moduleId={moduleId}>
       {/* Wave buttons */}
-      <div className="grid grid-cols-3 gap-0.5 mx-auto">
-        {[0, 1, 2, 3, 4, 5].map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={shape === s ? 'default' : 'secondary'}
-            className="size-8 px-0"
-            onClick={() => setShape(s as Shape)}
-          >
+      <ToggleGroup
+        type="single"
+        size="md"
+        value={shape.toString()}
+        onValueChange={(v) => setShape(parseInt(v, 10) as Shape)}
+      >
+        {[0, 1, 2, 3, 5].map((s) => (
+          <ToggleGroupItem key={s} value={s.toString()}>
             {icons[s as Shape]}
-          </Button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
 
-      <div className="flex flex-col items-center gap-5 mt-5">
+      <div className="flex flex-col items-center gap-6 mt-5">
         <Knob value={freq} onValueChange={setFreq} label="Freq" size="lg" />
 
-        <div className="flex flex-col items-center gap-5">
-          <div className="flex gap-5">
-            <Knob value={amp} onValueChange={setAmp} label="Amp" size="sm" />
+        <div className="flex flex-col items-center gap-6">
+          <Knob value={amp} onValueChange={setAmp} label="Amp" size="md" />
+
+          <div className="flex gap-6">
             <Knob
               value={offset}
               onValueChange={setOffset}
-              label="Offset"
+              label="Oset"
               size="sm"
             />
-          </div>
-          <div className="flex gap-5">
             <Knob value={pw} onValueChange={setPw} label="PWM" size="sm" />
             <Knob value={slew} onValueChange={setSlew} label="Slew" size="sm" />
           </div>
@@ -358,44 +358,54 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
       <div className="flex-1" />
 
       {/* Ports – pass the node you want that port to represent */}
-      <div className="flex flex-col gap-2 flex-1 justify-end">
-        <div className="grid grid-cols-4 justify-items-center gap-2">
-          <Knob value={rateAmt} onValueChange={setRateAmt} size="xs" />
-          <Knob value={pwAmt} onValueChange={setPwAmt} size="xs" />
-          <Knob value={ampAmt} onValueChange={setAmpAmt} size="xs" />
-          <Knob value={offAmt} onValueChange={setOffAmt} size="xs" />
-        </div>
+      <div className="flex flex-col gap-1 flex-1 justify-end">
         <div className="flex justify-between items-end gap-0">
-          <Port
-            id={`${moduleId}-rate-cv-in`}
-            type="input"
-            label="RATE"
-            audioType="cv"
-            audioNode={rateInRef.current ?? undefined}
-          />
-          <Port
-            id={`${moduleId}-pw-cv-in`}
-            type="input"
-            label="PWM"
-            audioType="cv"
-            audioNode={pwInRef.current ?? undefined}
-          />
-          <Port
-            id={`${moduleId}-amp-cv-in`}
-            type="input"
-            label="AMP"
-            audioType="cv"
-            audioNode={ampInRef.current ?? undefined}
-          />
-          <Port
-            id={`${moduleId}-offset-cv-in`}
-            type="input"
-            label="OFFS"
-            audioType="cv"
-            audioNode={offInRef.current ?? undefined}
-          />
+          <div className="flex flex-col items-center gap-3">
+            <Knob value={rateAmt} onValueChange={setRateAmt} size="xs" />
+            <VLine />
+            <Port
+              id={`${moduleId}-rate-cv-in`}
+              type="input"
+              label="RATE"
+              audioType="cv"
+              audioNode={rateInRef.current ?? undefined}
+            />
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <Knob value={pwAmt} onValueChange={setPwAmt} size="xs" />
+            <VLine />
+            <Port
+              id={`${moduleId}-pw-cv-in`}
+              type="input"
+              label="PWM"
+              audioType="cv"
+              audioNode={pwInRef.current ?? undefined}
+            />
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <Knob value={ampAmt} onValueChange={setAmpAmt} size="xs" />
+            <VLine />
+            <Port
+              id={`${moduleId}-amp-cv-in`}
+              type="input"
+              label="AMP"
+              audioType="cv"
+              audioNode={ampInRef.current ?? undefined}
+            />
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <Knob value={offAmt} onValueChange={setOffAmt} size="xs" />
+            <VLine />
+            <Port
+              id={`${moduleId}-offset-cv-in`}
+              type="input"
+              label="OFFS"
+              audioType="cv"
+              audioNode={offInRef.current ?? undefined}
+            />
+          </div>
         </div>
-        <div className="flex justify-between items-end gap-0">
+        <div className="flex justify-between">
           <Port
             id={`${moduleId}-sync-in`}
             type="input"
@@ -403,21 +413,22 @@ export function LFOModule({ moduleId }: { moduleId: string }) {
             audioType="cv"
             audioNode={syncInRef.current ?? undefined}
           />
-          <div className="w-11" />
-          <Port
-            id={`${moduleId}-uni-out`}
-            type="output"
-            label="UNI"
-            audioType="cv"
-            audioNode={outUniRef.current ?? undefined}
-          />
-          <Port
-            id={`${moduleId}-cv-out`}
-            type="output"
-            label="OUT"
-            audioType="cv"
-            audioNode={outBipRef.current ?? undefined}
-          />
+          <PortGroup>
+            <Port
+              id={`${moduleId}-uni-out`}
+              type="output"
+              label="UNI"
+              audioType="cv"
+              audioNode={outUniRef.current ?? undefined}
+            />
+            <Port
+              id={`${moduleId}-cv-out`}
+              type="output"
+              label="OUT"
+              audioType="cv"
+              audioNode={outBipRef.current ?? undefined}
+            />
+          </PortGroup>
         </div>
       </div>
     </ModuleContainer>

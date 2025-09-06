@@ -19,7 +19,7 @@ interface KnobProps {
   turnSpeed?: 'slow' | 'medium' | 'fast' // Controls the default turn sensitivity
 }
 
-const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
+export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
   (
     {
       value,
@@ -141,7 +141,7 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
           // Map turnSpeed to base sensitivity (units per pixel)
           const baseSensitivity =
             turnSpeed === 'slow'
-              ? 1 / 440
+              ? 1 / 600
               : turnSpeed === 'fast'
                 ? 1 / 110
                 : 1 / 220
@@ -381,7 +381,3 @@ const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     )
   },
 )
-
-Knob.displayName = 'Knob'
-
-export { Knob }

@@ -8,6 +8,7 @@ import { Knob } from '@/components/ui/knob'
 import { useModuleInit } from '@/hooks/use-module-init'
 import { getAudioContext } from '@/lib/helpers'
 import { mapLinear } from '@/lib/utils'
+import { VLine } from '../marks'
 import { TextLabel } from '../text-label'
 import { Slider } from '../ui/slider'
 
@@ -114,10 +115,11 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
         </TextLabel>
       </div>
 
-      <div className="flex flex-col gap-2 mt-12">
-        <div className="flex items-end">
-          <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-3">
             <Knob value={cvAmount} onValueChange={setCvAmount} size="xs" />
+            <VLine />
             <Port
               id={`${moduleId}-cv-in`}
               type="input"
@@ -134,14 +136,14 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
             audioNode={cvAmtInRef.current ?? undefined}
           />
         </div>
-        <PortGroup>
-          <Port
-            id={`${moduleId}-audio-in`}
-            type="input"
-            label="IN"
-            audioType="audio"
-            audioNode={audioInRef.current ?? undefined}
-          />
+        <Port
+          id={`${moduleId}-audio-in`}
+          type="input"
+          label="IN"
+          audioType="audio"
+          audioNode={audioInRef.current ?? undefined}
+        />
+        <PortGroup className="flex-col gap-1">
           <Port
             id={`${moduleId}-audio-out`}
             type="output"

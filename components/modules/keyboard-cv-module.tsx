@@ -1,22 +1,23 @@
-'use client';
+'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ModuleContainer } from '@/components/module-container';
-import { Port } from '@/components/port';
-import { getAudioContext } from '@/lib/helpers';
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ModuleContainer } from '@/components/module-container'
+import { Port, PortGroup } from '@/components/port'
+import { getAudioContext } from '@/lib/helpers'
+import { TextLabel } from '../text-label'
 
 export function KeyboardCVModule({ moduleId }: { moduleId: string }) {
-  const [currentNote, setCurrentNote] = useState<string | null>(null);
-  const [isGateActive, setIsGateActive] = useState(false);
-  const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
+  const [currentNote, setCurrentNote] = useState<string | null>(null)
+  const [isGateActive, setIsGateActive] = useState(false)
+  const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set())
 
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const gateSourceRef = useRef<ConstantSourceNode | null>(null);
-  const pitchOutputRef = useRef<ConstantSourceNode | null>(null);
-  const gateGainRef = useRef<GainNode | null>(null);
-  const pitchGainRef = useRef<GainNode | null>(null);
-  const isInitializedRef = useRef(false);
-  const keyStackRef = useRef<string[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const gateSourceRef = useRef<ConstantSourceNode | null>(null)
+  const pitchOutputRef = useRef<ConstantSourceNode | null>(null)
+  const gateGainRef = useRef<GainNode | null>(null)
+  const pitchGainRef = useRef<GainNode | null>(null)
+  const isInitializedRef = useRef(false)
+  const keyStackRef = useRef<string[]>([])
 
   // Key mapping: AWSEDFTGYHUJ -> C, C#, D, D#, E, F, F#, G, G#, A, A#, B
   const keyToNote: { [key: string]: { note: string; semitone: number } } = {
@@ -32,133 +33,133 @@ export function KeyboardCVModule({ moduleId }: { moduleId: string }) {
     h: { note: 'A', semitone: 9 },
     u: { note: 'A#', semitone: 10 },
     j: { note: 'B', semitone: 11 },
-  };
+  }
 
   const calculateFrequency = useCallback((semitone: number) => {
     // C3 base frequency: 130.81 Hz
-    const c3Frequency = 130.81;
-    return c3Frequency * 2 ** (semitone / 12);
-  }, []);
+    const c3Frequency = 130.81
+    return c3Frequency * 2 ** (semitone / 12)
+  }, [])
 
   const updateToMostRecentKey = useCallback(() => {
-    if (keyStackRef.current.length === 0) return;
+    if (keyStackRef.current.length === 0) return
 
-    const mostRecentKey = keyStackRef.current[keyStackRef.current.length - 1];
-    const noteInfo = keyToNote[mostRecentKey];
+    const mostRecentKey = keyStackRef.current[keyStackRef.current.length - 1]
+    const noteInfo = keyToNote[mostRecentKey]
 
-    setCurrentNote(noteInfo.note);
+    setCurrentNote(noteInfo.note)
 
     if (audioContextRef.current && pitchOutputRef.current) {
-      const pitchCV = -1 + noteInfo.semitone / 12;
+      const pitchCV = -1 + noteInfo.semitone / 12
       pitchOutputRef.current.offset.setValueAtTime(
         pitchCV,
         audioContextRef.current.currentTime,
-      );
+      )
     }
-  }, [calculateFrequency, keyToNote]);
+  }, [calculateFrequency, keyToNote])
 
   const initAudioNodes = useCallback(() => {
-    if (isInitializedRef.current) return;
+    if (isInitializedRef.current) return
     // Set init guard BEFORE any potential async operations to prevent duplicate init
-    isInitializedRef.current = true;
+    isInitializedRef.current = true
 
-    const audioContext = getAudioContext();
-    audioContextRef.current = audioContext;
+    const audioContext = getAudioContext()
+    audioContextRef.current = audioContext
 
-    gateSourceRef.current = audioContext.createConstantSource();
-    gateSourceRef.current.offset.value = 0;
+    gateSourceRef.current = audioContext.createConstantSource()
+    gateSourceRef.current.offset.value = 0
 
-    gateGainRef.current = audioContext.createGain();
-    gateGainRef.current.gain.value = 1;
+    gateGainRef.current = audioContext.createGain()
+    gateGainRef.current.gain.value = 1
 
-    gateSourceRef.current.connect(gateGainRef.current);
-    gateSourceRef.current.start();
+    gateSourceRef.current.connect(gateGainRef.current)
+    gateSourceRef.current.start()
 
-    pitchOutputRef.current = audioContext.createConstantSource();
-    pitchOutputRef.current.offset.value = 0;
+    pitchOutputRef.current = audioContext.createConstantSource()
+    pitchOutputRef.current.offset.value = 0
 
-    pitchGainRef.current = audioContext.createGain();
-    pitchGainRef.current.gain.value = 1;
+    pitchGainRef.current = audioContext.createGain()
+    pitchGainRef.current.gain.value = 1
 
-    pitchOutputRef.current.connect(pitchGainRef.current);
-    pitchOutputRef.current.start();
-  }, [moduleId]);
+    pitchOutputRef.current.connect(pitchGainRef.current)
+    pitchOutputRef.current.start()
+  }, [moduleId])
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      if (!keyToNote[key] || keyStackRef.current.includes(key)) return;
+      const key = event.key.toLowerCase()
+      if (!keyToNote[key] || keyStackRef.current.includes(key)) return
 
-      keyStackRef.current.push(key);
-      setPressedKeys((prev) => new Set([...prev, key]));
+      keyStackRef.current.push(key)
+      setPressedKeys((prev) => new Set([...prev, key]))
 
       if (keyStackRef.current.length === 1) {
-        setIsGateActive(true);
+        setIsGateActive(true)
         if (gateSourceRef.current && audioContextRef.current) {
           gateSourceRef.current.offset.setValueAtTime(
             5,
             audioContextRef.current.currentTime,
-          );
-          console.log('[v0] Keyboard CV: Gate ON - 5V');
+          )
+          console.log('[v0] Keyboard CV: Gate ON - 5V')
         }
       }
 
-      const noteInfo = keyToNote[key];
-      setCurrentNote(noteInfo.note);
+      const noteInfo = keyToNote[key]
+      setCurrentNote(noteInfo.note)
 
       if (pitchOutputRef.current && audioContextRef.current) {
-        const pitchCV = -1 + noteInfo.semitone / 12;
+        const pitchCV = -1 + noteInfo.semitone / 12
         pitchOutputRef.current.offset.setValueAtTime(
           pitchCV,
           audioContextRef.current.currentTime,
-        );
+        )
       }
     },
     [calculateFrequency, keyToNote],
-  );
+  )
 
   const handleKeyUp = useCallback(
     (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
-      if (!keyToNote[key] || !keyStackRef.current.includes(key)) return;
+      const key = event.key.toLowerCase()
+      if (!keyToNote[key] || !keyStackRef.current.includes(key)) return
 
-      keyStackRef.current = keyStackRef.current.filter((k) => k !== key);
+      keyStackRef.current = keyStackRef.current.filter((k) => k !== key)
       setPressedKeys((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(key);
-        return newSet;
-      });
+        const newSet = new Set(prev)
+        newSet.delete(key)
+        return newSet
+      })
 
       if (keyStackRef.current.length === 0) {
-        setIsGateActive(false);
-        setCurrentNote(null);
+        setIsGateActive(false)
+        setCurrentNote(null)
         if (gateSourceRef.current && audioContextRef.current) {
           gateSourceRef.current.offset.setValueAtTime(
             0,
             audioContextRef.current.currentTime,
-          );
-          console.log('[v0] Keyboard CV: Gate OFF - 0V');
+          )
+          console.log('[v0] Keyboard CV: Gate OFF - 0V')
         }
       } else {
-        updateToMostRecentKey();
+        updateToMostRecentKey()
       }
     },
     [updateToMostRecentKey],
-  );
+  )
 
   useEffect(() => {
-    initAudioNodes();
-  }, [initAudioNodes]);
+    initAudioNodes()
+  }, [initAudioNodes])
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [handleKeyDown, handleKeyUp]);
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [handleKeyDown, handleKeyUp])
 
   return (
     <ModuleContainer title="Keyboard CV" moduleId={moduleId}>
@@ -185,24 +186,26 @@ export function KeyboardCVModule({ moduleId }: { moduleId: string }) {
         </div>
       </div>
 
-      <div className="flex justify-between items-end gap-1">
-        <Port
-          id={`${moduleId}-gate-out`}
-          type="output"
-          audioType="cv"
-          label="Gate Out"
-          audioNode={gateGainRef.current ?? undefined}
-        />
-        <Port
-          id={`${moduleId}-pitch-out`}
-          type="output"
-          audioType="cv"
-          label="CV Out"
-          audioNode={pitchGainRef.current ?? undefined}
-        />
+      <div className="flex justify-center items-end gap-1">
+        <PortGroup>
+          <Port
+            id={`${moduleId}-gate-out`}
+            type="output"
+            audioType="cv"
+            label="Gate"
+            audioNode={gateGainRef.current ?? undefined}
+          />
+          <Port
+            id={`${moduleId}-pitch-out`}
+            type="output"
+            audioType="cv"
+            label="pitch"
+            audioNode={pitchGainRef.current ?? undefined}
+          />
+        </PortGroup>
       </div>
     </ModuleContainer>
-  );
+  )
 }
 
 const PianoKeyboard = ({
@@ -218,50 +221,47 @@ const PianoKeyboard = ({
   setCurrentNote,
   updateToMostRecentKey,
 }: {
-  keyToNote: { [key: string]: { note: string; semitone: number } };
-  keyStackRef: string[];
-  pressedKeys: Set<string>;
-  currentNote: string | null;
-  setPressedKeys: React.Dispatch<React.SetStateAction<Set<string>>>;
-  setIsGateActive: React.Dispatch<React.SetStateAction<boolean>>;
-  gateSourceRef: ConstantSourceNode | null;
-  audioContextRef: AudioContext | null;
-  pitchOutputRef: ConstantSourceNode | null;
-  setCurrentNote: React.Dispatch<React.SetStateAction<string | null>>;
-  updateToMostRecentKey: () => void;
+  keyToNote: { [key: string]: { note: string; semitone: number } }
+  keyStackRef: string[]
+  pressedKeys: Set<string>
+  currentNote: string | null
+  setPressedKeys: React.Dispatch<React.SetStateAction<Set<string>>>
+  setIsGateActive: React.Dispatch<React.SetStateAction<boolean>>
+  gateSourceRef: ConstantSourceNode | null
+  audioContextRef: AudioContext | null
+  pitchOutputRef: ConstantSourceNode | null
+  setCurrentNote: React.Dispatch<React.SetStateAction<string | null>>
+  updateToMostRecentKey: () => void
 }) => {
-  const whiteKeys = ['a', 's', 'd', 'f', 'g', 'h', 'j']; // C, D, E, F, G, A, B
+  const whiteKeys = ['a', 's', 'd', 'f', 'g', 'h', 'j'] // C, D, E, F, G, A, B
   const blackKeys = [
     { key: 'w', position: 0.65 }, // C# - between C and D
     { key: 'e', position: 1.7 }, // D# - between D and E
     { key: 't', position: 3.7 }, // F# - between F and G
     { key: 'y', position: 4.7 }, // G# - between G and A
     { key: 'u', position: 5.72 }, // A# - between A and B
-  ];
+  ]
 
   const handlePianoKeyDown = (key: string) => {
-    if (!keyToNote[key] || keyStackRef.includes(key)) return;
+    if (!keyToNote[key] || keyStackRef.includes(key)) return
 
-    keyStackRef.push(key);
-    setPressedKeys((prev) => new Set([...prev, key]));
+    keyStackRef.push(key)
+    setPressedKeys((prev) => new Set([...prev, key]))
 
     if (keyStackRef.length === 1) {
-      setIsGateActive(true);
+      setIsGateActive(true)
       if (gateSourceRef && audioContextRef) {
-        gateSourceRef.offset.setValueAtTime(5, audioContextRef.currentTime);
-        console.log('[v0] Keyboard CV: Piano Gate ON - 5V');
+        gateSourceRef.offset.setValueAtTime(5, audioContextRef.currentTime)
+        console.log('[v0] Keyboard CV: Piano Gate ON - 5V')
       }
     }
 
-    const noteInfo = keyToNote[key];
-    setCurrentNote(noteInfo.note);
+    const noteInfo = keyToNote[key]
+    setCurrentNote(noteInfo.note)
 
     if (pitchOutputRef && audioContextRef) {
-      const pitchCV = -1 + noteInfo.semitone / 12;
-      pitchOutputRef.offset.setValueAtTime(
-        pitchCV,
-        audioContextRef.currentTime,
-      );
+      const pitchCV = -1 + noteInfo.semitone / 12
+      pitchOutputRef.offset.setValueAtTime(pitchCV, audioContextRef.currentTime)
       console.log(
         '[v0] Keyboard CV: Piano Key',
         key,
@@ -269,35 +269,35 @@ const PianoKeyboard = ({
         noteInfo.note,
         '->',
         pitchCV.toFixed(3) + 'V',
-      );
+      )
     }
-  };
+  }
 
   const handlePianoKeyUp = (key: string) => {
-    if (!keyToNote[key] || !keyStackRef.includes(key)) return;
+    if (!keyToNote[key] || !keyStackRef.includes(key)) return
 
-    keyStackRef = keyStackRef.filter((k) => k !== key);
+    keyStackRef = keyStackRef.filter((k) => k !== key)
     setPressedKeys((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(key);
-      return newSet;
-    });
+      const newSet = new Set(prev)
+      newSet.delete(key)
+      return newSet
+    })
 
     if (keyStackRef.length === 0) {
-      setIsGateActive(false);
-      setCurrentNote(null);
+      setIsGateActive(false)
+      setCurrentNote(null)
       if (gateSourceRef && audioContextRef) {
-        gateSourceRef.offset.setValueAtTime(0, audioContextRef.currentTime);
-        console.log('[v0] Keyboard CV: Piano Gate OFF - 0V');
+        gateSourceRef.offset.setValueAtTime(0, audioContextRef.currentTime)
+        console.log('[v0] Keyboard CV: Piano Gate OFF - 0V')
       }
     } else {
-      updateToMostRecentKey();
+      updateToMostRecentKey()
     }
-  };
+  }
 
   return (
     <div>
-      <div className="relative w-full h-12 mx-auto rounded-[2px] overflow-hidden">
+      <div className="relative w-full h-12 mx-auto rounded-[2px] overflow-hidden shadow-[0_0_0_1px_rgba(0,0,0,0.9)]">
         {/* White keys */}
         <div className="flex h-full">
           {whiteKeys.map((key) => (
@@ -319,7 +319,7 @@ const PianoKeyboard = ({
           {blackKeys.map(({ key, position }) => (
             <button
               key={key}
-              className={`absolute h-full cursor-pointer select-none pointer-events-auto ${
+              className={`absolute h-full cursor-pointer select-none pointer-events-auto border-b rounded-b-[2px] ${
                 pressedKeys.has(key)
                   ? 'bg-blue-400'
                   : 'bg-neutral-800 hover:bg-neutral-700'
@@ -339,8 +339,8 @@ const PianoKeyboard = ({
         <div className="text-lg font-mono">{currentNote || '---'}</div>
       </div>
     </div>
-  );
-};
+  )
+}
 
 const ComputerKeyboard = ({ pressedKeys }: { pressedKeys: Set<string> }) => {
   const topRowKeys = [
@@ -350,7 +350,7 @@ const ComputerKeyboard = ({ pressedKeys }: { pressedKeys: Set<string> }) => {
     { key: 'T', note: 'F#' },
     { key: 'Y', note: 'G#' },
     { key: 'U', note: 'A#' },
-  ];
+  ]
 
   const bottomRowKeys = [
     { key: 'A', note: 'C' },
@@ -360,7 +360,7 @@ const ComputerKeyboard = ({ pressedKeys }: { pressedKeys: Set<string> }) => {
     { key: 'G', note: 'G' },
     { key: 'H', note: 'A' },
     { key: 'J', note: 'B' },
-  ];
+  ]
 
   return (
     <div>
@@ -402,11 +402,11 @@ const ComputerKeyboard = ({ pressedKeys }: { pressedKeys: Set<string> }) => {
         </div>
       </div>
 
-      <div className="text-xs text-black/50 mt-2 text-center">
+      <TextLabel variant="control" className="mt-2 text-muted-foreground">
         Play notes with
         <br />
         your keyboard
-      </div>
+      </TextLabel>
     </div>
-  );
-};
+  )
+}

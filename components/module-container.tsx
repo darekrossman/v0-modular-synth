@@ -18,7 +18,7 @@ export function ModuleContainer({
 }: ModuleContainerProps) {
   return (
     <div
-      className="h-full bg-neutral-200 overflow-hidden"
+      className="h-full bg-gradient-to-t from-module-background/85 to-module-background overflow-hidden"
       data-module-id={moduleId}
     >
       <Card className={cn('h-full flex flex-col bg-transparent', className)}>

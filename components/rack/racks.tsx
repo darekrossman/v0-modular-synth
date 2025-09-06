@@ -313,38 +313,6 @@ export function Racks({
           </div>
         </div>
 
-        <div className="p-1 border-b border-border h-[580px] bg-neutral-900">
-          <div
-            ref={rack2Ref}
-            className="flex overflow-x-auto relative items-stretch h-full"
-            onDragOver={(e) => handleDragOver(e, 2)}
-            onDrop={(e) => handleDrop(e, 2)}
-            onDragEnd={handleDragEnd}
-          >
-            {rack2Modules.map((module: ModuleInstance, index: number) => (
-              <React.Fragment key={module.id}>
-                {dragState.isDragging &&
-                  dragState.dropRack === 2 &&
-                  dragState.dropIndex === index && <DragIndicator />}
-                <DraggableModuleItem
-                  module={module}
-                  index={index}
-                  rackModules={rack2Modules}
-                  onDelete={handleDeleteModule}
-                  onDragStart={(e: React.DragEvent) =>
-                    handleDragStart(e, module, 2)
-                  }
-                  isDragging={dragState.isDragging}
-                  draggedId={dragState.draggedModule?.id}
-                />
-              </React.Fragment>
-            ))}
-            {dragState.isDragging &&
-              dragState.dropRack === 2 &&
-              dragState.dropIndex === rack2Modules.length && <DragIndicator />}
-          </div>
-        </div>
-
         <div className="p-1 border-b border-border h-[200px] bg-neutral-900">
           <div
             ref={rack3Ref}
@@ -374,6 +342,38 @@ export function Racks({
             {dragState.isDragging &&
               dragState.dropRack === 3 &&
               dragState.dropIndex === rack3Modules.length && <DragIndicator />}
+          </div>
+        </div>
+
+        <div className="p-1 border-b border-border h-[520px] bg-neutral-900">
+          <div
+            ref={rack2Ref}
+            className="flex overflow-x-auto relative items-stretch h-full"
+            onDragOver={(e) => handleDragOver(e, 2)}
+            onDrop={(e) => handleDrop(e, 2)}
+            onDragEnd={handleDragEnd}
+          >
+            {rack2Modules.map((module: ModuleInstance, index: number) => (
+              <React.Fragment key={module.id}>
+                {dragState.isDragging &&
+                  dragState.dropRack === 2 &&
+                  dragState.dropIndex === index && <DragIndicator />}
+                <DraggableModuleItem
+                  module={module}
+                  index={index}
+                  rackModules={rack2Modules}
+                  onDelete={handleDeleteModule}
+                  onDragStart={(e: React.DragEvent) =>
+                    handleDragStart(e, module, 2)
+                  }
+                  isDragging={dragState.isDragging}
+                  draggedId={dragState.draggedModule?.id}
+                />
+              </React.Fragment>
+            ))}
+            {dragState.isDragging &&
+              dragState.dropRack === 2 &&
+              dragState.dropIndex === rack2Modules.length && <DragIndicator />}
           </div>
         </div>
 

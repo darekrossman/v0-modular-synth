@@ -384,13 +384,13 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
           <canvas ref={canvasRef} className="w-full h-full" />
         </div>
 
-        <div className="flex justify-between items-center gap-6">
-          <div className="flex flex-1 gap-6">
+        <div className="flex justify-between items-start gap-6">
+          <div className="flex flex-1 gap-6 pl-1.5 mt-1">
             <Knob
               value={timeDiv}
               onValueChange={setTimeDiv}
               size="sm"
-              label="ms/Div"
+              label="time"
             />
 
             <Knob
@@ -442,7 +442,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
 
         <div className="flex-1" />
 
-        <div className="flex justify-start gap-2">
+        <div className="flex justify-start">
           <Port
             id={`${moduleId}-ch1-in`}
             type="input"

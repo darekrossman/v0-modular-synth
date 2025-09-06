@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ModuleContainer } from '@/components/module-container'
 import { useModulePatch } from '@/components/patch-manager'
-import { Port } from '@/components/port'
+import { Port, PortGroup } from '@/components/port'
 import { Knob } from '@/components/ui/knob'
 import { useModuleInit } from '@/hooks/use-module-init'
 import { getAudioContext } from '@/lib/helpers'
@@ -149,37 +149,41 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
     <ModuleContainer title="Random" moduleId={moduleId}>
       <div className="flex flex-col flex-1 justify-between mt-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div className="contents" key={i}>
+          <div key={i} className="contents">
             {i !== 0 && (
-              <div className="w-full h-0.5 bg-neutral-400/80 rounded-full" />
+              <div className="w-full mt-[-12px] border-t border-neutral-400/50" />
             )}
-            <div className="flex items-center justify-between gap-3 rounded-xs">
+            <div className="flex items-center justify-between gap-4">
               <Port
                 id={`${moduleId}-trigger-in-${i + 1}`}
                 type="input"
                 label="Trig"
                 audioType="cv"
                 audioNode={trigIn[i].current ?? undefined}
+                className="mt-[-12px]"
               />
               <Knob
                 defaultValue={atten[i]}
                 onValueChange={setAttenIdx(i)}
-                label="Level"
+                label="lvl"
                 size="sm"
+                className="mt-[-16px] mr-1 ml-[-6px]"
               />
               <Knob
                 defaultValue={offset[i]}
                 onValueChange={setOffsetIdx(i)}
-                label="Offset"
+                label="oset"
                 size="sm"
+                className="mt-[-16px]"
               />
-              <Port
-                id={`${moduleId}-cv-out-${i + 1}`}
-                type="output"
-                label={`out`}
-                audioType="cv"
-                audioNode={cvOut[i].current ?? undefined}
-              />
+              <PortGroup>
+                <Port
+                  id={`${moduleId}-cv-out-${i + 1}`}
+                  type="output"
+                  audioType="cv"
+                  audioNode={cvOut[i].current ?? undefined}
+                />
+              </PortGroup>
             </div>
           </div>
         ))}

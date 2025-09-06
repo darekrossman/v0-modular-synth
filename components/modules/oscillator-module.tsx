@@ -10,6 +10,8 @@ import { KnobV3 } from '@/components/ui/knob-v3'
 import { useModuleInit } from '@/hooks/use-module-init'
 import { getAudioContext } from '@/lib/helpers'
 import { mapLinear } from '@/lib/utils'
+import { VLine } from '../marks'
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group'
 
 type WaveType = 'sine' | 'square' | 'sawtooth' | 'triangle'
 
@@ -235,23 +237,22 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer moduleId={moduleId} title="VCO">
-      <div className="grid grid-cols-4 mx-auto gap-0">
+      <ToggleGroup
+        type="single"
+        value={waveType}
+        size="md"
+        onValueChange={(v) => setWaveType(v as WaveType)}
+      >
         {(['sine', 'square', 'sawtooth', 'triangle'] as WaveType[]).map(
           (wave) => (
-            <Button
-              key={wave}
-              variant={waveType === wave ? 'default' : 'secondary'}
-              size="sm"
-              className="size-8 px-0"
-              onClick={() => setWaveType(wave)}
-            >
+            <ToggleGroupItem key={wave} value={wave}>
               <WaveformIcon type={wave} />
-            </Button>
+            </ToggleGroupItem>
           ),
         )}
-      </div>
+      </ToggleGroup>
 
-      <div className="flex flex-col items-center gap-5 mt-5">
+      <div className="flex flex-col items-center gap-6 mt-5">
         <Knob
           value={[octaveToKnob(octave[0])]}
           onValueChange={(value) => setOctave([knobToOctave(value[0])])}
@@ -296,9 +297,10 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
 
       {/* Ports */}
       <div className="flex flex-col gap-1">
-        <div className="flex items-end gap-0">
-          <div className="flex flex-col items-center gap-2">
+        <div className="flex justify-between">
+          <div className="flex flex-col items-center gap-3">
             <Knob value={fmAmount} onValueChange={setFmAmount} size="xs" />
+            <VLine />
             <Port
               id={`${moduleId}-fm-in`}
               type="input"
@@ -307,8 +309,9 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
               audioNode={fmInputRef.current ?? undefined}
             />
           </div>
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <Knob value={morphCvAmt} onValueChange={setMorphCvAmt} size="xs" />
+            <VLine />
             <Port
               id={`${moduleId}-morph-in`}
               type="input"
@@ -317,8 +320,9 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
               audioNode={morphInputRef.current ?? undefined}
             />
           </div>
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <Knob value={pwmCvAmt} onValueChange={setPwmCvAmt} size="xs" />
+            <VLine />
             <Port
               id={`${moduleId}-pwm-in`}
               type="input"
@@ -328,7 +332,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
             />
           </div>
         </div>
-        <div className="flex gap-0">
+        <div className="flex justify-between">
           <Port
             id={`${moduleId}-freq-in`}
             type="input"

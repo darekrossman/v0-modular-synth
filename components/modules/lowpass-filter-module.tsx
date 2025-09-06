@@ -9,6 +9,7 @@ import { Knob } from '@/components/ui/knob'
 import { useModuleInit } from '@/hooks/use-module-init'
 import { getAudioContext } from '@/lib/helpers'
 import * as utils from '@/lib/utils'
+import { VLine } from '../marks'
 
 // Optional: wire these if your host expects them
 const getParameters = () => {}
@@ -172,7 +173,7 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="Filter" moduleId={moduleId}>
-      <div className="flex flex-col items-center justify-center gap-8 flex-1">
+      <div className="flex flex-col items-center justify-center px-4 gap-8 flex-1">
         <Knob
           value={cutoff}
           onValueChange={setCutoff}
@@ -189,30 +190,32 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
         />
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
         <div className="flex justify-between items-end gap-0">
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <Knob
               value={cvAttenuation}
               onValueChange={setCvAttenuation}
               size="xs"
               data-param="cvAttenuation"
             />
+            <VLine />
             <Port
               id={`${moduleId}-cutoff-cv-in`}
               type="input"
-              label="CUTOFF"
+              label="freq"
               audioType="cv"
               audioNode={cutoffCVInRef.current ?? undefined}
             />
           </div>
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             <Knob
               value={resCvAttenuation}
               onValueChange={setResCvAttenuation}
               size="xs"
               data-param="resCvAttenuation"
             />
+            <VLine />
             <Port
               id={`${moduleId}-resonance-cv-in`}
               type="input"
@@ -222,7 +225,7 @@ export function LowPassFilterModule({ moduleId }: { moduleId: string }) {
             />
           </div>
         </div>
-        <div className="flex justify-center">
+        <div className="flex justify-between">
           <Port
             id={`${moduleId}-audio-in`}
             type="input"

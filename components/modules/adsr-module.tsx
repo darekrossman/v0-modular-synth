@@ -331,7 +331,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
               label="Trig"
-              feel="rubber"
+              className="bg-yellow-500 active:bg-yellow-600"
             />
           </div>
         </div>
@@ -339,31 +339,29 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
         {/* <div className="flex-grow" /> */}
 
         <div className="flex justify-between items-end">
-          <div className="flex gap-0">
+          <Port
+            id={`${moduleId}-gate-in`}
+            type="input"
+            label="Gate"
+            audioType="cv"
+            audioNode={gateInputRef.current ?? undefined}
+          />
+          <PortGroup>
             <Port
-              id={`${moduleId}-gate-in`}
-              type="input"
-              label="Gate"
+              id={`${moduleId}-inv-out`}
+              type="output"
+              label="INV"
               audioType="cv"
-              audioNode={gateInputRef.current ?? undefined}
+              audioNode={invOutRef.current ?? undefined}
             />
-            <PortGroup>
-              <Port
-                id={`${moduleId}-inv-out`}
-                type="output"
-                label="INV"
-                audioType="cv"
-                audioNode={invOutRef.current ?? undefined}
-              />
-              <Port
-                id={`${moduleId}-env-out`}
-                type="output"
-                label="Out"
-                audioType="cv"
-                audioNode={envOutRef.current ?? undefined}
-              />
-            </PortGroup>
-          </div>
+            <Port
+              id={`${moduleId}-env-out`}
+              type="output"
+              label="Out"
+              audioType="cv"
+              audioNode={envOutRef.current ?? undefined}
+            />
+          </PortGroup>
         </div>
       </div>
     </ModuleContainer>

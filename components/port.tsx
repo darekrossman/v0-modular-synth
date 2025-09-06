@@ -206,7 +206,7 @@ export function Port({
       className={cn(
         'flex flex-col items-center justify-center gap-1 rounded-sm relative',
         {
-          'size-11 justify-center': !label,
+          'size-10 justify-center': !label,
           'w-10 h-12': label,
           // '': type === 'output',
           'bg-transparent': type === 'input',
@@ -220,7 +220,7 @@ export function Port({
         data-port-id={id}
         data-port-kind={kind}
         className={cn(
-          'relative w-6 h-6 shrink-0 rounded-full cursor-pointer select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]',
+          'relative w-6 h-6 shrink-0 rounded-full cursor-pointer select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2),0_3px_0_0_rgba(0,0,0,0.1)]',
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -244,9 +244,20 @@ export function Port({
   )
 }
 
-export const PortGroup = ({ children }: { children: React.ReactNode }) => {
+export const PortGroup = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) => {
   return (
-    <div className="flex items-center justify-between rounded-sm bg-port-background">
+    <div
+      className={cn(
+        'flex items-center justify-between rounded-sm bg-port-background text-foreground',
+        className,
+      )}
+    >
       {children}
     </div>
   )

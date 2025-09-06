@@ -244,7 +244,7 @@ export function MixerVCAModule({ moduleId }: { moduleId: string }) {
             <div className="z-1 absolute top-[calc(25%-4px)] left-1/2 -translate-x-1/2 text-[9px] leading-[8px] bg-neutral-200 px-1">
               0
             </div>
-            <div className="z-1 absolute top-[calc(100%-5px)] left-1/2 -translate-x-1/2 text-[12px] leading-[8px] bg-neutral-200 px-1">
+            <div className="z-1 absolute top-[calc(100%-5px)] left-1/2 -translate-x-1/2 text-[12px] leading-[8px] bg-neutral-200 px-0.5">
               -<span className="text-[16px] opacity-60">∞</span>
             </div>
             <div className="absolute top-[0%] left-0 w-full h-[1px] border-t border-dashed border-neutral-400" />
@@ -266,13 +266,15 @@ export function MixerVCAModule({ moduleId }: { moduleId: string }) {
               audioNode={mixCvRef.current ?? undefined}
             />
             <Knob value={mixLevel} onValueChange={setMixLevel} label="Mix" />
-            <Port
-              id={`${moduleId}-mix-out`}
-              type="output"
-              label="MIX"
-              audioType="any"
-              audioNode={mixOutRef.current ?? undefined}
-            />
+            <PortGroup>
+              <Port
+                id={`${moduleId}-mix-out`}
+                type="output"
+                label="MIX"
+                audioType="any"
+                audioNode={mixOutRef.current ?? undefined}
+              />
+            </PortGroup>
           </div>
 
           <ToggleSwitch
