@@ -35,8 +35,8 @@ const MAKEUP_GAMMA = 0.8
 const LIMIT_SOFT_KNEE = 5
 const LIMIT_HARD = 10
 
-// Resonance-aware compensation disabled for more natural, aggressive resonance
-const RES_MAKEUP_AMOUNT = 0.0
+// Resonance-aware compensation amount (small to preserve character)
+const RES_MAKEUP_AMOUNT = 0.35
 const RES_MAKEUP_R_POWER = 1.6
 const RES_MAKEUP_SHAPE_POWER = 1.4
 
@@ -241,9 +241,12 @@ class LadderFilterProcessor extends AudioWorkletProcessor {
       const { y4, alpha0 } = this._stepZDF(xin, g, K, 0)
       let y = Number.isFinite(y4) ? y4 : 0
 
-      // α0-based makeup: base + mild resonance-dependent term active more at higher cutoff
+      // α0-based makeup: base + resonance-dependent term to offset level drop with higher resonance
       const makeupBase = (1 / alpha0) ** MAKEUP_GAMMA
-      const gammaRes = 0.25 * r * norm ** 1.3
+      const gammaRes =
+        RES_MAKEUP_AMOUNT *
+        rShaped ** RES_MAKEUP_R_POWER *
+        (0.35 + 0.65 * norm ** RES_MAKEUP_SHAPE_POWER)
       const makeupRes = (1 / alpha0) ** gammaRes
       y *= makeupBase * makeupRes
 

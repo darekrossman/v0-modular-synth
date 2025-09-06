@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConnections } from '@/components/connection-manager'
 import { ModuleContainer } from '@/components/module-container'
 import { useModulePatch } from '@/components/patch-manager'
-import { Port } from '@/components/port'
+import { Port, PortGroup } from '@/components/port'
 import { Knob } from '@/components/ui/knob'
 import { Slider } from '@/components/ui/slider'
 import { useModuleInit } from '@/hooks/use-module-init'
@@ -284,32 +284,47 @@ export function MixerVCAModule({ moduleId }: { moduleId: string }) {
           />
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={`col-${i}`} className="flex flex-col items-center gap-2">
-              <Port
-                id={`${moduleId}-ch${i}-cv-in`}
-                type="input"
-                label={`CV${i + 1}`}
-                audioType="cv"
-                audioNode={chCvRef.current[i] ?? undefined}
-              />
-              <Port
-                id={`${moduleId}-ch${i}-in`}
-                type="input"
-                label={`IN${i + 1}`}
-                audioType="any"
-                audioNode={chInRef.current[i] ?? undefined}
-              />
-              <Port
-                id={`${moduleId}-ch${i}-out`}
-                type="output"
-                label={`OUT${i + 1}`}
-                audioType="any"
-                audioNode={chOutRef.current[i] ?? undefined}
-              />
-            </div>
-          ))}
+        <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-4 gap-0">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={`col-${i}`}
+                className="flex flex-col items-center gap-1"
+              >
+                <Port
+                  id={`${moduleId}-ch${i}-cv-in`}
+                  type="input"
+                  label={`CV${i + 1}`}
+                  audioType="cv"
+                  audioNode={chCvRef.current[i] ?? undefined}
+                />
+                <Port
+                  id={`${moduleId}-ch${i}-in`}
+                  type="input"
+                  label={`IN${i + 1}`}
+                  audioType="any"
+                  audioNode={chInRef.current[i] ?? undefined}
+                />
+              </div>
+            ))}
+          </div>
+
+          <PortGroup>
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={`col-${i}`}
+                className="flex flex-col items-center gap-2"
+              >
+                <Port
+                  id={`${moduleId}-ch${i}-out`}
+                  type="output"
+                  label={`OUT${i + 1}`}
+                  audioType="any"
+                  audioNode={chOutRef.current[i] ?? undefined}
+                />
+              </div>
+            ))}
+          </PortGroup>
         </div>
       </div>
     </ModuleContainer>

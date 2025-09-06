@@ -336,14 +336,14 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
             label="Note"
             audioNode={frequencyInputRef.current ?? undefined}
           />
+          <Port
+            id={`${moduleId}-sync-in`}
+            type="input"
+            audioType="audio"
+            label="Sync"
+            audioNode={syncInputRef.current ?? undefined}
+          />
           <PortGroup>
-            <Port
-              id={`${moduleId}-sync-in`}
-              type="input"
-              audioType="audio"
-              label="Sync"
-              audioNode={syncInputRef.current ?? undefined}
-            />
             <Port
               id={`${moduleId}-audio-out`}
               type="output"

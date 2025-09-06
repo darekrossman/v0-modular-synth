@@ -246,7 +246,7 @@ export function Port({
 
 export const PortGroup = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className="flex items-center rounded-sm bg-port-background">
+    <div className="flex items-center justify-between rounded-sm bg-port-background">
       {children}
     </div>
   )
