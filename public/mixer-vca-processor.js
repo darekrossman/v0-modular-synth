@@ -193,8 +193,13 @@ class MixerVCAProcessor extends AudioWorkletProcessor {
         }
 
         oCh[ch][i] = y
-        // Map channel mix 0..1 -> 0..2x with 0.75 => 1x (unity)
-        const chScalar = 2 * mixGain
+        // Map channel mix 0..1 so that:
+        // - 0.75 => 1x (unity)
+        // - 1.00 => 2x (+6 dB)
+        // - 0.00 => 0x (mute)
+        // Piecewise-linear mapping: [0..0.75] -> [0..1], [0.75..1] -> [1..2]
+        const chScalar =
+          mixGain <= 0.75 ? mixGain / 0.75 : 1 + (mixGain - 0.75) * 4
         // Post-VCA per-channel mix gain affects only the final mix bus
         mixSum += y * chScalar
       }

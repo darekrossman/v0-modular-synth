@@ -97,7 +97,8 @@ export function MixerVCAModule({ moduleId }: { moduleId: string }) {
         ch1Mix: chanLevels[1],
         ch2Mix: chanLevels[2],
         ch3Mix: chanLevels[3],
-        mixOffset: mixLevel[0],
+        // Keep mix VCA fully open when no CV is connected
+        mixOffset: 0,
         mixAmount: 1,
         mixKnob: mixLevel[0],
         expo: expo ? 1 : 0,
@@ -144,9 +145,7 @@ export function MixerVCAModule({ moduleId }: { moduleId: string }) {
     const ac = acRef.current,
       node = nodeRef.current
     if (!ac || !node) return
-    node.parameters
-      .get('mixOffset')
-      ?.setValueAtTime(mixLevel[0], ac.currentTime)
+    // Mix knob controls only post-mix gain scalar (0.5 => 1x, 1.0 => 2x)
     node.parameters.get('mixKnob')?.setValueAtTime(mixLevel[0], ac.currentTime)
   }, [mixLevel])
 

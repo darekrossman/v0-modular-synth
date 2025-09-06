@@ -304,7 +304,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
             <Port
               id={`${moduleId}-fm-in`}
               type="input"
-              audioType="cv"
+              audioType="any"
               label="FM"
               audioNode={fmInputRef.current ?? undefined}
             />
