@@ -57,7 +57,7 @@ export function Port({
   const animationFrameRef = useRef<number | null>(null)
 
   // Force disable indicator for audio ports
-  const showIndicator = indicator && audioType !== 'audio'
+  const showIndicator = indicator
 
   // Update wire color when connections change or when dragging
   useEffect(() => {
@@ -127,9 +127,10 @@ export function Port({
         audioType === 'cv' ||
         audioType === 'gate' ||
         audioType === 'trig' ||
-        audioType === 'any'
+        audioType === 'any' ||
+        audioType === 'audio'
           ? instantValue
-          : rms * 10 // Scale RMS for visibility
+          : rms * 5 // Scale RMS for visibility
 
       setSignalValue(value)
 

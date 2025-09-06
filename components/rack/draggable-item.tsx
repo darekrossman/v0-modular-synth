@@ -1,8 +1,9 @@
 'use client'
 
-import { X } from 'lucide-react'
+import { Book, X } from 'lucide-react'
 import type React from 'react'
-import { memo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
+import InfoSheet from '@/components/info-sheet'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -40,6 +41,14 @@ export const DraggableModuleItem = memo(
     const opacity = isDragging && draggedId === module.id ? 0.3 : 1
 
     const [isDraggable, setIsDraggable] = useState(false)
+    const [infoOpen, setInfoOpen] = useState(false)
+
+    const moduleName = useMemo(() => {
+      const entry: ModuleCatalogEntry | undefined = availableModules.find(
+        (m) => m.type === module.type,
+      )
+      return entry?.name ?? module.type
+    }, [module.type])
 
     return (
       <div
@@ -77,6 +86,10 @@ export const DraggableModuleItem = memo(
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            <ContextMenuItem onClick={() => setInfoOpen(true)}>
+              <Book className="w-3 h-3" />
+              user uanual
+            </ContextMenuItem>
             <ContextMenuItem
               onClick={() => onDelete(module.id)}
               className="flex items-center gap-2"
@@ -86,6 +99,13 @@ export const DraggableModuleItem = memo(
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
+
+        <InfoSheet
+          open={infoOpen}
+          onOpenChange={setInfoOpen}
+          moduleName={moduleName}
+          moduleType={module.type}
+        />
       </div>
     )
   },
