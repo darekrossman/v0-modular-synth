@@ -224,7 +224,7 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
 
     // Start meter loop after initialization completes
     rAF.current = requestAnimationFrame(meterLoop)
-  }, 'OUTPUT')
+  }, moduleId)
 
   // Volume smoothing
   useEffect(() => {

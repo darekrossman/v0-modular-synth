@@ -113,7 +113,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
     [],
   )
 
-  const initAudioNodes = useCallback(async () => {
+  useModuleInit(async () => {
     if (workletNodeRef.current) return // Already initialized
 
     const ac = getAudioContext()
@@ -169,21 +169,7 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
     w.connect(outputRef.current)
 
     workletNodeRef.current = w
-  }, [
-    waveType,
-    phase,
-    tune,
-    octave,
-    pulseWidth,
-    syncAmount,
-    waveformMorph,
-    fmAmount,
-    pwmCvAmt,
-    morphCvAmt,
-  ])
-
-  // Use the module initialization hook
-  const { isReady, initError, retryInit } = useModuleInit(initAudioNodes, 'VCO')
+  }, moduleId)
 
   const tuneToKnob = (tuneValue: number) => (tuneValue + 600) / 1200
   const knobToTune = (knobValue: number) => mapLinear(knobValue, -600, 600)

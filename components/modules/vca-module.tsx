@@ -76,8 +76,6 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
     keepAliveRef.current.gain.value = 0
     audioOutRef.current.connect(keepAliveRef.current)
     keepAliveRef.current.connect(ac.destination)
-
-    console.log('[VCA] initialized (linear, 10V=unity)')
   }, moduleId)
 
   useEffect(() => {

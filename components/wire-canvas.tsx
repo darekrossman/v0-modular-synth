@@ -581,14 +581,14 @@ export function WireCanvas() {
       ensureEdgeDom(edge)
     }
     pruneMissingEdges(present)
-    settleUntil.current = performance.now() + 400
+    settleUntil.current = performance.now() + 10
     if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connections])
 
   // Also refresh on geometry/tension changes
   useEffect(() => {
-    settleUntil.current = performance.now() + 400
+    settleUntil.current = performance.now() + 10
     if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [

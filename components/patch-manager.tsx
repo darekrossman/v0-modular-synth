@@ -504,7 +504,9 @@ export function PatchProvider({
       // Force unmount all modules before creating new graph
       onModulesChange([])
       // Destroy and reset the shared AudioContext so modules will create fresh nodes
+      console.time('resetAudioContext')
       await resetAudioContext()
+      console.timeEnd('resetAudioContext')
 
       // 3) Update modules list (will trigger re-render with new parameters)
       const moduleInstances = patch.modules.map((m) => ({

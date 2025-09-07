@@ -197,7 +197,9 @@ export function Racks({
 
   const handleModuleSelect = useCallback(
     (moduleType: ModuleType) => {
+      console.time('addModule')
       addModule(moduleType)
+      console.timeEnd('addModule')
     },
     [addModule],
   )

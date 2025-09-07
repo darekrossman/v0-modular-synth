@@ -197,13 +197,13 @@ export function ConnectionProvider({
   }, [])
 
   const waitForPortsRegistered = useCallback(
-    async (portIds: string[], timeoutMs: number = 2000) => {
+    async (portIds: string[], timeoutMs: number = 1) => {
       const start = performance.now()
       return await new Promise<void>((resolve) => {
         const check = () => {
           const allPresent = portIds.every((id) => {
             const entry = ports.current.get(id)
-            return !!(entry && entry.el)
+            return !!entry?.el
           })
           if (allPresent || performance.now() - start > timeoutMs) {
             // Wait one extra frame to allow measurement loop to compute centers

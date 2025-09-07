@@ -100,7 +100,6 @@ export function KeyboardCVModule({ moduleId }: { moduleId: string }) {
             5,
             audioContextRef.current.currentTime,
           )
-          console.log('[v0] Keyboard CV: Gate ON - 5V')
         }
       }
 
@@ -138,7 +137,6 @@ export function KeyboardCVModule({ moduleId }: { moduleId: string }) {
             0,
             audioContextRef.current.currentTime,
           )
-          console.log('[v0] Keyboard CV: Gate OFF - 0V')
         }
       } else {
         updateToMostRecentKey()
@@ -252,7 +250,6 @@ const PianoKeyboard = ({
       setIsGateActive(true)
       if (gateSourceRef && audioContextRef) {
         gateSourceRef.offset.setValueAtTime(5, audioContextRef.currentTime)
-        console.log('[v0] Keyboard CV: Piano Gate ON - 5V')
       }
     }
 
@@ -262,14 +259,6 @@ const PianoKeyboard = ({
     if (pitchOutputRef && audioContextRef) {
       const pitchCV = -1 + noteInfo.semitone / 12
       pitchOutputRef.offset.setValueAtTime(pitchCV, audioContextRef.currentTime)
-      console.log(
-        '[v0] Keyboard CV: Piano Key',
-        key,
-        '->',
-        noteInfo.note,
-        '->',
-        pitchCV.toFixed(3) + 'V',
-      )
     }
   }
 
@@ -288,7 +277,6 @@ const PianoKeyboard = ({
       setCurrentNote(null)
       if (gateSourceRef && audioContextRef) {
         gateSourceRef.offset.setValueAtTime(0, audioContextRef.currentTime)
-        console.log('[v0] Keyboard CV: Piano Gate OFF - 0V')
       }
     } else {
       updateToMostRecentKey()
