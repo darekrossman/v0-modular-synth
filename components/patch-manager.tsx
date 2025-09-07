@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { resetAudioContext } from '@/lib/helpers'
 import { useConnections } from './connection-manager'
 
 // -------- Types aligned with the new connection system --------
@@ -185,72 +186,72 @@ const createDefaultPatch = (): Patch => ({
   ],
   connections: [
     {
-      id: 'd1bd69e9-18c6-4a85-9feb-7293d190084a',
+      id: '1059bf35-5382-46d6-b32b-066cec1ac0a7',
       from: 'keyboard-cv-1-pitch-out',
       to: 'oscillator-1-freq-in',
       kind: 'cv',
-      color: '#9D00FF',
+      color: '#00FF94',
     },
     {
-      id: '8372eed1-88e8-4eab-8982-3884e3d086f0',
+      id: '66d188df-7f96-4651-a79c-21ea14039f6a',
       from: 'keyboard-cv-1-gate-out',
       to: 'adsr-1-gate-in',
       kind: 'cv',
-      color: '#9D00FF',
+      color: '#FF8000',
     },
     {
-      id: '1cc299d9-6401-4c11-8740-f2a064e47b04',
+      id: '39d09eef-3966-4539-a370-b66f3be8982b',
       from: 'keyboard-cv-1-gate-out',
       to: 'adsr-2-gate-in',
       kind: 'cv',
-      color: '#9D00FF',
+      color: '#FF8000',
     },
     {
-      id: 'c2d4caf5-e760-435a-b94c-8b88c234ea22',
-      from: 'adsr-2-env-out',
-      to: 'vca-1-cv-in',
-      kind: 'cv',
-      color: '#4db500',
-    },
-    {
-      id: '9c4fc55e-d667-43d1-9957-4eaa671d3fc2',
-      from: 'lowpass-filter-1-audio-out',
-      to: 'vca-1-audio-in',
-      kind: 'audio',
-      color: '#4db500',
-    },
-    {
-      id: '71421c17-813b-4ecb-9ab0-0b7ebedbb2bd',
-      from: 'vca-1-audio-out',
-      to: 'output-1-left-in',
-      kind: 'audio',
-      color: '#9D00FF',
-    },
-    {
-      id: 'acd59e76-a64f-40c5-9a08-46491a5e4b97',
-      from: 'vca-1-audio-out',
-      to: 'output-1-right-in',
-      kind: 'audio',
-      color: '#9D00FF',
-    },
-    {
-      id: 'c550a7d9-3224-4867-95f5-ab85accd7ef6',
+      id: 'cbc8800c-20a3-4c74-8a5d-69ed38cef2f4',
       from: 'oscillator-1-audio-out',
       to: 'lowpass-filter-1-audio-in',
+      kind: 'audio',
+      color: '#0057ff',
+    },
+    {
+      id: 'f677966c-a42d-423a-b96b-d4f2aa2929a4',
+      from: 'lowpass-filter-1-audio-out',
+      to: 'vca-1-audio-in',
       kind: 'audio',
       color: '#00FF94',
     },
     {
-      id: '8cb7696a-501f-4b63-abcb-4ddfae408362',
+      id: 'a0fb733b-e506-43db-a975-6bcee54be6c3',
+      from: 'vca-1-audio-out',
+      to: 'output-1-left-in',
+      kind: 'audio',
+      color: '#ff33ef',
+    },
+    {
+      id: '1022e942-f58c-4d92-85e3-707bf9b5ca5e',
+      from: 'vca-1-audio-out',
+      to: 'output-1-right-in',
+      kind: 'audio',
+      color: '#ff33ef',
+    },
+    {
+      id: 'b5bd9ac4-bea7-4d3b-8861-fd6d9b1e15e0',
       from: 'adsr-1-env-out',
       to: 'lowpass-filter-1-cutoff-cv-in',
       kind: 'cv',
       color: '#FF0040',
     },
+    {
+      id: '70726a50-9e8b-4fa7-86e6-12578d41ee78',
+      from: 'adsr-2-env-out',
+      to: 'vca-1-cv-in',
+      kind: 'cv',
+      color: '#0057ff',
+    },
   ],
   metadata: {
     created: '2024-01-01T00:00:00.000Z',
-    modified: '2025-09-07T20:16:57.891Z',
+    modified: '2025-09-07T21:17:21.506Z',
     description:
       'The default synthesizer configuration with dual ADSR envelopes - one for amplitude and one for filter modulation',
   },
@@ -365,6 +366,7 @@ export function PatchProvider({
     exportPatch: exportPatchJSON,
     loadPatch: loadPatchJSON,
     clearAllConnections,
+    waitForPortsRegistered,
   } = useConnections()
 
   // Init: load storage + ensure default present
@@ -497,7 +499,14 @@ export function PatchProvider({
         initialParametersRef.current[m.id] = m.parameters || {}
       })
 
-      // 2) Update modules list (will trigger re-render with new parameters)
+      // 2) Tear down previous graph completely
+      clearAllConnections()
+      // Force unmount all modules before creating new graph
+      onModulesChange([])
+      // Destroy and reset the shared AudioContext so modules will create fresh nodes
+      await resetAudioContext()
+
+      // 3) Update modules list (will trigger re-render with new parameters)
       const moduleInstances = patch.modules.map((m) => ({
         id: m.id,
         type: m.type as any,
@@ -505,10 +514,15 @@ export function PatchProvider({
       }))
       onModulesChange(moduleInstances)
 
-      // 3) Wait until modules have mounted and registered so ports exist in the DOM
+      // 4) Wait until modules have mounted and registered so ports exist in the DOM
       await waitForModuleRegistration(patch.modules.map((m) => m.id))
+      // Also wait until all port Elements for the patch's connections are present
+      const portIds = Array.from(
+        new Set(patch.connections.flatMap((c) => [c.from, c.to])),
+      )
+      await waitForPortsRegistered(portIds)
 
-      // 4) Load connections (ensure all have colors) on the next frame to let layout settle
+      // 5) Load connections (ensure all have colors) on the next frame to let layout settle
       const connectionsWithColors = patch.connections.map((conn) => ({
         ...conn,
         color: conn.color || '#888888',
@@ -521,7 +535,12 @@ export function PatchProvider({
         setCurrentPatch(patch)
       })
     },
-    [onModulesChange, loadPatchJSON, waitForModuleRegistration],
+    [
+      onModulesChange,
+      loadPatchJSON,
+      waitForModuleRegistration,
+      clearAllConnections,
+    ],
   )
 
   const exportPatch = useCallback(
@@ -547,6 +566,7 @@ export function PatchProvider({
   }, [])
 
   const createNewPatch = useCallback(() => {
+    // Clear connections at the graph level before changing modules
     clearAllConnections()
 
     const blank: Patch = {

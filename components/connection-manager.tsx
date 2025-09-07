@@ -120,6 +120,12 @@ interface Ctx {
   ) => void
   getPortCenter: (portId: string) => { x: number; y: number }
 
+  // Readiness helpers
+  waitForPortsRegistered: (
+    portIds: string[],
+    timeoutMs?: number,
+  ) => Promise<void>
+
   // Save/Load
   exportPatch: (modules: PatchJson['modules']) => PatchJson
   loadPatch: (patch: PatchJson) => void
@@ -190,6 +196,28 @@ export function ConnectionProvider({
     return portCenters.current.get(portId) ?? { x: 0, y: 0 }
   }, [])
 
+  const waitForPortsRegistered = useCallback(
+    async (portIds: string[], timeoutMs: number = 2000) => {
+      const start = performance.now()
+      return await new Promise<void>((resolve) => {
+        const check = () => {
+          const allPresent = portIds.every((id) => {
+            const entry = ports.current.get(id)
+            return !!(entry && entry.el)
+          })
+          if (allPresent || performance.now() - start > timeoutMs) {
+            // Wait one extra frame to allow measurement loop to compute centers
+            requestAnimationFrame(() => resolve())
+            return
+          }
+          requestAnimationFrame(check)
+        }
+        requestAnimationFrame(check)
+      })
+    },
+    [],
+  )
+
   // Geometry measurement (runs at most once per frame)
   const measureOnce = useCallback(() => {
     needsMeasure.current = false
@@ -230,8 +258,8 @@ export function ConnectionProvider({
     window.addEventListener('resize', onResize, { passive: true })
     return () => {
       cancelAnimationFrame(raf)
-      window.removeEventListener('scroll', onScroll, true)
-      window.removeEventListener('resize', onResize)
+      window.removeEventListener('scroll', onScroll as any, true)
+      window.removeEventListener('resize', onResize as any)
     }
   }, [measureOnce])
 
@@ -703,6 +731,7 @@ export function ConnectionProvider({
       },
       registerTempWireUpdater,
       getPortCenter,
+      waitForPortsRegistered,
 
       exportPatch,
       loadPatch,
