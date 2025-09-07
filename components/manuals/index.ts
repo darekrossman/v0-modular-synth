@@ -10,6 +10,7 @@ import LowpassFilterManual from '@/components/manuals/lowpass-filter-manual'
 import MixerVCAManual from '@/components/manuals/mixer-vca-manual'
 import OscillatorManual from '@/components/manuals/oscillator-manual'
 import OutputManual from '@/components/manuals/output-manual'
+import ProcessManual from '@/components/manuals/process-manual'
 import QuantizerManual from '@/components/manuals/quantizer-manual'
 import RandomManual from '@/components/manuals/random-manual'
 import ReverbManual from '@/components/manuals/reverb-manual'
@@ -36,4 +37,5 @@ export const manuals: Partial<Record<ModuleType, ComponentType>> = {
   vca: VCAManual,
   'mixer-vca': MixerVCAManual,
   clock: ClockManual,
+  process: ProcessManual,
 }

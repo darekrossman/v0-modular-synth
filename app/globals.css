@@ -3,6 +3,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html,
+body {
+  overscroll-behavior: none;
+}
+
 :root {
   --radius: 0.625rem;
 }
@@ -50,6 +55,8 @@
   --knob-foreground: oklch(0.9 0.002 240);
   --knob-outer-ring: oklch(0.7 0.002 240);
   --module-subdued: oklch(0.36 0.002 240);
+  --rack-background: oklch(0.3 0.002 240);
+  --rail-background: oklch(0.3 0.002 240);
 }
 
 @theme inline {
@@ -104,6 +111,8 @@
   --color-port-jack-inner-ring: var(--port-jack-inner-ring);
   --color-port-jack-outer-ring: var(--port-jack-outer-ring);
   --color-module-subdued: var(--module-subdued);
+  --color-rack-background: var(--rack-background);
+  --color-rail-background: var(--rail-background);
 }
 
 @layer base {

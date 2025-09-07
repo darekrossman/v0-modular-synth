@@ -16,10 +16,10 @@ const toggleVariants = cva(
           'border border-input shadow-xs hover:bg-accent hover:text-accent-foreground',
         push: 'rounded-full border border-neutral-600 bg-radial-[at_50%_50%] from-neutral-400/80 from-20% to-neutral-200 to-80% data-[state=on]:from-red-500 data-[state=on]:to-red-600 data-[state=on]:to-100% data-[state=on]:from-40% shadow-[inset_0_-1px_2px_0px_rgba(0,0,0,0.3),inset_0_2px_3px_0px_rgba(255,255,255,1)] data-[state=on]:shadow-[inset_0_1px_0px_0px_rgba(255,255,255,0.2),0_0_6px_1px_rgba(255,0,0,0.5)] data-[state=on]:border-red-800',
         sequencer:
-          'rounded-full border border-neutral-600 bg-radial-[at_50%_50%] from-neutral-400/80 from-20% to-neutral-200 to-80% data-[state=on]:from-blue-500 data-[state=on]:to-blue-600 data-[state=on]:to-100% data-[state=on]:from-40% shadow-[inset_0_-1px_2px_0px_rgba(0,0,0,0.3),inset_0_2px_3px_0px_rgba(255,255,255,1)] data-[state=on]:shadow-[inset_0_1px_0px_0px_rgba(255,255,255,0.2),0_0_6px_1px_rgba(0,0,255,0.3)] data-[state=on]:border-blue-800',
+          'rounded-full border border-neutral-600 bg-radial-[at_50%_50%] from-neutral-400/80 from-20% to-neutral-200 to-80% data-[state=on]:from-blue-500 data-[state=on]:to-blue-600 data-[state=on]:to-100% data-[state=on]:from-40% shadow-[inset_0_-1px_2px_0px_rgba(0,0,0,0.3),inset_0_2px_3px_0px_rgba(255,255,255,1)] data-[state=on]:shadow-[inset_0_1px_0px_0px_rgba(255,255,255,0.2),0_0_6px_1px_rgba(50,50,255,0.9)] data-[state=on]:border-blue-800',
       },
       active: {
-        true: 'bg-red-500 bg-radial-[at_50%_50%] from-red-500! from-20% to-red-600! to-80% text-white  data-[state=on]:text-white shadow-[inset_0_-1px_0px_0px_rgba(0,0,0,0.2),inset_0_1px_0px_0px_rgba(255,255,255,0.2)] data-[state=on]:shadow-[inset_0_1px_0px_0px_rgba(255,255,255,0.2),0_0_6px_1px_rgba(255,0,0,0.5)] data-[state=on]:border-red-800',
+        true: 'from-red-500! from-20% to-red-600! to-80% text-white data-[state=on]:text-white shadow-[inset_0_-1px_0px_0px_rgba(0,0,0,0.2),inset_0_1px_0px_0px_rgba(255,255,255,0.2)] data-[state=on]:shadow-[inset_0_1px_0px_0px_rgba(255,255,255,0.2),0_0_6px_1px_rgba(255,0,0,0.5)] shadow-[inset_0_1px_0px_0px_rgba(255,255,255,0.2),0_0_6px_1px_rgba(255,0,0,0.5)] data-[state=on]:border-red-800 border-red-900',
       },
       size: {
         default: 'h-8 min-w-8 px-1 empty:p-0',

@@ -235,14 +235,14 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
             id={`${moduleId}-clock-in`}
             type="input"
             label="CLK"
-            audioType="cv"
+            audioType="trig"
             audioNode={clockInRef.current ?? undefined}
           />
           <Port
             id={`${moduleId}-reset-in`}
             type="input"
             label="Reset"
-            audioType="cv"
+            audioType="trig"
             audioNode={resetInRef.current ?? undefined}
           />
           <div className="ml-4">
@@ -281,7 +281,7 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
               id={`${moduleId}-gate-out`}
               type="output"
               label="GATE"
-              audioType="cv"
+              audioType="gate"
               audioNode={gateOutRef.current ?? undefined}
             />
             <Port
@@ -298,14 +298,17 @@ export function SequencerModule({ moduleId }: { moduleId: string }) {
       <div className="flex-grow" />
 
       {/* Steps */}
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 pb-0.5">
         {steps.map((active, idx) => (
           <div
             key={idx}
-            className="flex flex-col items-center gap-2 min-w-[32px]"
+            className="flex flex-col items-center gap-2.5 min-w-[32px]"
           >
             <div className="flex flex-col items-center gap-1">
-              <TextLabel variant="control" className="">
+              <TextLabel
+                variant="control"
+                className="text-module-foreground/60"
+              >
                 {idx + 1}
               </TextLabel>
               <Toggle

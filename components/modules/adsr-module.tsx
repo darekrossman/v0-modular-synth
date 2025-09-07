@@ -343,7 +343,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
             id={`${moduleId}-gate-in`}
             type="input"
             label="Gate"
-            audioType="cv"
+            audioType="gate"
             audioNode={gateInputRef.current ?? undefined}
           />
           <PortGroup>

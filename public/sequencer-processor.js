@@ -78,6 +78,7 @@ class SequencerProcessor extends AudioWorkletProcessor {
     this.lastTickSample = 0
     // Start with a reasonable guess (~120 BPM): ~10.4 ms/tick @ 48 PPQ
     this.samplesPerTick = (sampleRate * (60 / 120)) / 48
+    this._lastReset = 0
 
     this.port.onmessage = (e) => {
       const { type, value } = e.data || {}
@@ -175,10 +176,25 @@ class SequencerProcessor extends AudioWorkletProcessor {
     const baseOct = this._resolveOctaveParam(octParam)
 
     const in0 = inputs[0]?.[0] ? inputs[0][0] : null
+    const inReset = inputs[1]?.[0] ? inputs[1][0] : null
     let last = this.lastClock
 
     for (let i = 0; i < n; i++) {
       const absIndex = this.sampleCounter + i
+
+      // Reset detection on rising edge of reset input
+      if (inReset) {
+        const rv = inReset[i]
+        const rising = (this._lastReset || 0) < 2.5 && rv >= 2.5
+        if (rising) {
+          this.ppqCount = 0
+          this.gateCountSamples = 0
+          this.step = -1
+          this.gateOn = false
+          this.gateStep = -1
+        }
+        this._lastReset = rv
+      }
 
       if (!run) {
         outGate[i] = 0

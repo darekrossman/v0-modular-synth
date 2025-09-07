@@ -1,4 +1,4 @@
-// Emits five DC pulse streams: [0] = 48 PPQ, [1..4] = musical-grid triggers
+// Emits six DC pulse streams: [0] = 48 PPQ, [1..4] = musical-grid triggers, [5] = reset pulse
 // Each divider selects from: 1/32, 1/16, 1/8, 1/4, 1/2, 1/1, 2/1, 4/1, 8/1
 // Control:
 //   - AudioParam 'bpm'  (k-rate, 0.1..300)
@@ -61,6 +61,8 @@ class ClockProcessor extends AudioWorkletProcessor {
     // gate countdowns in samples
     this.ppqGate = 0
     this.divGates = [0, 0, 0, 0]
+    this.resetGate = 0
+    this.pendingResetPulse = false
 
     this.lastBpm = 120
 
@@ -68,10 +70,16 @@ class ClockProcessor extends AudioWorkletProcessor {
       const { type, value } = e.data || {}
       if (type === 'running') {
         const next = !!value
-        if (next && !this.running) this._reset()
+        if (next && !this.running) {
+          this._reset()
+          // schedule a reset pulse to emit right when transport starts
+          this.pendingResetPulse = true
+        }
         this.running = next
       } else if (type === 'reset') {
         this._reset()
+        // emit a reset pulse on request; if currently stopped, this will fire once running resumes
+        this.pendingResetPulse = true
       }
     }
   }
@@ -131,6 +139,7 @@ class ClockProcessor extends AudioWorkletProcessor {
     const outDiv2 = outputs[2] ? outputs[2][0] : null
     const outDiv3 = outputs[3] ? outputs[3][0] : null
     const outDiv4 = outputs[4] ? outputs[4][0] : null
+    const outReset = outputs[5] ? outputs[5][0] : null
     const n = out48.length
 
     if (!this.running) {
@@ -140,6 +149,7 @@ class ClockProcessor extends AudioWorkletProcessor {
         if (outDiv2) outDiv2[i] = 0
         if (outDiv3) outDiv3[i] = 0
         if (outDiv4) outDiv4[i] = 0
+        if (outReset) outReset[i] = 0
       }
       return true
     }
@@ -177,6 +187,14 @@ class ClockProcessor extends AudioWorkletProcessor {
     const divGates = this.divGates
     const hi = this.high
 
+    // Schedule reset pulse if requested
+    let resetGate = this.resetGate
+    if (this.pendingResetPulse) {
+      const minReset = Math.floor(0.03 * sampleRate) // >= 30ms for visibility
+      resetGate = Math.max(minReset, ppqW)
+      this.pendingResetPulse = false
+    }
+
     for (let i = 0; i < n; i++) {
       // 48 PPQ: trigger at start of each tick
       if (p === 0) {
@@ -197,10 +215,12 @@ class ClockProcessor extends AudioWorkletProcessor {
       if (outDiv2) outDiv2[i] = divGates[1] > 0 ? hi : 0
       if (outDiv3) outDiv3[i] = divGates[2] > 0 ? hi : 0
       if (outDiv4) outDiv4[i] = divGates[3] > 0 ? hi : 0
+      if (outReset) outReset[i] = resetGate > 0 ? hi : 0
 
       // decay gates
       if (ppqGate > 0) ppqGate--
       for (let k = 0; k < 4; k++) if (divGates[k] > 0) divGates[k]--
+      if (resetGate > 0) resetGate--
 
       // advance ppq sample phase
       p++
@@ -215,6 +235,7 @@ class ClockProcessor extends AudioWorkletProcessor {
     this.divGates[1] = divGates[1]
     this.divGates[2] = divGates[2]
     this.divGates[3] = divGates[3]
+    this.resetGate = resetGate
     return true
   }
 }

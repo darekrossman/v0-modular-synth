@@ -18,6 +18,7 @@ import {
   type ModuleInstance,
   type ModuleType,
 } from '@/lib/module-registry'
+import { cn } from '@/lib/utils'
 import { DraggableModuleItem, DragIndicator } from './draggable-item'
 
 interface RacksProps {
@@ -280,11 +281,13 @@ export function Racks({
       <WireCanvas />
       <Header openAddModuleDialog={() => setIsModuleDialogOpen(true)} />
 
-      <div className="flex-1 flex flex-col">
-        <div className="p-1 border-b border-border h-[520px] bg-neutral-700">
+      <RackDivider />
+
+      <div className="flex-1 flex flex-col bg-black">
+        <RackRow>
           <div
             ref={rack1Ref}
-            className="flex overflow-x-auto relative items-stretch h-full"
+            className="flex overflow-x-auto relative items-stretch h-full z-1"
             onDragOver={(e) => handleDragOver(e, 1)}
             onDrop={(e) => handleDrop(e, 1)}
             onDragEnd={handleDragEnd}
@@ -311,12 +314,14 @@ export function Racks({
               dragState.dropRack === 1 &&
               dragState.dropIndex === rack1Modules.length && <DragIndicator />}
           </div>
-        </div>
+        </RackRow>
 
-        <div className="p-1 border-b border-border h-[200px] bg-neutral-700">
+        <RackDivider />
+
+        <RackRow size="1U">
           <div
             ref={rack3Ref}
-            className="flex overflow-x-auto relative items-stretch h-full"
+            className="flex overflow-x-auto relative items-stretch h-full z-1"
             onDragOver={(e) => handleDragOver(e, 3)}
             onDrop={(e) => handleDrop(e, 3)}
             onDragEnd={handleDragEnd}
@@ -343,12 +348,14 @@ export function Racks({
               dragState.dropRack === 3 &&
               dragState.dropIndex === rack3Modules.length && <DragIndicator />}
           </div>
-        </div>
+        </RackRow>
 
-        <div className="p-1 border-b border-border h-[520px] bg-neutral-700">
+        <RackDivider />
+
+        <RackRow>
           <div
             ref={rack2Ref}
-            className="flex overflow-x-auto relative items-stretch h-full"
+            className="flex overflow-x-auto relative items-stretch h-full z-1"
             onDragOver={(e) => handleDragOver(e, 2)}
             onDrop={(e) => handleDrop(e, 2)}
             onDragEnd={handleDragEnd}
@@ -375,11 +382,11 @@ export function Racks({
               dragState.dropRack === 2 &&
               dragState.dropIndex === rack2Modules.length && <DragIndicator />}
           </div>
-        </div>
+        </RackRow>
 
-        <div className="flex-1 p-4 flex items-center justify-center text-muted-foreground min-h-16">
-          <p>Additional workspace area</p>
-        </div>
+        <RackDivider />
+
+        <div className="flex-1 p-4 flex items-center justify-center text-muted-foreground min-h-16 bg-background"></div>
       </div>
 
       <Dialog open={isModuleDialogOpen} onOpenChange={setIsModuleDialogOpen}>
@@ -407,5 +414,49 @@ export function Racks({
         </DialogContent>
       </Dialog>
     </main>
+  )
+}
+
+const RackRow = ({
+  size = '3U',
+  children,
+}: {
+  size?: '3U' | '1U'
+  children: React.ReactNode
+}) => {
+  return (
+    <div
+      className={cn(
+        'relative bg-gradient-to-b from-rack-background/80 to-rack-background/85',
+        {
+          'h-[520px]': size === '3U',
+          'h-[200px]': size === '1U',
+        },
+      )}
+    >
+      <Rail position="top" />
+      {children}
+      <Rail position="bottom" />
+    </div>
+  )
+}
+
+const RackDivider = () => {
+  return <div className="border-t border-white/20" />
+}
+
+const Rail = ({ position }: { position: 'top' | 'bottom' }) => {
+  return (
+    <div
+      className={cn('absolute left-0 w-full h-5 bg-rail-background z-0', {
+        'bottom-0': position === 'bottom',
+        'top-0': position === 'top',
+        'shadow-[0_1px_0px_0_rgba(0,0,0,0.4)]': position === 'top',
+        'shadow-[0_-1px_0px_0_rgba(255,255,255,0.2)]': position === 'bottom',
+      })}
+    >
+      <div className="absolute top-0 left-0 w-full h-1 bg-white/5 shadow-[0_1px_2px_0_rgba(0,0,0,0.6)]" />
+      <div className="absolute bottom-0 left-0 w-full h-1 bg-white/5 shadow-[0_-1px_1px_0_rgba(255,255,255,0.2)]" />
+    </div>
   )
 }

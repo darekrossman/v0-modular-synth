@@ -20,7 +20,7 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<SettingsState>({
-    wireTension: 0.55,
+    wireTension: 0.75,
     wireOpacity: 0.8,
     wireThickness: 5,
   })

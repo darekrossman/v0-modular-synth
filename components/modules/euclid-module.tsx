@@ -290,14 +290,21 @@ export function EuclidModule({ moduleId }: { moduleId: string }) {
   return (
     <ModuleContainer title="Euclid" moduleId={moduleId}>
       {/* Top row: CLK/RESET and outputs */}
-      <div className="flex flex-col items-center gap-3">
-        <div className="flex items-center">
+      <div className="flex flex-col items-center justify-between gap-3">
+        <div className="flex items-center justify-between">
           <Port
             id={`${moduleId}-clock-in`}
             type="input"
             label="CLK"
             audioType="cv"
             audioNode={clockInRef.current ?? undefined}
+          />
+          <Port
+            id={`${moduleId}-reset-in`}
+            type="input"
+            label="RST"
+            audioType="cv"
+            audioNode={resetInRef.current ?? undefined}
           />
           <Port
             id={`${moduleId}-pulses-cv-in`}
@@ -312,13 +319,6 @@ export function EuclidModule({ moduleId }: { moduleId: string }) {
             label="ROT"
             audioType="cv"
             audioNode={rotateInRef.current ?? undefined}
-          />
-          <Port
-            id={`${moduleId}-reset-in`}
-            type="input"
-            label="RST"
-            audioType="cv"
-            audioNode={resetInRef.current ?? undefined}
           />
           <Port
             id={`${moduleId}-density-cv-in`}
@@ -352,7 +352,7 @@ export function EuclidModule({ moduleId }: { moduleId: string }) {
           </PortGroup>
         </div>
 
-        <div className="flex-1 flex items-center justify-center gap-4">
+        <div className="flex-1 flex items-center justify-center gap-4.5">
           {/* <PushButton onClick={handleReset} label="reset" size="sm" /> */}
           <Knob
             defaultValue={[0]}
@@ -418,9 +418,9 @@ export function EuclidModule({ moduleId }: { moduleId: string }) {
             const cls = isCur
               ? isPulse
                 ? 'bg-green-500 shadow-[0_0_6px_var(--color-green-400)]'
-                : 'shadow-[0_0_8px_var(--color-yellow-300)] bg-yellow-500'
+                : 'bg-yellow-500 shadow-[0_0_8px_var(--color-yellow-300)]'
               : isPulse
-                ? 'bg-blue-600'
+                ? 'bg-blue-600 shadow-[0_0_4px_var(--color-blue-500)]'
                 : 'bg-neutral-400'
             return <div key={i} className={`w-3 h-3 rounded-full ${cls}`} />
           })}

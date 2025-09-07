@@ -55,7 +55,7 @@ export const DraggableModuleItem = memo(
         key={module.id}
         className="relative h-full"
         style={{
-          marginRight: index < rackModules.length - 1 ? '2px' : 0,
+          marginRight: index < rackModules.length - 1 ? '1px' : 0,
           opacity,
         }}
         draggable={isDraggable}

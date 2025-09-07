@@ -8,6 +8,10 @@ import { Knob } from '@/components/ui/knob'
 import { useModuleInit } from '@/hooks/use-module-init'
 import { getAudioContext } from '@/lib/helpers'
 import { mapLinear } from '@/lib/utils'
+import { HLine } from '../marks'
+import { TextLabel } from '../text-label'
+import { Toggle } from '../ui/toggle'
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group'
 
 export function ScopeModule({ moduleId }: { moduleId: string }) {
   // Minimal state for controls only
@@ -208,12 +212,12 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     const voltsToY = (v: number) => h / 2 - (v / (voltsPerDiv * 5)) * (h / 2)
 
     // Clear
-    ctx.fillStyle = '#000'
+    ctx.fillStyle = '#0A0A0A'
     ctx.fillRect(0, 0, w, h)
 
     // Grid (10x10)
     ctx.lineWidth = 1
-    ctx.strokeStyle = '#333'
+    ctx.strokeStyle = '#222'
     for (let i = 0; i <= 10; i++) {
       const x = Math.round((i / 10) * w) + 0.5
       ctx.beginPath()
@@ -223,7 +227,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
     }
     for (let i = 0; i <= 10; i++) {
       const y = Math.round((i / 10) * h) + 0.5
-      ctx.strokeStyle = i === 5 ? '#666' : '#333'
+      ctx.strokeStyle = i === 5 ? '#666' : '#222'
       ctx.lineWidth = i === 5 ? 2 : 1
       ctx.beginPath()
       ctx.moveTo(0, y)
@@ -232,10 +236,10 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
       // Voltage labels: 1 division per line
       const lineV = (5 - i) * voltsPerDiv
       ctx.fillStyle = '#888'
-      ctx.font = '10px monospace'
+      ctx.font = '9px monospace'
       ctx.textAlign = 'left'
       ctx.textBaseline = 'bottom'
-      ctx.fillText(`${lineV.toFixed(2)}V`, 2, y - 2)
+      ctx.fillText(`${lineV.toFixed(0)}v`, 5, y - 2)
     }
 
     // Trigger line
@@ -248,7 +252,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
       const y = voltsToY(trigLevel)
       ctx.setLineDash([6, 5])
       ctx.strokeStyle = triggerSource === 0 ? '#ffa500' : '#00bfff'
-      ctx.lineWidth = 1.5
+      ctx.lineWidth = 1
       ctx.beginPath()
       ctx.moveTo(0, y)
       ctx.lineTo(w, y)
@@ -380,7 +384,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
   return (
     <ModuleContainer moduleId={moduleId} title="Scope">
       <div className="flex flex-col gap-3 h-full">
-        <div className="bg-black relative w-[300px] h-[300px] overflow-hidden ml-[-16px] mr-[-16px]">
+        <div className="bg-black relative w-[300px] h-[300px] overflow-hidden ml-[-16px] mr-[-16px] border-b border-module-subdued/70">
           <canvas ref={canvasRef} className="w-full h-full" />
         </div>
 
@@ -410,33 +414,38 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
               size="sm"
               label="Trig"
             />
+
+            <div className="mt-4.5 ml-[-20px] flex items-center gap-0.5 relative z-10">
+              <HLine className="w-5" />
+              <Toggle
+                pressed={triggerEnabled}
+                size="sm"
+                variant="push"
+                className="px-2"
+                onClick={() => setTriggerEnabled((s) => !s)}
+              />
+            </div>
           </div>
 
-          <div className="flex flex-col items-stretch gap-1">
-            <Button
-              variant={triggerEnabled ? 'default' : 'secondary'}
-              size="xs"
-              className="px-2"
-              onClick={() => setTriggerEnabled((s) => !s)}
-            >
-              Trig
-            </Button>
-            <Button
-              variant={triggerSource === 0 ? 'default' : 'secondary'}
-              size="xs"
-              className="px-2"
-              onClick={() => setTriggerSource(0)}
-            >
-              CH1
-            </Button>
-            <Button
-              variant={triggerSource === 1 ? 'default' : 'secondary'}
-              size="xs"
-              className="px-2"
-              onClick={() => setTriggerSource(1)}
-            >
-              CH2
-            </Button>
+          <div className="flex flex-col mt-1 gap-3.5">
+            <TextLabel variant="control">Trig Src</TextLabel>
+            <div className="flex flex-col items-stretch gap-1">
+              <ToggleGroup
+                type="single"
+                value={triggerSource.toString()}
+                onValueChange={(v) =>
+                  setTriggerSource(parseInt(v, 10) as 0 | 1)
+                }
+                size="sm"
+              >
+                <ToggleGroupItem value="0" onClick={() => setTriggerSource(0)}>
+                  CH1
+                </ToggleGroupItem>
+                <ToggleGroupItem value="1" onClick={() => setTriggerSource(1)}>
+                  CH2
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           </div>
         </div>
 

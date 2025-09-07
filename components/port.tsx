@@ -18,8 +18,16 @@ export interface PortProps {
   indicator?: boolean
 }
 
-function voltageToColor(voltage: number): string {
+function voltageToColor(voltage: number, isGateOrTrigger?: boolean): string {
   const v = Math.max(-10, Math.min(10, voltage))
+
+  if (isGateOrTrigger) {
+    if (v > 2.5) {
+      return `rgba(0, 255, 0, 1)`
+    } else {
+      return `rgba(0, 0, 0, 1)`
+    }
+  }
 
   if (v > 0) {
     const ratio = v / 10
@@ -225,14 +233,22 @@ export function Port({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        <div className="absolute inset-[3px] dark:bg-port-jack-inner-ring border border-black/50 rounded-full shadow-[inset_0_1px_0_0px_rgba(255,255,255,0.4),0_1px_0_0_rgba(0,0,0,0.5)]" />
+        <div
+          className={`absolute inset-[3px] border border-black/50 rounded-full shadow-[inset_0_1px_0_0px_rgba(255,255,255,0.4),0_1px_0_0_rgba(0,0,0,0.5)] ${!wireColor ? 'dark:bg-port-jack-inner-ring' : 'bg-black'}`}
+        />
 
         {wireColor ? (
           <div
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
             style={{
-              backgroundColor: voltageToColor(signalValue),
-              boxShadow: `0 0 3px ${voltageToColor(signalValue)}`,
+              backgroundColor: voltageToColor(
+                signalValue,
+                ['gate', 'trigger'].includes(audioType),
+              ),
+              boxShadow: `0 0 3px ${voltageToColor(
+                signalValue,
+                ['gate', 'trigger'].includes(audioType),
+              )}`,
             }}
           />
         ) : (

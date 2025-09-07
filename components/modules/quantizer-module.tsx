@@ -1,11 +1,9 @@
 'use client'
 
-import { ChevronDown } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ModuleContainer } from '@/components/module-container'
 import { useModulePatch } from '@/components/patch-manager'
 import { Port, PortGroup } from '@/components/port'
-import { Button } from '@/components/ui/button'
 import { Knob } from '@/components/ui/knob'
 import {
   Select,
@@ -16,12 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { useModuleInit } from '@/hooks/use-module-init'
 import { getAudioContext } from '@/lib/helpers'
-import { cn } from '@/lib/utils'
 import { TextLabel } from '../text-label'
-import { PushButton } from '../ui/push-button'
 import { Toggle } from '../ui/toggle'
 
 // Scale masks (12-bit, LSB=C)

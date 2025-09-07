@@ -10,6 +10,7 @@ import { LowPassFilterModule } from '@/components/modules/lowpass-filter-module'
 import { MixerVCAModule } from '@/components/modules/mixer-vca-module'
 import { OscillatorModule } from '@/components/modules/oscillator-module'
 import { OutputModule } from '@/components/modules/output-module'
+import { ProcessModule } from '@/components/modules/process-module'
 import { QuantizerModule } from '@/components/modules/quantizer-module'
 import { RandomModule } from '@/components/modules/random-module'
 import { ReverbModule } from '@/components/modules/reverb-module'
@@ -35,6 +36,7 @@ export type ModuleType =
   | 'quantizer'
   | 'euclid'
   | 'attenuverter'
+  | 'process'
 
 export interface ModuleInstance {
   id: string
@@ -154,5 +156,11 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'Attenuverter',
     description: '6-channel attenuverter with normalized inputs',
     component: AttenuverterModule,
+  },
+  {
+    type: 'process' as ModuleType,
+    name: 'Process',
+    description: 'CV utilities: S&H, T&H, H&T, Slew, Glide',
+    component: ProcessModule,
   },
 ]

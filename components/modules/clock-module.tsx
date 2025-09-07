@@ -22,12 +22,13 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
 
-  // Outputs: [0]=48ppq, [1..4]=DIV1..DIV4
+  // Outputs: [0]=48ppq, [1..4]=DIV1..DIV4, [5]=RESET pulse
   const ppq48OutRef = useRef<GainNode | null>(null)
   const div1OutRef = useRef<GainNode | null>(null)
   const div2OutRef = useRef<GainNode | null>(null)
   const div3OutRef = useRef<GainNode | null>(null)
   const div4OutRef = useRef<GainNode | null>(null)
+  const resetOutRef = useRef<GainNode | null>(null)
 
   const keepAliveRef = useRef<GainNode | null>(null)
 
@@ -41,8 +42,8 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
 
     const node = new AudioWorkletNode(ac, 'clock-processor', {
       numberOfInputs: 0,
-      numberOfOutputs: 5,
-      outputChannelCount: [1, 1, 1, 1, 1],
+      numberOfOutputs: 6,
+      outputChannelCount: [1, 1, 1, 1, 1, 1],
       parameterData: {
         bpm: bpm[0],
         // send selector indices (0..8)
@@ -76,11 +77,17 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
     d4.gain.value = 1
     node.connect(d4, 4, 0)
     div4OutRef.current = d4
+    const rst = mk()
+    rst.gain.value = 1
+    node.connect(rst, 5, 0)
+    resetOutRef.current = rst
 
     // keep-alive
     const sink = ac.createGain()
     sink.gain.value = 0
     ppq.connect(sink)
+    // Ensure reset output is also kept alive so pulse is emitted even with no external connections
+    if (rst) rst.connect(sink)
     sink.connect(ac.destination)
     keepAliveRef.current = sink
 
@@ -250,7 +257,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
                 <Port
                   id={`${moduleId}-${d.id}-out`}
                   type="output"
-                  audioType="cv"
+                  audioType="trig"
                   audioNode={d.outRef.current ?? undefined}
                 />
               </PortGroup>
@@ -267,8 +274,15 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
             id={`${moduleId}-48ppq-out`}
             type="output"
             label="clk"
-            audioType="cv"
+            audioType="trig"
             audioNode={ppq48OutRef.current ?? undefined}
+          />
+          <Port
+            id={`${moduleId}-reset-out`}
+            type="output"
+            label="RST"
+            audioType="trig"
+            audioNode={resetOutRef.current ?? undefined}
           />
         </PortGroup>
       </div>
