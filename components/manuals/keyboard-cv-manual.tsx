@@ -24,12 +24,12 @@ export default function KeyboardCVManual() {
         <h4 className="text-sm font-semibold">Ports</h4>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <strong>Gate (output, CV)</strong>: 0V when idle, 5V while a key is
-            held.
+            <strong>Gate (output, CV)</strong>: 0 V when idle, 5 V while a key
+            is held.
           </li>
           <li>
-            <strong>Pitch (output, CV)</strong>: 1V/Oct pitch CV. Middle C range
-            is centered around −1..+1V span for the mapped octave.
+            <strong>Pitch (output, CV)</strong>: 1 V/Oct pitch CV. Middle C
+            range is centered around −1..+1 V span for the mapped octave.
           </li>
         </ul>
       </section>

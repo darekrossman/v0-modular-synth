@@ -281,7 +281,7 @@ export function Racks({
       <Header openAddModuleDialog={() => setIsModuleDialogOpen(true)} />
 
       <div className="flex-1 flex flex-col">
-        <div className="p-1 border-b border-border h-[520px] bg-neutral-900">
+        <div className="p-1 border-b border-border h-[520px] bg-neutral-700">
           <div
             ref={rack1Ref}
             className="flex overflow-x-auto relative items-stretch h-full"
@@ -313,7 +313,7 @@ export function Racks({
           </div>
         </div>
 
-        <div className="p-1 border-b border-border h-[200px] bg-neutral-900">
+        <div className="p-1 border-b border-border h-[200px] bg-neutral-700">
           <div
             ref={rack3Ref}
             className="flex overflow-x-auto relative items-stretch h-full"
@@ -345,7 +345,7 @@ export function Racks({
           </div>
         </div>
 
-        <div className="p-1 border-b border-border h-[520px] bg-neutral-900">
+        <div className="p-1 border-b border-border h-[520px] bg-neutral-700">
           <div
             ref={rack2Ref}
             className="flex overflow-x-auto relative items-stretch h-full"

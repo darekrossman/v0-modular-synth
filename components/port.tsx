@@ -205,12 +205,10 @@ export function Port({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-1 rounded-sm relative',
+        'flex flex-col items-center justify-center gap-1 relative',
         {
-          'size-10 justify-center': !label,
+          'size-10': !label,
           'w-10 h-12': label,
-          // '': type === 'output',
-          'bg-transparent': type === 'input',
         },
         className,
       )}
@@ -221,13 +219,13 @@ export function Port({
         data-port-id={id}
         data-port-kind={kind}
         className={cn(
-          'relative w-6 h-6 shrink-0 rounded-full cursor-pointer select-none bg-neutral-900 border-[5px] border-neutral-100 shadow-[0_0_0_1px_rgba(0,0,0,0.2),0_3px_0_0_rgba(0,0,0,0.1)]',
+          'relative size-[27px] shrink-0 rounded-full cursor-pointer select-none bg-port-jack-outer-ring border-red-500 shadow-[0_0_0_1px_rgba(0,0,0,0.4),0_3px_0_0_rgba(0,0,0,0.25)]',
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        <div className="absolute inset-[-3px] border border-black/50 rounded-full" />
+        <div className="absolute inset-[3px] dark:bg-port-jack-inner-ring border border-black/50 rounded-full shadow-[inset_0_1px_0_0px_rgba(255,255,255,0.4),0_1px_0_0_rgba(0,0,0,0.5)]" />
 
         {wireColor ? (
           <div
@@ -238,7 +236,7 @@ export function Port({
             }}
           />
         ) : (
-          <div className="absolute inset-[3px] rounded-full bg-neutral-900" />
+          <div className="absolute inset-[7px] rounded-full bg-black" />
         )}
       </div>
     </div>
@@ -255,7 +253,7 @@ export const PortGroup = ({
   return (
     <div
       className={cn(
-        'flex items-center justify-between rounded-sm bg-port-background text-foreground',
+        'flex items-center justify-between rounded-sm bg-module-foreground text-module-background',
         className,
       )}
     >

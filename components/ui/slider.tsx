@@ -33,7 +33,7 @@ const sliderVariants = cva(
 )
 
 const trackVariants = cva(
-  'bg-neutral-900 rounded-full relative grow overflow-hidden data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2',
+  'bg-knob-background rounded-full relative grow overflow-hidden data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2',
   {
     variants: {
       variant: {
@@ -51,11 +51,11 @@ const trackVariants = cva(
 )
 
 const thumbVariants = cva(
-  'flex! flex-col justify-center gap-[1px] px-1 border-primary rounded-sm bg-neutral-200 border-2 border-neutral-900 block shrink-0 focus-visible:ring-0 focus-visible:outline-hidden cursor-pointer',
+  'flex! flex-col justify-center gap-[1px] px-1 border-primary rounded-xs bg-knob-foreground block shrink-0 focus-visible:ring-0 focus-visible:outline-hidden cursor-pointer shadow-[0_3px_0_0px_rgba(0,0,0,0.3)]',
   {
     variants: {
       variant: {
-        default: 'w-6 h-4',
+        default: 'w-4 h-6',
         module: 'size-3', // Smaller for module controls
         fine: 'size-5', // Larger for precise control
         coarse: 'size-3', // Smaller for simple controls

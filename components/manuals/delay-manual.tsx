@@ -19,8 +19,8 @@ export default function DelayManual() {
             <strong>Mode (buttons)</strong>: Mono, Stereo, or Ping (ping‑pong).
           </li>
           <li>
-            <strong>Time (knob)</strong>: Sets delay time. When Sync is enabled,
-            selects musical divisions.
+            <strong>Time (knob)</strong>: Sets delay time (0.01..2.0 s). When
+            Sync is enabled, selects musical divisions.
           </li>
           <li>
             <strong>fbck (knob)</strong>: Feedback amount.
@@ -50,21 +50,24 @@ export default function DelayManual() {
         <h4 className="text-sm font-semibold">Ports</h4>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <strong>CLK (input, CV)</strong>: External clock for Sync mode.
+            <strong>CLK (input, CV)</strong>: External clock for Sync mode
+            (pulses ≥ ~0.1 V rising).
           </li>
           <li>
-            <strong>TIME (input, CV)</strong>: Modulates delay time; depth via
-            TIME Amt.
+            <strong>TIME (input, CV)</strong>: Modulates delay time with −1..+1
+            normalized CV; depth via TIME Amt.
           </li>
           <li>
-            <strong>FB (input, CV)</strong>: Modulates feedback; depth via FB
-            Amt.
+            <strong>FB (input, CV)</strong>: Modulates feedback with −1..+1
+            normalized CV; depth via FB Amt.
           </li>
           <li>
-            <strong>IN L / IN R (inputs, audio)</strong>: Audio inputs.
+            <strong>IN L / IN R (inputs, audio)</strong>: Audio inputs (±10 V
+            safe).
           </li>
           <li>
-            <strong>OUT L / OUT R (outputs, audio)</strong>: Processed outputs.
+            <strong>OUT L / OUT R (outputs, audio)</strong>: Processed outputs
+            (stereo).
           </li>
         </ul>
       </section>

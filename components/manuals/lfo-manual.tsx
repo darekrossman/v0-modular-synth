@@ -9,8 +9,8 @@ export default function LFOTManual() {
         </h3>
         <p className="text-muted-foreground">
           Modulation source with multiple shapes, PWM, amplitude, DC offset,
-          slew, and per-parameter CV inputs. Outputs bipolar (±5V) and unipolar
-          (0..+5V) versions simultaneously.
+          slew, and per-parameter CV inputs. Outputs bipolar (±5 V) and unipolar
+          (0..+10 V) versions simultaneously.
         </p>
       </section>
 
@@ -21,26 +21,29 @@ export default function LFOTManual() {
             <strong>Shape (buttons)</strong>: Selects wave shape.
           </li>
           <li>
-            <strong>Freq (knob)</strong>: Oscillation rate.
+            <strong>Freq (knob)</strong>: Oscillation rate (0.5..100 Hz).
           </li>
           <li>
-            <strong>Amp (knob)</strong>: Output amplitude.
+            <strong>Amp (knob)</strong>: Output amplitude (0..2 → ±0..±10 V
+            bip).
           </li>
           <li>
-            <strong>Oset (knob)</strong>: DC offset applied to the output.
+            <strong>Oset (knob)</strong>: DC offset applied (−1..+1 → −5..+5 V
+            bip).
           </li>
           <li>
-            <strong>PWM (knob)</strong>: Pulse width for pulse shapes.
+            <strong>PWM (knob)</strong>: Pulse width for pulse shapes
+            (0.01..0.99).
           </li>
           <li>
-            <strong>Slew (knob)</strong>: Smooths changes, reducing sharp
-            transitions.
+            <strong>Slew (knob)</strong>: Smooths changes (0..1).
           </li>
           <li>
             <strong>
               Rate Amt / PWM Amt / AMP Amt / OFFS Amt (mini knobs)
             </strong>
-            : Depth for corresponding CV inputs.
+            : Depth for corresponding CV inputs (Rate 0..4, others as labeled:
+            PWM 0..1, AMP 0..2, OFFS 0..2).
           </li>
         </ul>
       </section>
@@ -50,28 +53,30 @@ export default function LFOTManual() {
         <ul className="list-disc pl-5 space-y-2">
           <li>
             <strong>RATE (input, CV)</strong>: Modulates rate; depth via Rate
-            Amt.
+            Amt. Expected −5..+5 V.
           </li>
           <li>
             <strong>PWM (input, CV)</strong>: Modulates pulse width; depth via
-            PWM Amt.
+            PWM Amt. Expected −5..+5 V.
           </li>
           <li>
             <strong>AMP (input, CV)</strong>: Modulates amplitude; depth via AMP
-            Amt.
+            Amt. Expected −5..+5 V.
           </li>
           <li>
             <strong>OFFS (input, CV)</strong>: Modulates DC offset; depth via
-            OFFS Amt.
+            OFFS Amt. Expected −5..+5 V.
           </li>
           <li>
-            <strong>SYNC (input, CV)</strong>: Resets the LFO phase.
+            <strong>SYNC (input, CV)</strong>: Resets the LFO phase (gate ≥ ~2.5
+            V).
           </li>
           <li>
-            <strong>UNI (output, CV)</strong>: Unipolar 0..+5V output.
+            <strong>UNI (output, CV)</strong>: Unipolar 0..+10 V output.
           </li>
           <li>
-            <strong>OUT (output, CV)</strong>: Bipolar ±5V output.
+            <strong>OUT (output, CV)</strong>: Bipolar −5..+5 V (up to ±10 V
+            with Amp=2).
           </li>
         </ul>
       </section>

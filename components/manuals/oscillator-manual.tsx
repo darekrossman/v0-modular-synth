@@ -43,19 +43,19 @@ export default function OscillatorManual() {
             triangle.
           </li>
           <li>
-            <strong>Octave (knob)</strong>: Sets octave offset (−4 … +4).
+            <strong>Octave (knob)</strong>: Sets octave offset (−4..+4).
           </li>
           <li>
-            <strong>Tune (knob)</strong>: Fine tune in cents (−600 … +600).
+            <strong>Tune (knob)</strong>: Fine tune in cents (−600..+600).
           </li>
           <li>
             <strong>Sync (knob)</strong>: Amount of hard-sync reset when a
-            rising edge is received at the Sync input. At higher values, resets
-            are stronger and more pronounced.
+            rising edge is received at the Sync input (gate ≥ ~2.5 V). At higher
+            values, resets are stronger.
           </li>
           <li>
             <strong>PWM (knob)</strong>: Base pulse width for the square wave
-            (0.01 … 0.99).
+            (0.01..0.99).
           </li>
           <li>
             <strong>FM Amt (mini knob)</strong>: Depth for the FM input
@@ -77,8 +77,8 @@ export default function OscillatorManual() {
         <h4 className="text-sm font-semibold">Ports</h4>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <strong>Note (input, CV)</strong>: 1V/Oct pitch input. Sets the
-            oscillator frequency exponentially.
+            <strong>Note (input, CV)</strong>: 1 V/Oct pitch input (−10..+10 V
+            typical), exponential mapping.
           </li>
           <li>
             <strong>Sync (input, audio)</strong>: Hard-sync trigger. Rising
@@ -87,7 +87,7 @@ export default function OscillatorManual() {
           </li>
           <li>
             <strong>FM (input, CV/Audio)</strong>: Exponential FM. Accepts CV or
-            audio-rate signals (−1 … +1). Depth set by FM Amt.
+            audio-rate signals (−1..+1 normalized). Depth set by FM Amt.
           </li>
           <li>
             <strong>Morph (input, CV)</strong>: Modulates waveform morph toward
@@ -98,8 +98,8 @@ export default function OscillatorManual() {
             base PWM setting. Depth set by PWM CV Amt.
           </li>
           <li>
-            <strong>Out (output, audio)</strong>: Oscillator audio output (±5V
-            equivalent).
+            <strong>Out (output, audio)</strong>: Oscillator audio output
+            (≈−5..+5 V).
           </li>
         </ul>
       </section>

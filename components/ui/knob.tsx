@@ -79,17 +79,17 @@ export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     }
 
     const tickSizeClasses = {
-      xs: { length: 'w-[1px] h-[1px]', radius: 14, fontSize: 'text-[7px]' },
-      sm: { length: 'w-[1px] h-[2px]', radius: 16, fontSize: 'text-[7px]' },
-      md: { length: 'w-[1px] h-[2px]', radius: 23, fontSize: 'text-[7px]' },
-      lg: { length: 'w-[2px] h-[4px]', radius: 36, fontSize: 'text-[7px]' },
+      xs: { length: 'w-[1px] h-[1px]', radius: 13, fontSize: 'text-[7px]' },
+      sm: { length: 'w-[1px] h-[2px]', radius: 18, fontSize: 'text-[7px]' },
+      md: { length: 'w-[1px] h-[8px]', radius: 24, fontSize: 'text-[7px]' },
+      lg: { length: 'w-[2px] h-[4px]', radius: 37, fontSize: 'text-[7px]' },
     }
 
     const padSizeClasses = {
       xs: 'gap-1.5',
-      sm: 'gap-2.5',
-      md: 'gap-2.5',
-      lg: 'gap-4.5',
+      sm: 'gap-3',
+      md: 'gap-3',
+      lg: 'gap-4',
     }
 
     const smallStroke = size === 'xs' || size === 'sm'
@@ -224,9 +224,9 @@ export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
           ticks.push(
             <div key={i}>
               {/* Tick mark */}
-              <div
+              {/* <div
                 className={cn(
-                  'absolute bg-neutral-900 rounded-sm',
+                  'absolute bg-module-foreground rounded-sm',
                   tickSize.length,
                 )}
                 style={{
@@ -234,7 +234,7 @@ export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
                   top: `calc(50% + ${tickY}px)`,
                   transform: `translate(-50%, -50%) rotate(${angle + 90}deg)`,
                 }}
-              />
+              /> */}
 
               {/* Optional label */}
               {/* {tickLabels && tickLabels[i] != null && (
@@ -263,6 +263,24 @@ export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     const rotationRange = useShorterRange ? 130 : 270
     const rotationOffset = useShorterRange ? -65 : -135
     const rotation = currentValue * rotationRange + rotationOffset
+    const radius = tickSizeClasses[size].radius
+    const viewBox = radius * 2 + 2
+    const center = viewBox / 2
+
+    const getCoordinatesForAngle = (angle: number) => {
+      const rad = (angle - 90) * (Math.PI / 180)
+      const x = center + radius * Math.cos(rad)
+      const y = center + radius * Math.sin(rad)
+      return { x, y }
+    }
+
+    const start = getCoordinatesForAngle(-135)
+    const end = getCoordinatesForAngle(135)
+    const circumference = 2 * Math.PI * radius
+    const arcLength = circumference * (270 / 360)
+    const pathData = `M ${start.x} ${start.y} A ${radius} ${radius} 0 1 1 ${end.x} ${end.y}`
+    const offset = arcLength - 1 * arcLength
+    const dotRotation = -135 + 1 * 270
 
     return (
       <div
@@ -285,17 +303,32 @@ export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
         )}
 
         <div className="relative">
-          {showTicks && (
-            <div className="absolute inset-0 pointer-events-none">
-              {renderTickMarks()}
-            </div>
-          )}
+          <svg
+            width={viewBox}
+            height={viewBox}
+            viewBox={`0 0 ${viewBox} ${viewBox}`}
+            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none`}
+          >
+            <defs>
+              <path id={`knob-path-${radius}`} d={pathData} />
+            </defs>
+            <use
+              href={`#knob-path-${radius}`}
+              className="stroke-knob-outer-ring fill-none"
+              strokeWidth="0.75"
+              strokeLinecap="round"
+              style={{
+                strokeDasharray: arcLength,
+                strokeDashoffset: offset,
+              }}
+            />
+          </svg>
 
           <div
             ref={ref}
             className={cn(
-              'bg-neutral-900 relative rounded-full cursor-pointer select-none',
-              'focus-visible:outline-none',
+              'bg-knob-background relative rounded-full cursor-pointer select-none',
+              'focus-visible:outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.3),inset_0_-1px_2px_0_rgba(0,0,0,0.3),0_4px_0_0_rgba(0,0,0,0.2)]',
               sizeClasses[size],
               skirtSizeClass[size],
               disabled && 'opacity-50 cursor-not-allowed',
@@ -350,21 +383,27 @@ export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
                       size === 'xs'
                         ? '2px'
                         : size === 'sm'
-                          ? '4px'
+                          ? '3px'
                           : size === 'md'
-                            ? '5px'
-                            : '6px',
+                            ? '4px'
+                            : '5px',
                     height: '50%',
                     transform: `rotate(${rotation}deg)`,
                     transformOrigin: 'center bottom',
                     top: 0,
                     left: '50%',
                     marginLeft:
-                      size === 'xs' ? '-1px' : smallStroke ? '-2px' : '-3px',
+                      size === 'xs'
+                        ? '-1px'
+                        : size === 'sm'
+                          ? '-1.5px'
+                          : size === 'md'
+                            ? '-2px'
+                            : '-2.5px',
                   }}
                 >
                   <div
-                    className="w-full h-[50%] bg-neutral-100 rounded-full"
+                    className="w-full h-[60%] bg-knob-foreground rounded-full"
                     style={{
                       marginTop: size === 'xs' ? '2px' : '0px',
                     }}

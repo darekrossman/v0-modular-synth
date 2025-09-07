@@ -17,8 +17,9 @@ export default function ADSRManual() {
         <h4 className="text-sm font-semibold">Controls</h4>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <strong>A / D / S / R (vertical sliders)</strong>: Set attack,
-            decay, sustain, and release times/levels.
+            <strong>A / D / S / R (vertical sliders)</strong>: Attack 0.001..2 s
+            (Long ×10), Decay 0.001..2 s (Long ×10), Sustain 0..1, Release
+            0.001..5 s (Long ×10).
           </li>
           <li>
             <strong>Rtrig (toggle)</strong>: When on, restarting a gate
@@ -46,14 +47,15 @@ export default function ADSRManual() {
         <h4 className="text-sm font-semibold">Ports</h4>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <strong>Gate (input, CV)</strong>: 0/5V gate input that triggers the
-            envelope.
+            <strong>Gate (input, CV)</strong>: Gate expects ~0..5 V (Schmitt
+            ~1.5 V / 2.5 V thresholds).
           </li>
           <li>
-            <strong>Out (output, CV)</strong>: Main envelope output.
+            <strong>Out (output, CV)</strong>: Envelope 0..10 V (max adjustable
+            via Lvl).
           </li>
           <li>
-            <strong>INV (output, CV)</strong>: Inverted envelope output.
+            <strong>INV (output, CV)</strong>: Inverted envelope −10..0 V.
           </li>
         </ul>
       </section>

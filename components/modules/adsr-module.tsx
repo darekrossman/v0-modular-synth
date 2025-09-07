@@ -140,6 +140,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
   useEffect(() => {
     const ac = audioContextRef.current,
       node = nodeRef.current
+    console.log(mapAttack(attackN[0]))
     if (ac && node)
       node.parameters
         .get('attack')
@@ -236,13 +237,13 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 onValueChange={setAttackN}
                 min={0}
                 max={1}
-                step={0.001}
+                step={0.0001}
                 orientation="vertical"
                 className="h-32"
                 data-param="attack"
               />
             </div>
-            <TextLabel variant="control" className="text-sm">
+            <TextLabel variant="control" className="text-[10px]">
               A
             </TextLabel>
           </div>
@@ -260,7 +261,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 data-param="decay"
               />
             </div>
-            <TextLabel variant="control" className="text-sm">
+            <TextLabel variant="control" className="text-[10px]">
               D
             </TextLabel>
           </div>
@@ -278,7 +279,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 data-param="sustain"
               />
             </div>
-            <TextLabel variant="control" className="text-sm">
+            <TextLabel variant="control" className="text-[10px]">
               S
             </TextLabel>
           </div>
@@ -295,7 +296,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 data-param="release"
               />
             </div>
-            <TextLabel variant="control" className="text-sm">
+            <TextLabel variant="control" className="text-[10px]">
               R
             </TextLabel>
           </div>

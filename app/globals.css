@@ -8,7 +8,7 @@
 }
 
 .dark {
-  --background: oklch(0.09 0.005 240);
+  --background: oklch(0.16 0.002 240);
   --foreground: oklch(0.95 0.013 252.37);
   --card: oklch(14.5% 0 0);
   --card-foreground: oklch(0.95 0.013 252.37);
@@ -41,8 +41,15 @@
   --sidebar-border: oklch(0.14 0.004 285.82);
   --sidebar-ring: oklch(0.95 0.013 252.37);
 
-  --port-background: oklch(0.145 0.002 240);
-  --module-background: oklch(0.95 0.002 240);
+  --port-jack-inner-ring: oklch(0.5 0.002 240);
+  --port-jack-outer-ring: oklch(0.9 0.002 240);
+  --module-background: oklch(0.2 0.002 240);
+  --module-background-gradient: oklch(0.22 0.002 240);
+  --module-foreground: oklch(0.9 0.002 240);
+  --knob-background: oklch(0.35 0.002 240);
+  --knob-foreground: oklch(0.9 0.002 240);
+  --knob-outer-ring: oklch(0.7 0.002 240);
+  --module-subdued: oklch(0.36 0.002 240);
 }
 
 @theme inline {
@@ -88,8 +95,15 @@
     ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
 
-  --color-port-background: var(--port-background);
   --color-module-background: var(--module-background);
+  --color-module-foreground: var(--module-foreground);
+  --color-module-background-gradient: var(--module-background-gradient);
+  --color-knob-background: var(--knob-background);
+  --color-knob-foreground: var(--knob-foreground);
+  --color-knob-outer-ring: var(--knob-outer-ring);
+  --color-port-jack-inner-ring: var(--port-jack-inner-ring);
+  --color-port-jack-outer-ring: var(--port-jack-outer-ring);
+  --color-module-subdued: var(--module-subdued);
 }
 
 @layer base {

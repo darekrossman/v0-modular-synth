@@ -16,7 +16,8 @@ export default function OutputManual() {
         <h4 className="text-sm font-semibold">Controls</h4>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <strong>Volume (knob)</strong>: Adjusts output level.
+            <strong>Volume (knob)</strong>: Adjusts output level (approx −∞..0
+            dB → +6 dB headroom).
           </li>
           <li>
             <strong>Enable/Disable (button)</strong>: Soft-start/stop the master
@@ -45,10 +46,10 @@ export default function OutputManual() {
         <h4 className="text-sm font-semibold">Ports</h4>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <strong>L (input, audio)</strong>: Left input channel.
+            <strong>L (input, audio)</strong>: Left input channel (±10 V safe).
           </li>
           <li>
-            <strong>R (input, audio)</strong>: Right input channel.
+            <strong>R (input, audio)</strong>: Right input channel (±10 V safe).
           </li>
         </ul>
       </section>

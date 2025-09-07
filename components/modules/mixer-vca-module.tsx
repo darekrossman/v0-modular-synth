@@ -224,7 +224,7 @@ export function MixerVCAModule({ moduleId }: { moduleId: string }) {
               })
             }
           />
-          <TextLabel variant="control" className="text-xs">
+          <TextLabel variant="control" className="text-[9px]">
             CH{i + 1}
           </TextLabel>
         </div>
@@ -236,21 +236,21 @@ export function MixerVCAModule({ moduleId }: { moduleId: string }) {
     <ModuleContainer title="Mixer VCA" moduleId={moduleId}>
       <div className="flex flex-col gap-4 mt-4 flex-1">
         <div className="relative grid grid-cols-4 gap-4 items-end">
-          <div className="absolute top-2 left-0 w-full h-[128px] text-neutral-600">
-            <div className="z-1 absolute top-[-4px] left-1/2 -translate-x-1/2 text-[9px] leading-[8px] bg-neutral-200 px-1">
+          <div className="absolute top-[12px] left-0 w-full h-[120px] text-neutral-600">
+            <div className="z-1 absolute top-[-9px] left-1/2 -translate-x-1/2 text-[9px] leading-[8px]">
               6db
             </div>
-            <div className="z-1 absolute top-[calc(25%-4px)] left-1/2 -translate-x-1/2 text-[9px] leading-[8px] bg-neutral-200 px-1">
+            <div className="z-1 absolute top-[calc(25%-9px)] left-1/2 -translate-x-1/2 text-[9px] leading-[8px]">
               0
             </div>
-            <div className="z-1 absolute top-[calc(100%-5px)] left-1/2 -translate-x-1/2 text-[12px] leading-[8px] bg-neutral-200 px-0.5">
+            <div className="z-1 absolute top-[calc(100%+1px)] left-1/2 -translate-x-1/2 text-[12px] leading-[8px]">
               -<span className="text-[16px] opacity-60">∞</span>
             </div>
-            <div className="absolute top-[0%] left-0 w-full h-[1px] border-t border-dashed border-neutral-400" />
-            <div className="absolute top-[25%] left-0 w-full h-[1px] border-t border-dashed border-neutral-400" />
-            <div className="absolute top-[50%] left-0 w-full h-[1px] border-t border-dashed border-neutral-400" />
-            <div className="absolute top-[75%] left-0 w-full h-[1px] border-t border-dashed border-neutral-400" />
-            <div className="absolute top-[100%] left-0 w-full h-[1px] border-t border-dashed border-neutral-400" />
+            <div className="absolute top-[0%] left-0 w-full h-[1px] border-t border-dashed border-module-subdued" />
+            <div className="absolute top-[25%] left-0 w-full h-[1px] border-t border-dashed border-module-subdued" />
+            <div className="absolute top-[50%] left-0 w-full h-[1px] border-t border-dashed border-module-subdued" />
+            <div className="absolute top-[75%] left-0 w-full h-[1px] border-t border-dashed border-module-subdued" />
+            <div className="absolute top-[100%] left-0 w-full h-[1px] border-t border-dashed border-module-subdued" />
           </div>
           {sliders}
         </div>

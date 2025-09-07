@@ -18,7 +18,7 @@ export function ModuleContainer({
 }: ModuleContainerProps) {
   return (
     <div
-      className="h-full bg-gradient-to-t from-module-background/85 to-module-background overflow-hidden"
+      className="h-full bg-gradient-to-b from-module-background-gradient to-module-background overflow-hidden text-module-foreground"
       data-module-id={moduleId}
     >
       <Card className={cn('h-full flex flex-col bg-transparent', className)}>
@@ -26,7 +26,7 @@ export function ModuleContainer({
           <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-40 transition-opacity">
             <GripVertical className="w-4 h-4" />
           </div>
-          <CardTitle className="text-sm text-black font-extrabold lowercase font-mono tracking-wide">
+          <CardTitle className="text-sm font-extrabold lowercase font-mono tracking-wide">
             {title}
           </CardTitle>
         </CardHeader>

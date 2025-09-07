@@ -19,19 +19,21 @@ export default function ReverbManual() {
             <strong>Algo (buttons)</strong>: Room, Hall, or Plate.
           </li>
           <li>
-            <strong>Size (knob)</strong>: Virtual room size.
+            <strong>Size (knob)</strong>: Virtual room size (0.3..2.0 scale).
           </li>
           <li>
-            <strong>Decay (knob)</strong>: Reverb tail length.
+            <strong>Decay (knob)</strong>: Reverb feedback (0..0.98 internal
+            gain).
           </li>
           <li>
-            <strong>Pre (knob)</strong>: Pre‑delay before the reverb.
+            <strong>Pre (knob)</strong>: Pre‑delay (0..0.25 s).
           </li>
           <li>
-            <strong>Tone (knob)</strong>: High‑frequency damping.
+            <strong>Tone (knob)</strong>: High‑frequency damping cutoff
+            (200..16,000 Hz).
           </li>
           <li>
-            <strong>Mix (knob)</strong>: Wet/dry balance.
+            <strong>Mix (knob)</strong>: Wet/dry balance (0..1 equal‑power).
           </li>
           <li>
             <strong>SIZE/TONE/DECAY/MIX Amt (mini knobs)</strong>: Depths for
@@ -44,7 +46,8 @@ export default function ReverbManual() {
         <h4 className="text-sm font-semibold">Ports</h4>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            <strong>IN L / IN R (inputs, audio)</strong>: Audio inputs.
+            <strong>IN L / IN R (inputs, audio)</strong>: Audio inputs (±10 V
+            safe; mono handled).
           </li>
           <li>
             <strong>SIZE / TONE / DECAY / MIX (inputs, CV)</strong>: CV mod

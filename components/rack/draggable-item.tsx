@@ -88,7 +88,7 @@ export const DraggableModuleItem = memo(
           <ContextMenuContent>
             <ContextMenuItem onClick={() => setInfoOpen(true)}>
               <Book className="w-3 h-3" />
-              user uanual
+              user manual
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => onDelete(module.id)}

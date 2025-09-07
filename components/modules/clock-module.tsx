@@ -217,7 +217,6 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
             label="Tempo"
             size="md"
             turnSpeed="slow"
-            className="text-black"
           />
         </div>
       </div>
@@ -226,10 +225,10 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
         <div className="">
           <TextLabel variant="control">Dividers</TextLabel>
         </div>
-        <div className="flex flex-col gap-5 py-3 border-b border-t border-neutral-400/50">
+        <div className="flex flex-col gap-5 py-3 border-b border-t border-module-subdued">
           {divisionControls.map((d, i) => (
             <div key={d.id} className="flex items-center justify-between">
-              <div className="size-10 flex items-center justify-center border border-neutral-400 rounded-full">
+              <div className="size-10 flex items-center justify-center">
                 <Knob
                   defaultValue={[d.default]}
                   onValueChange={d.onChange}
@@ -240,7 +239,7 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
               </div>
               <div className="flex items-center">
                 <HLine className="w-3" />
-                <div className="w-8 py-1 rounded-sm bg-background text-yellow-500">
+                <div className="w-8 py-1 rounded-sm bg-module-foreground text-yellow-500 dark:text-module-background">
                   <TextLabel variant="control">
                     {getDivisionLabel(d.value)}
                   </TextLabel>
