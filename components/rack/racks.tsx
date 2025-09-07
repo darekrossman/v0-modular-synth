@@ -65,24 +65,39 @@ export function Racks({
   const WORLD_SIZE = 10000
   const viewportRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
-  // Initial camera at top-left
-  const [camera, setCamera] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const cameraRef = useRef(camera)
-  cameraRef.current = camera
+  // Camera stored in ref; DOM transform is updated imperatively for perf
+  const cameraRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const rafRef = useRef<number | null>(null)
+  const pendingApplyRef = useRef(false)
   const isSpaceHeldRef = useRef(false)
   const [isSpaceHeld, setIsSpaceHeld] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const panStartRef = useRef<{ x: number; y: number } | null>(null)
   const cameraStartRef = useRef<{ x: number; y: number } | null>(null)
 
-  const panBy = useCallback((dx: number, dy: number) => {
-    // Use rAF to batch updates for smoothness
-    requestAnimationFrame(() => {
-      const nextX = Math.min(0, cameraRef.current.x + dx)
-      const nextY = Math.min(0, cameraRef.current.y + dy)
-      setCamera({ x: nextX, y: nextY })
-    })
+  const applyTransform = useCallback(() => {
+    pendingApplyRef.current = false
+    const el = worldRef.current
+    if (!el) return
+    const { x, y } = cameraRef.current
+    el.style.transform = `translate3d(${x}px, ${y}px, 0)`
   }, [])
+
+  const scheduleApply = useCallback(() => {
+    if (pendingApplyRef.current) return
+    pendingApplyRef.current = true
+    rafRef.current = requestAnimationFrame(applyTransform)
+  }, [applyTransform])
+
+  const panBy = useCallback(
+    (dx: number, dy: number) => {
+      const nx = Math.min(0, cameraRef.current.x + dx)
+      const ny = Math.min(0, cameraRef.current.y + dy)
+      cameraRef.current = { x: nx, y: ny }
+      scheduleApply()
+    },
+    [scheduleApply],
+  )
 
   useEffect(() => {
     // setTimeout(() => {
@@ -377,7 +392,8 @@ export function Racks({
               // drag-to-pan: move world with the cursor
               const nx = Math.min(0, cameraStartRef.current.x + dx)
               const ny = Math.min(0, cameraStartRef.current.y + dy)
-              setCamera({ x: nx, y: ny })
+              cameraRef.current = { x: nx, y: ny }
+              scheduleApply()
             }}
             onPointerUp={(e) => {
               try {
@@ -405,7 +421,6 @@ export function Racks({
           style={{
             width: WORLD_SIZE,
             height: WORLD_SIZE,
-            transform: `translate3d(${camera.x}px, ${camera.y}px, 0)`,
             willChange: 'transform',
           }}
         >
