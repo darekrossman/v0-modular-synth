@@ -366,7 +366,6 @@ export function PatchProvider({
     exportPatch: exportPatchJSON,
     loadPatch: loadPatchJSON,
     clearAllConnections,
-    waitForPortsRegistered,
   } = useConnections()
 
   // Init: load storage + ensure default present
@@ -518,24 +517,17 @@ export function PatchProvider({
 
       // 4) Wait until modules have mounted and registered so ports exist in the DOM
       await waitForModuleRegistration(patch.modules.map((m) => m.id))
-      // Also wait until all port Elements for the patch's connections are present
-      const portIds = Array.from(
-        new Set(patch.connections.flatMap((c) => [c.from, c.to])),
-      )
-      await waitForPortsRegistered(portIds)
 
-      // 5) Load connections (ensure all have colors) on the next frame to let layout settle
+      // 5) Load connections via provider once ports become ready
       const connectionsWithColors = patch.connections.map((conn) => ({
         ...conn,
         color: conn.color || '#888888',
       }))
-      requestAnimationFrame(() => {
-        loadPatchJSON({
-          modules: patch.modules,
-          connections: connectionsWithColors,
-        })
-        setCurrentPatch(patch)
+      loadPatchJSON({
+        modules: patch.modules,
+        connections: connectionsWithColors,
       })
+      setCurrentPatch(patch)
     },
     [
       onModulesChange,

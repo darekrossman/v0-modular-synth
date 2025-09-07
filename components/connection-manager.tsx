@@ -120,11 +120,8 @@ interface Ctx {
   ) => void
   getPortCenter: (portId: string) => { x: number; y: number }
 
-  // Readiness helpers
-  waitForPortsRegistered: (
-    portIds: string[],
-    timeoutMs?: number,
-  ) => Promise<void>
+  // Patch-load barrier: apply edges once all ports are ready
+  beginPatchLoad: (edges: ConnectionEdge[]) => Promise<void>
 
   // Save/Load
   exportPatch: (modules: PatchJson['modules']) => PatchJson
@@ -196,27 +193,14 @@ export function ConnectionProvider({
     return portCenters.current.get(portId) ?? { x: 0, y: 0 }
   }, [])
 
-  const waitForPortsRegistered = useCallback(
-    async (portIds: string[], timeoutMs: number = 1) => {
-      const start = performance.now()
-      return await new Promise<void>((resolve) => {
-        const check = () => {
-          const allPresent = portIds.every((id) => {
-            const entry = ports.current.get(id)
-            return !!entry?.el
-          })
-          if (allPresent || performance.now() - start > timeoutMs) {
-            // Wait one extra frame to allow measurement loop to compute centers
-            requestAnimationFrame(() => resolve())
-            return
-          }
-          requestAnimationFrame(check)
-        }
-        requestAnimationFrame(check)
-      })
-    },
-    [],
-  )
+  // ---------- Patch Load Barrier ----------
+  const patchBarrierRef = useRef<{
+    expected: Set<string>
+    presentDom: Set<string>
+    presentAudio: Set<string>
+    edges: ConnectionEdge[]
+    resolve: (() => void) | null
+  } | null>(null)
 
   // Geometry measurement (runs at most once per frame)
   const measureOnce = useCallback(() => {
@@ -308,6 +292,16 @@ export function ConnectionProvider({
     // Request measurement & bump version (so overlay updates even if measurement yields same coords)
     needsMeasure.current = true
     setGeometryVersion((v) => v + 1)
+
+    // Patch barrier: mark DOM presence and try resolve
+    if (patchBarrierRef.current && info.el) {
+      const b = patchBarrierRef.current
+      if (b.expected.has(portId)) {
+        b.presentDom.add(portId)
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        trySatisfyPatchBarrier()
+      }
+    }
   }, [])
 
   const unregisterPort: Ctx['unregisterPort'] = useCallback((portId) => {
@@ -337,6 +331,16 @@ export function ConnectionProvider({
         : { el: undefined, audioNode: node, meta: { direction, kind } }
 
       ports.current.set(portId, entry)
+
+      // Patch barrier: mark audio presence and try resolve
+      if (patchBarrierRef.current) {
+        const b = patchBarrierRef.current
+        if (b.expected.has(portId) && node) {
+          b.presentAudio.add(portId)
+          // eslint-disable-next-line @typescript-eslint/no-use-before-define
+          trySatisfyPatchBarrier()
+        }
+      }
 
       // Bind any edges that touch this port
       connectionsRef.current.forEach((edge) => {
@@ -647,6 +651,46 @@ export function ConnectionProvider({
   }, [])
 
   // ---- Save / Load ----
+  const trySatisfyPatchBarrier = useCallback(() => {
+    const b = patchBarrierRef.current
+    if (!b) return
+    for (const id of b.expected) {
+      if (!b.presentDom.has(id) || !b.presentAudio.has(id)) return
+    }
+    // Ensure a measurement pass is scheduled
+    needsMeasure.current = true
+    requestAnimationFrame(() => {
+      // Will call loadPatch defined below; safe in rAF
+      loadPatch({ modules: [] as any, connections: b.edges })
+      b.resolve?.()
+      patchBarrierRef.current = null
+    })
+  }, [])
+
+  const beginPatchLoad = useCallback(
+    (edges: ConnectionEdge[]) => {
+      // Clear current and prepare barrier
+      clearAllConnections()
+      const expected = new Set<string>()
+      for (const e of edges) {
+        expected.add(e.from)
+        expected.add(e.to)
+      }
+      patchBarrierRef.current = {
+        expected,
+        presentDom: new Set<string>(),
+        presentAudio: new Set<string>(),
+        edges,
+        resolve: null,
+      }
+      return new Promise<void>((resolve) => {
+        const b = patchBarrierRef.current
+        if (b) b.resolve = resolve
+        trySatisfyPatchBarrier()
+      })
+    },
+    [clearAllConnections, trySatisfyPatchBarrier],
+  )
   const exportPatch: Ctx['exportPatch'] = useCallback(
     (modules) => ({
       modules,
@@ -731,7 +775,7 @@ export function ConnectionProvider({
       },
       registerTempWireUpdater,
       getPortCenter,
-      waitForPortsRegistered,
+      beginPatchLoad,
 
       exportPatch,
       loadPatch,
@@ -753,6 +797,7 @@ export function ConnectionProvider({
       registerAudioNode,
       registerTempWireUpdater,
       getPortCenter,
+      beginPatchLoad,
       exportPatch,
       loadPatch,
     ],
