@@ -61,6 +61,29 @@ export function Racks({
   const rack2Ref = useRef<HTMLDivElement>(null)
   const rack3Ref = useRef<HTMLDivElement>(null)
 
+  // Viewport/world for transform-based panning
+  const WORLD_SIZE = 10000
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const worldRef = useRef<HTMLDivElement>(null)
+  // Initial camera at top-left
+  const [camera, setCamera] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const cameraRef = useRef(camera)
+  cameraRef.current = camera
+  const isSpaceHeldRef = useRef(false)
+  const [isSpaceHeld, setIsSpaceHeld] = useState(false)
+  const [isPanning, setIsPanning] = useState(false)
+  const panStartRef = useRef<{ x: number; y: number } | null>(null)
+  const cameraStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  const panBy = useCallback((dx: number, dy: number) => {
+    // Use rAF to batch updates for smoothness
+    requestAnimationFrame(() => {
+      const nextX = Math.min(0, cameraRef.current.x + dx)
+      const nextY = Math.min(0, cameraRef.current.y + dy)
+      setCamera({ x: nextX, y: nextY })
+    })
+  }, [])
+
   useEffect(() => {
     // setTimeout(() => {
     //   loadDefaultPatch()
@@ -72,6 +95,15 @@ export function Racks({
       if (
         ['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)
       ) {
+        return
+      }
+      // Space to enter panning mode
+      if (event.code === 'Space') {
+        if (!isSpaceHeldRef.current) {
+          isSpaceHeldRef.current = true
+          setIsSpaceHeld(true)
+        }
+        event.preventDefault()
         return
       }
       if (event.key.toLowerCase() === 's' && (event.ctrlKey || event.metaKey)) {
@@ -95,9 +127,45 @@ export function Racks({
         setIsModuleDialogOpen((prev) => !prev)
       }
     }
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        isSpaceHeldRef.current = false
+        setIsSpaceHeld(false)
+        setIsPanning(false)
+      }
+    }
+    const handleBlur = () => {
+      isSpaceHeldRef.current = false
+      setIsSpaceHeld(false)
+      setIsPanning(false)
+    }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
+    }
   }, [currentPatch, updateCurrentPatch, toast])
+
+  // Wheel disabled; only pan when space is held (still prevent native scroll)
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      if (!isSpaceHeldRef.current) return
+      const scale = e.deltaMode === 1 ? 16 : 1
+      const dx = e.deltaX * scale
+      const dy = e.deltaY * scale
+      panBy(-dx, -dy)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+    }
+  }, [panBy])
 
   const handleDeleteModule = useCallback(
     (moduleId: string) => {
@@ -278,116 +346,189 @@ export function Racks({
 
   return (
     <main className="h-screen bg-background flex flex-col relative">
-      <WireCanvas />
       <Header openAddModuleDialog={() => setIsModuleDialogOpen(true)} />
 
       <RackDivider />
 
-      <div className="flex-1 flex flex-col bg-black">
-        <RackRow>
+      <div
+        id="racks"
+        ref={viewportRef}
+        className="flex-1 relative bg-black overflow-hidden overscroll-none"
+      >
+        {/* Pan overlay captures drag when space is held */}
+        {isSpaceHeld && (
           <div
-            ref={rack1Ref}
-            className="flex overflow-x-auto relative items-stretch h-full z-1"
-            onDragOver={(e) => handleDragOver(e, 1)}
-            onDrop={(e) => handleDrop(e, 1)}
-            onDragEnd={handleDragEnd}
-          >
-            {rack1Modules.map((module: ModuleInstance, index: number) => (
-              <React.Fragment key={module.id}>
-                {dragState.isDragging &&
-                  dragState.dropRack === 1 &&
-                  dragState.dropIndex === index && <DragIndicator />}
-                <DraggableModuleItem
-                  module={module}
-                  index={index}
-                  rackModules={rack1Modules}
-                  onDelete={handleDeleteModule}
-                  onDragStart={(e: React.DragEvent) =>
-                    handleDragStart(e, module, 1)
-                  }
-                  isDragging={dragState.isDragging}
-                  draggedId={dragState.draggedModule?.id}
-                />
-              </React.Fragment>
-            ))}
-            {dragState.isDragging &&
-              dragState.dropRack === 1 &&
-              dragState.dropIndex === rack1Modules.length && <DragIndicator />}
-          </div>
-        </RackRow>
+            className={cn(
+              'absolute inset-0 z-50',
+              isPanning ? 'cursor-grabbing' : 'cursor-grab',
+            )}
+            style={{ userSelect: 'none' }}
+            onPointerDown={(e) => {
+              ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+              setIsPanning(true)
+              panStartRef.current = { x: e.clientX, y: e.clientY }
+              cameraStartRef.current = { ...cameraRef.current }
+            }}
+            onPointerMove={(e) => {
+              if (!isPanning || !panStartRef.current || !cameraStartRef.current)
+                return
+              const dx = e.clientX - panStartRef.current.x
+              const dy = e.clientY - panStartRef.current.y
+              // drag-to-pan: move world with the cursor
+              const nx = Math.min(0, cameraStartRef.current.x + dx)
+              const ny = Math.min(0, cameraStartRef.current.y + dy)
+              setCamera({ x: nx, y: ny })
+            }}
+            onPointerUp={(e) => {
+              try {
+                ;(e.currentTarget as HTMLElement).releasePointerCapture(
+                  e.pointerId,
+                )
+              } catch {}
+              setIsPanning(false)
+              panStartRef.current = null
+              cameraStartRef.current = null
+            }}
+            onPointerCancel={() => {
+              setIsPanning(false)
+              panStartRef.current = null
+              cameraStartRef.current = null
+            }}
+          />
+        )}
 
-        <RackDivider />
+        {/* World that translates with camera */}
+        <div
+          id="racks-world"
+          ref={worldRef}
+          className="absolute top-0 left-0"
+          style={{
+            width: WORLD_SIZE,
+            height: WORLD_SIZE,
+            transform: `translate3d(${camera.x}px, ${camera.y}px, 0)`,
+            willChange: 'transform',
+          }}
+        >
+          {/* WireCanvas now moves with the world */}
+          <WireCanvas />
 
-        <RackRow size="1U">
-          <div
-            ref={rack3Ref}
-            className="flex overflow-x-auto relative items-stretch h-full z-1"
-            onDragOver={(e) => handleDragOver(e, 3)}
-            onDrop={(e) => handleDrop(e, 3)}
-            onDragEnd={handleDragEnd}
-          >
-            {rack3Modules.map((module: ModuleInstance, index: number) => (
-              <React.Fragment key={module.id}>
-                {dragState.isDragging &&
-                  dragState.dropRack === 3 &&
-                  dragState.dropIndex === index && <DragIndicator />}
-                <DraggableModuleItem
-                  module={module}
-                  index={index}
-                  rackModules={rack3Modules}
-                  onDelete={handleDeleteModule}
-                  onDragStart={(e: React.DragEvent) =>
-                    handleDragStart(e, module, 3)
-                  }
-                  isDragging={dragState.isDragging}
-                  draggedId={dragState.draggedModule?.id}
-                />
-              </React.Fragment>
-            ))}
-            {dragState.isDragging &&
-              dragState.dropRack === 3 &&
-              dragState.dropIndex === rack3Modules.length && <DragIndicator />}
-          </div>
-        </RackRow>
+          <RackRow>
+            <div
+              ref={rack1Ref}
+              className="flex relative items-stretch h-full z-1"
+              onDragOver={(e) => handleDragOver(e, 1)}
+              onDrop={(e) => handleDrop(e, 1)}
+              onDragEnd={handleDragEnd}
+            >
+              {/* Left spacer removed; world has fixed size */}
+              {rack1Modules.map((module: ModuleInstance, index: number) => (
+                <React.Fragment key={module.id}>
+                  {dragState.isDragging &&
+                    dragState.dropRack === 1 &&
+                    dragState.dropIndex === index && <DragIndicator />}
+                  <DraggableModuleItem
+                    module={module}
+                    index={index}
+                    rackModules={rack1Modules}
+                    onDelete={handleDeleteModule}
+                    onDragStart={(e: React.DragEvent) =>
+                      handleDragStart(e, module, 1)
+                    }
+                    isDragging={dragState.isDragging}
+                    draggedId={dragState.draggedModule?.id}
+                  />
+                </React.Fragment>
+              ))}
+              {dragState.isDragging &&
+                dragState.dropRack === 1 &&
+                dragState.dropIndex === rack1Modules.length && (
+                  <DragIndicator />
+                )}
+              {/* Right spacer removed; world has fixed size */}
+            </div>
+          </RackRow>
 
-        <RackDivider />
+          <RackDivider />
 
-        <RackRow>
-          <div
-            ref={rack2Ref}
-            className="flex overflow-x-auto relative items-stretch h-full z-1"
-            onDragOver={(e) => handleDragOver(e, 2)}
-            onDrop={(e) => handleDrop(e, 2)}
-            onDragEnd={handleDragEnd}
-          >
-            {rack2Modules.map((module: ModuleInstance, index: number) => (
-              <React.Fragment key={module.id}>
-                {dragState.isDragging &&
-                  dragState.dropRack === 2 &&
-                  dragState.dropIndex === index && <DragIndicator />}
-                <DraggableModuleItem
-                  module={module}
-                  index={index}
-                  rackModules={rack2Modules}
-                  onDelete={handleDeleteModule}
-                  onDragStart={(e: React.DragEvent) =>
-                    handleDragStart(e, module, 2)
-                  }
-                  isDragging={dragState.isDragging}
-                  draggedId={dragState.draggedModule?.id}
-                />
-              </React.Fragment>
-            ))}
-            {dragState.isDragging &&
-              dragState.dropRack === 2 &&
-              dragState.dropIndex === rack2Modules.length && <DragIndicator />}
-          </div>
-        </RackRow>
+          <RackRow size="1U">
+            <div
+              ref={rack3Ref}
+              className="flex relative items-stretch h-full z-1"
+              onDragOver={(e) => handleDragOver(e, 3)}
+              onDrop={(e) => handleDrop(e, 3)}
+              onDragEnd={handleDragEnd}
+            >
+              {/* Left spacer removed */}
+              {rack3Modules.map((module: ModuleInstance, index: number) => (
+                <React.Fragment key={module.id}>
+                  {dragState.isDragging &&
+                    dragState.dropRack === 3 &&
+                    dragState.dropIndex === index && <DragIndicator />}
+                  <DraggableModuleItem
+                    module={module}
+                    index={index}
+                    rackModules={rack3Modules}
+                    onDelete={handleDeleteModule}
+                    onDragStart={(e: React.DragEvent) =>
+                      handleDragStart(e, module, 3)
+                    }
+                    isDragging={dragState.isDragging}
+                    draggedId={dragState.draggedModule?.id}
+                  />
+                </React.Fragment>
+              ))}
+              {dragState.isDragging &&
+                dragState.dropRack === 3 &&
+                dragState.dropIndex === rack3Modules.length && (
+                  <DragIndicator />
+                )}
+              {/* Right spacer removed */}
+            </div>
+          </RackRow>
 
-        <RackDivider />
+          <RackDivider />
 
-        <div className="flex-1 p-4 flex items-center justify-center text-muted-foreground min-h-16 bg-background"></div>
+          <RackRow>
+            <div
+              ref={rack2Ref}
+              className="flex relative items-stretch h-full z-1"
+              onDragOver={(e) => handleDragOver(e, 2)}
+              onDrop={(e) => handleDrop(e, 2)}
+              onDragEnd={handleDragEnd}
+            >
+              {/* Left spacer removed */}
+              {rack2Modules.map((module: ModuleInstance, index: number) => (
+                <React.Fragment key={module.id}>
+                  {dragState.isDragging &&
+                    dragState.dropRack === 2 &&
+                    dragState.dropIndex === index && <DragIndicator />}
+                  <DraggableModuleItem
+                    module={module}
+                    index={index}
+                    rackModules={rack2Modules}
+                    onDelete={handleDeleteModule}
+                    onDragStart={(e: React.DragEvent) =>
+                      handleDragStart(e, module, 2)
+                    }
+                    isDragging={dragState.isDragging}
+                    draggedId={dragState.draggedModule?.id}
+                  />
+                </React.Fragment>
+              ))}
+              {dragState.isDragging &&
+                dragState.dropRack === 2 &&
+                dragState.dropIndex === rack2Modules.length && (
+                  <DragIndicator />
+                )}
+              {/* Right spacer removed */}
+            </div>
+          </RackRow>
+        </div>
       </div>
+
+      {/* <div className="flex-1 p-4 flex items-center justify-center text-muted-foreground min-h-16 bg-background"></div> */}
+
+      <RackDivider />
 
       <Dialog open={isModuleDialogOpen} onOpenChange={setIsModuleDialogOpen}>
         <DialogContent className="max-w-[70vw]! max-h-[80vh] overflow-y-auto">
@@ -427,7 +568,7 @@ const RackRow = ({
   return (
     <div
       className={cn(
-        'relative bg-gradient-to-b from-rack-background/80 to-rack-background/85',
+        'relative w-full bg-gradient-to-b from-rack-background/80 to-rack-background/85',
         {
           'h-[520px]': size === '3U',
           'h-[200px]': size === '1U',

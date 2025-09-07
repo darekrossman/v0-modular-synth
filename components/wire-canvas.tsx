@@ -629,7 +629,7 @@ export function WireCanvas() {
   return (
     <svg
       ref={svgRef}
-      className="pointer-events-none fixed inset-0 w-full h-full z-40"
+      className="pointer-events-none absolute top-0 left-0 w-full h-full z-40"
       shapeRendering="geometricPrecision"
     >
       <defs>
