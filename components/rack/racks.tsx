@@ -170,7 +170,6 @@ export function Racks({
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      if (!isSpaceHeldRef.current) return
       const scale = e.deltaMode === 1 ? 16 : 1
       const dx = e.deltaX * scale
       const dy = e.deltaY * scale
