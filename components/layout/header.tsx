@@ -15,7 +15,7 @@ export function Header({
   return (
     <header className="px-6 py-2 border-b border-border flex items-center justify-between">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">vrack</h1>
+        <h1 className="text-2xl font-bold text-foreground">rack0</h1>
         <p className="text-sm text-muted-foreground">
           {currentPatch?.name || 'empty patch'}
         </p>
