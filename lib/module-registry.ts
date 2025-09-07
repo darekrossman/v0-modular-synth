@@ -16,6 +16,7 @@ import { RandomModule } from '@/components/modules/random-module'
 import { ReverbModule } from '@/components/modules/reverb-module'
 import { ScopeModule } from '@/components/modules/scope-module'
 import { SequencerModule } from '@/components/modules/sequencer-module'
+import { SVFFilterModule } from '@/components/modules/svf-filter-module'
 import { VCAModule } from '@/components/modules/vca-module'
 
 export type ModuleType =
@@ -27,6 +28,7 @@ export type ModuleType =
   | 'adsr'
   | 'keyboard-cv'
   | 'lowpass-filter'
+  | 'svf-filter'
   | 'reverb'
   | 'delay'
   | 'scope'
@@ -96,6 +98,12 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'Lowpass Filter',
     description: '24db ladder filter',
     component: LowPassFilterModule,
+  },
+  {
+    type: 'svf-filter' as ModuleType,
+    name: 'SVF Filter',
+    description: 'State-variable filter with LP/HP outs',
+    component: SVFFilterModule,
   },
   {
     type: 'oscillator' as ModuleType,
