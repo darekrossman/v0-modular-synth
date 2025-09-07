@@ -1,16 +1,15 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { GeistSans } from "geist/font/sans"
-import { GeistMono } from "geist/font/mono"
-import { Toaster } from "@/components/ui/toaster"
-import "./globals.css"
+import { GeistMono } from 'geist/font/mono'
+import { GeistSans } from 'geist/font/sans'
+import type { Metadata } from 'next'
+import type React from 'react'
+import { Toaster } from '@/components/ui/toaster'
+import './globals.css'
 
 const geist = GeistSans
 
 export const metadata: Metadata = {
-  title: "v0 Modular Synth Lab",
-  description: "Created with v0",
-  generator: "v0.app",
+  title: 'rack0 [alpha]',
+  description: 'eurorack-inspired modular synthesis environment',
 }
 
 export default function RootLayout({

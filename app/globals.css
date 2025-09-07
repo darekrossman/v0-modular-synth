@@ -46,7 +46,7 @@ body {
   --sidebar-border: oklch(0.14 0.004 285.82);
   --sidebar-ring: oklch(0.95 0.013 252.37);
 
-  --port-jack-inner-ring: oklch(0.5 0.002 240);
+  --port-jack-inner-ring: oklch(0.4 0.002 240);
   --port-jack-outer-ring: oklch(0.9 0.002 240);
   --module-background: oklch(0.2 0.002 240);
   --module-background-gradient: oklch(0.22 0.002 240);
