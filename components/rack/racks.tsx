@@ -99,10 +99,9 @@ export function Racks({
     [scheduleApply],
   )
 
+  // Load the example patch once on initial mount
   useEffect(() => {
-    // setTimeout(() => {
-    //   loadDefaultPatch()
-    // }, 1000)
+    loadDefaultPatch()
   }, [])
 
   useEffect(() => {
