@@ -3,6 +3,8 @@
 // - Outputs: [0] lowpass, [1] highpass
 // Domain: 1.0 == 1 V; typical audio ±5 V, CV ±10 V
 
+// (Oversampling removed for stability; simple 1x TPT SVF)
+
 class SVFFilterProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
@@ -11,14 +13,14 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
         defaultValue: 1000,
         minValue: 10,
         maxValue: 12000,
-        automationRate: 'k-rate',
+        automationRate: 'a-rate',
       },
       {
         name: 'resonance', // 0..1 mapped to Q
         defaultValue: 0.0,
         minValue: 0.0,
         maxValue: 1.0,
-        automationRate: 'k-rate',
+        automationRate: 'a-rate',
       },
       {
         name: 'drive', // 0..1 mapped to input gain
@@ -60,9 +62,17 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
     this.s1 = 0 // integrator 1 state (bandpass memory)
     this.s2 = 0 // integrator 2 state (lowpass memory)
 
-    // Lightweight output limiting
-    this.softKnee = 5
+    // Lightweight output limiting (allow headroom; limit near ±10 V)
+    this.softKnee = 9
     this.hard = 10
+
+    // Parameter smoothing (one-pole)
+    const smoothTau = 0.003
+    this.smoothA = Math.exp(-1 / (this.fs * smoothTau))
+    this.smoothB = 1 - this.smoothA
+    this.cutSm = 1000
+    this.resSm = 0
+    this.drvSm = 0
   }
 
   _clamp01(x) {
@@ -78,6 +88,38 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
       Math.sign(x) * (this.softKnee + Math.tanh(excess / 3) * (span - 1))
     return y
   }
+
+  _clamp(x, min, max) {
+    return Math.max(min, Math.min(max, x))
+  }
+
+  _sat(x, k) {
+    if (k <= 1e-6) return x
+    return Math.tanh(k * x) / k
+  }
+
+  _processSVFStep(x, g, R, driveNorm) {
+    // Optional input drive saturation
+    let xIn = x
+    if (driveNorm > 0) {
+      const driveGain = 1 + driveNorm ** 1.5 * 4
+      xIn = this._sat(x * driveGain, driveNorm * 0.5)
+    }
+
+    // Standard Zavalishin TPT SVF equations
+    const denom = 1 + R * g + g * g
+    const hp = (xIn - R * this.s1 - this.s2) / denom
+    const bp = this.s1 + g * hp
+    const lp = this.s2 + g * bp
+
+    // Update integrator states
+    this.s1 = bp + g * hp
+    this.s2 = lp + g * bp
+
+    return { hp, bp, lp }
+  }
+
+  // No decimator/upsampler in the 1x path
 
   process(inputs, outputs, params) {
     const xIn = inputs[0]?.[0] || null
@@ -105,7 +147,7 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
     const drvAmtP = params.driveCvAmt
 
     for (let i = 0; i < n; i++) {
-      // Base (k-rate)
+      // Per-sample params (a-rate for cutoff/resonance)
       let fc = Math.max(
         10,
         Math.min(this.fs * 0.49, cutP.length > 1 ? cutP[i] : cutP[0]),
@@ -134,37 +176,62 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
         dNorm = this._clamp01(dNorm + (v / 10) * drvAmt)
       }
 
-      // Map resonance 0..1 -> Q in [0.5 .. 12]; R = 1/Q
-      const Q = 0.5 + rNorm ** 1.2 * 11.5
+      // Smooth parameter updates
+      this.cutSm = this.smoothA * this.cutSm + this.smoothB * fc
+      this.resSm = this.smoothA * this.resSm + this.smoothB * rNorm
+      this.drvSm = this.smoothA * this.drvSm + this.smoothB * dNorm
+
+      // Compute filter coefficient from smoothed cutoff
+      const g = Math.tan((Math.PI * this.cutSm) / this.fs)
+
+      // Simple, stable resonance curve
+      // At res=0: Q=0.5 (no resonance)
+      // At res=1: Q~5 (controlled resonance)
+      const minQ = 0.5
+      const maxQ = 5
+
+      // Use smoothed resonance for consistency
+      let Q = minQ + this.resSm ** 1.8 * (maxQ - minQ)
+
+      // Frequency-dependent Q reduction to prevent low-frequency instability
+      // Only reduce Q at very low frequencies where instability occurs
+      const freqNorm = this.cutSm / this.ny
+      if (freqNorm < 0.01) {
+        // Below ~100 Hz at 48kHz
+        const lfScale = freqNorm / 0.01
+        Q = minQ + (Q - minQ) * lfScale
+      }
+
       const R = 1 / Q
 
-      // Map drive 0..1 -> input gain ~ [1 .. 10] (gentle exp)
-      const drive = 1 + dNorm ** 1.5 * 9
+      // Input sample (expect ±5 V program level)
+      const xin = Math.max(-5, Math.min(5, xIn[i] || 0))
 
-      // Prewarp / compute g
-      const wc = (2 * Math.PI * fc) / this.fs
-      let g = Math.tan(wc / 2)
-      if (!Number.isFinite(g) || g <= 0) g = 1
+      // Simple SVF step without complex saturation
+      const s = this._processSVFStep(xin, g, R, this.drvSm)
 
-      // TPT SVF step
-      // v1 = (x - R*s1 - s2) / (1 + R*g + g^2)
-      const x = Math.max(-10, Math.min(10, (xIn[i] || 0) * drive))
-      const denom = 1 + R * g + g * g
-      const v1 = (x - R * this.s1 - this.s2) / denom
-      const v2 = this.s1 + g * v1 // bandpass
-      const v3 = this.s2 + g * v2 // lowpass
+      // Aggressive gain compensation to prevent resonant peaks from exceeding ±5V
+      // The resonance gain at the cutoff frequency is approximately Q
+      // We need to compensate for this gain increase
+      let gainComp = 1
 
-      this.s1 = v2 + g * v1
-      this.s2 = v3 + g * v2
+      // Always apply compensation when there's any resonance
+      if (Q > minQ) {
+        // The peak gain of a resonant filter is approximately Q at the cutoff frequency
+        // We want to keep the output roughly the same amplitude as the input
+        const resonanceGain = Q / minQ // How much louder than flat response
 
-      // Outputs: lowpass=v3, highpass=v1
-      let lp = v3
-      let hp = v1
+        // More aggressive compensation at low frequencies where resonance is strongest
+        const freqFactor = Math.max(0.3, Math.min(1, freqNorm * 4))
 
-      // Light soft limit to keep Eurorack bounds
-      lp = this._limit(lp)
-      hp = this._limit(hp)
+        // Calculate compensation to keep peaks under control
+        // At maximum Q, we want significant gain reduction
+        gainComp = 1 / (1 + (resonanceGain - 1) * 0.8 * freqFactor)
+      }
 
+      // Apply gain compensation and soft limit
+      const lp = this._limit(s.lp * gainComp)
+      const hp = this._limit(s.hp * gainComp)
       lpOut[i] = Number.isFinite(lp) ? lp : 0
       hpOut[i] = Number.isFinite(hp) ? hp : 0
     }
@@ -173,6 +240,4 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('svf-filter-processor', SVFFilterProcessor)
-registerProcessor('svf-filter-processor', SVFFilterProcessor)
 registerProcessor('svf-filter-processor', SVFFilterProcessor)
