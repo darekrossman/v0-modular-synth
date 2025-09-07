@@ -299,7 +299,7 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
                     <SelectTrigger className="w-26">
                       <SelectValue placeholder="Scale" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent side="top">
                       {SCALES.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
@@ -317,7 +317,7 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
                     <SelectTrigger className="w-14 uppercase">
                       <SelectValue placeholder="Key" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent side="top">
                       {KEYS.map((k, i) => (
                         <SelectItem
                           key={k}

@@ -93,6 +93,14 @@ class ADSRProcessor extends AudioWorkletProcessor {
     this.segTarget = 0.0
     this.segSlope = 0.0 // volts per sample
     this.segSamplesLeft = 0
+
+    // Exponential segment tracking and calibration
+    // EPSILON defines the fraction of the initial step remaining at the end of a stage
+    // We calibrate time constants so that a duration of T seconds reaches within EPSILON of the target
+    this.EPSILON = 0.001
+    this.LN_1_OVER_EPS = Math.log(1 / this.EPSILON)
+    this.expTarget = 0.0
+    this.expInitialDelta = 0.0
   }
 
   // per-sample one-pole approach-to-target with time constant tau (seconds)
@@ -127,11 +135,21 @@ class ADSRProcessor extends AudioWorkletProcessor {
       ),
     )
 
+    // Interpret attack/decay/release parameters as exact stage durations in seconds.
+    // For exponential segments we convert duration -> time constant so that we reach
+    // within EPSILON of the target at the end of the duration.
     const ATK = Math.max(0.0005, atk * longMul)
     const DEC = Math.max(0.0005, dec * longMul)
     const REL = Math.max(0.0005, rel * longMul)
+    const tauAtk = ATK / this.LN_1_OVER_EPS
+    const tauDec = DEC / this.LN_1_OVER_EPS
+    const tauRel = REL / this.LN_1_OVER_EPS
     const SUS = Math.min(1, Math.max(0, sus)) * MAXV
 
+    const startExpSeg = (target, seconds) => {
+      this.expTarget = target
+      this.expInitialDelta = Math.abs(target - this.env)
+    }
     const startLinearSeg = (target, seconds) => {
       const samples = Math.max(1, Math.floor(seconds * sampleRate))
       this.segTarget = target
@@ -150,12 +168,16 @@ class ADSRProcessor extends AudioWorkletProcessor {
             // rising edge: attack or retrig
             if (retrig) this.env = 0.0 // hard retrig
             this.state = 1 // attack
+            // Initialize stage tracking for both shapes to support mid-stage shape switching
+            startExpSeg(MAXV, ATK)
             if (shapeLinear) startLinearSeg(MAXV, ATK)
           } else if (this.gate === 1 && v <= loT) {
             this.gate = 0
             this.deadUntil = currentFrame + i + Math.floor(sampleRate * 0.0005)
             // falling edge: release
             this.state = 4 // release
+            // Initialize stage tracking for both shapes to support mid-stage shape switching
+            startExpSeg(0.0, REL)
             if (shapeLinear) startLinearSeg(0.0, REL)
           }
         }
@@ -176,13 +198,20 @@ class ADSRProcessor extends AudioWorkletProcessor {
             if (this.segSamplesLeft <= 0 || this.env >= MAXV) {
               this.env = MAXV
               this.state = 2
+              // Initialize next stage for both shapes
+              startExpSeg(SUS, DEC)
               startLinearSeg(SUS, DEC)
             }
           } else {
-            this.env = this.stepToward(this.env, MAXV, ATK)
-            if (this.env >= MAXV * 0.999) {
+            this.env = this.stepToward(this.env, MAXV, tauAtk)
+            if (
+              Math.abs(this.env - MAXV) <=
+              this.EPSILON * this.expInitialDelta
+            ) {
               this.env = MAXV
               this.state = 2 // decay
+              // Prepare decay stage boundaries
+              startExpSeg(SUS, DEC)
             }
           }
           break
@@ -198,8 +227,15 @@ class ADSRProcessor extends AudioWorkletProcessor {
               this.state = 3
             }
           } else {
-            this.env = this.stepToward(this.env, Math.max(this.FLOOR, SUS), DEC)
-            if (Math.abs(this.env - SUS) <= 0.001 * MAXV) {
+            this.env = this.stepToward(
+              this.env,
+              Math.max(this.FLOOR, SUS),
+              tauDec,
+            )
+            if (
+              Math.abs(this.env - SUS) <=
+              this.EPSILON * this.expInitialDelta
+            ) {
               this.env = SUS
               this.state = 3 // sustain
             }
@@ -211,7 +247,7 @@ class ADSRProcessor extends AudioWorkletProcessor {
           this.env = SUS
           break
 
-        case 4: // release -> FLOOR (then idle)
+        case 4: // release -> 0 (then idle)
           if (shapeLinear) {
             if (this.segSamplesLeft > 0) {
               this.env += this.segSlope
@@ -222,8 +258,11 @@ class ADSRProcessor extends AudioWorkletProcessor {
               this.state = 0
             }
           } else {
-            this.env = this.stepToward(this.env, this.FLOOR, REL)
-            if (this.env <= this.FLOOR * 1.01) {
+            this.env = this.stepToward(this.env, 0.0, tauRel)
+            if (
+              Math.abs(this.env - 0.0) <=
+              this.EPSILON * this.expInitialDelta
+            ) {
               this.env = 0.0
               this.state = 0
             }

@@ -45,7 +45,7 @@
   --port-jack-outer-ring: oklch(0.9 0.002 240);
   --module-background: oklch(0.2 0.002 240);
   --module-background-gradient: oklch(0.22 0.002 240);
-  --module-foreground: oklch(0.9 0.002 240);
+  --module-foreground: oklch(0.85 0.002 240);
   --knob-background: oklch(0.35 0.002 240);
   --knob-foreground: oklch(0.9 0.002 240);
   --knob-outer-ring: oklch(0.7 0.002 240);

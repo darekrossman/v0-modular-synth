@@ -374,7 +374,7 @@ const ComputerKeyboard = ({ pressedKeys }: { pressedKeys: Set<string> }) => {
                 className={`w-4 h-4 rounded-[2px] flex items-center justify-center transition-colors duration-75 ${
                   pressedKeys.has(key.toLowerCase())
                     ? 'bg-blue-500 border-blue-600 text-white'
-                    : 'bg-neutral-800 text-neutral-100 shadow-sm'
+                    : 'bg-knob-background text-knob-foreground shadow-sm'
                 }`}
               >
                 <span className="text-[9px] font-mono font-medium">{key}</span>
@@ -393,7 +393,7 @@ const ComputerKeyboard = ({ pressedKeys }: { pressedKeys: Set<string> }) => {
               className={`w-4 h-4 rounded-[2px] flex items-center justify-center transition-colors duration-75 ${
                 pressedKeys.has(key.toLowerCase())
                   ? 'bg-blue-500 text-white'
-                  : 'bg-neutral-800 text-neutral-100 shadow-sm'
+                  : 'bg-knob-background text-knob-foreground shadow-sm'
               }`}
             >
               <span className="text-[9px] font-mono font-medium">{key}</span>

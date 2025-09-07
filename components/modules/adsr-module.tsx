@@ -15,13 +15,13 @@ import { mapLinear } from '@/lib/utils'
 
 // Ranges for mapping 0..1 -> seconds
 const ATTACK_MIN = 0.001
-const ATTACK_MAX = 2.0
+const ATTACK_MAX = 3.0
 const DECAY_MIN = 0.001
-const DECAY_MAX = 2.0
+const DECAY_MAX = 3.0
 const SUSTAIN_MIN = 0.0
 const SUSTAIN_MAX = 1.0
 const RELEASE_MIN = 0.001
-const RELEASE_MAX = 5.0
+const RELEASE_MAX = 3.0
 const MAXV_MIN = 0.0
 const MAXV_MAX = 10.0
 
@@ -140,7 +140,6 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
   useEffect(() => {
     const ac = audioContextRef.current,
       node = nodeRef.current
-    console.log(mapAttack(attackN[0]))
     if (ac && node)
       node.parameters
         .get('attack')
