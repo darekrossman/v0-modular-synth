@@ -463,8 +463,31 @@ export function PatchProvider({
     setCurrentPatch(updated)
   }, [currentPatch, getCurrentState])
 
+  // Wait until all modules in the patch have mounted and registered
+  const waitForModuleRegistration = useCallback(
+    async (expectedModuleIds: string[], timeoutMs = 2000) => {
+      const start = performance.now()
+      return await new Promise<void>((resolve) => {
+        const check = () => {
+          const registeredIds = Array.from(moduleCallbacksRef.current.keys())
+          const ready = expectedModuleIds.every((id) =>
+            registeredIds.includes(id),
+          )
+          if (ready || performance.now() - start > timeoutMs) {
+            // One extra frame ensures DOM refs (ports) are attached and measured
+            requestAnimationFrame(() => resolve())
+            return
+          }
+          requestAnimationFrame(check)
+        }
+        requestAnimationFrame(check)
+      })
+    },
+    [],
+  )
+
   const loadPatch = useCallback(
-    (patchLike: Patch) => {
+    async (patchLike: Patch) => {
       const patch = normalizePatch(patchLike) as Patch
       if (!patch) return
 
@@ -482,18 +505,23 @@ export function PatchProvider({
       }))
       onModulesChange(moduleInstances)
 
-      // 3) Load connections (ensure all have colors)
+      // 3) Wait until modules have mounted and registered so ports exist in the DOM
+      await waitForModuleRegistration(patch.modules.map((m) => m.id))
+
+      // 4) Load connections (ensure all have colors) on the next frame to let layout settle
       const connectionsWithColors = patch.connections.map((conn) => ({
         ...conn,
-        color: conn.color || '#888888', // Default gray color if none specified
+        color: conn.color || '#888888',
       }))
-      loadPatchJSON({
-        modules: patch.modules,
-        connections: connectionsWithColors,
+      requestAnimationFrame(() => {
+        loadPatchJSON({
+          modules: patch.modules,
+          connections: connectionsWithColors,
+        })
+        setCurrentPatch(patch)
       })
-      setCurrentPatch(patch)
     },
-    [onModulesChange, loadPatchJSON],
+    [onModulesChange, loadPatchJSON, waitForModuleRegistration],
   )
 
   const exportPatch = useCallback(
