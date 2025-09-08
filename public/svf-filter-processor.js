@@ -12,7 +12,7 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
         name: 'cutoff',
         defaultValue: 1000,
         minValue: 10,
-        maxValue: 12000,
+        maxValue: 8000,
         automationRate: 'a-rate',
       },
       {
@@ -163,7 +163,7 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
         const cv = Math.max(-10, Math.min(10, cutoffCv[i] || 0))
         const oct = cv * cutAmt
         fc = fc * 2 ** oct
-        fc = Math.max(20, Math.min(12000, fc))
+        fc = Math.max(20, Math.min(8000, fc))
       }
 
       if (resCv) {
@@ -194,11 +194,12 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
       let Q = minQ + this.resSm ** 1.8 * (maxQ - minQ)
 
       // Frequency-dependent Q reduction to prevent low-frequency instability
-      // Only reduce Q at very low frequencies where instability occurs
+      // More aggressive reduction at very low frequencies
       const freqNorm = this.cutSm / this.ny
-      if (freqNorm < 0.01) {
-        // Below ~100 Hz at 48kHz
-        const lfScale = freqNorm / 0.01
+      if (freqNorm < 0.02) {
+        // Below ~200 Hz at 48kHz
+        // Exponential reduction for smoother transition
+        const lfScale = (freqNorm / 0.02) ** 1.5
         Q = minQ + (Q - minQ) * lfScale
       }
 
@@ -221,12 +222,19 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
         // We want to keep the output roughly the same amplitude as the input
         const resonanceGain = Q / minQ // How much louder than flat response
 
+        // Extra aggressive compensation at very low frequencies
+        let compStrength = 0.8
+        if (freqNorm < 0.02) {
+          // Below 200 Hz, increase compensation strength exponentially
+          compStrength = 0.8 + 0.15 * (1 - freqNorm / 0.02) ** 2
+        }
+
         // More aggressive compensation at low frequencies where resonance is strongest
-        const freqFactor = Math.max(0.3, Math.min(1, freqNorm * 4))
+        const freqFactor = Math.max(0.2, Math.min(1, freqNorm * 3))
 
         // Calculate compensation to keep peaks under control
-        // At maximum Q, we want significant gain reduction
-        gainComp = 1 / (1 + (resonanceGain - 1) * 0.8 * freqFactor)
+        // At maximum Q and low frequency, we want very significant gain reduction
+        gainComp = 1 / (1 + (resonanceGain - 1) * compStrength * freqFactor)
       }
 
       // Apply gain compensation and soft limit

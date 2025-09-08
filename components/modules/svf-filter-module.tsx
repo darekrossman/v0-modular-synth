@@ -12,7 +12,7 @@ import * as utils from '@/lib/utils'
 import { VLine } from '../marks'
 
 const MIN_CUTOFF = 20
-const MAX_CUTOFF = 12000
+const MAX_CUTOFF = 8000
 
 export function SVFFilterModule({ moduleId }: { moduleId: string }) {
   const { initialParameters } = useModulePatch(moduleId, () => ({
