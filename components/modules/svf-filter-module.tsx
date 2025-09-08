@@ -194,8 +194,8 @@ export function SVFFilterModule({ moduleId }: { moduleId: string }) {
   }, moduleId)
 
   return (
-    <ModuleContainer title="SVF Filter" moduleId={moduleId}>
-      <div className="flex flex-col items-center justify-center px-3 gap-6 flex-1">
+    <ModuleContainer title="Filter" moduleId={moduleId}>
+      <div className="flex flex-col items-center justify-center px-3 gap-8 flex-1">
         <Knob
           value={cutoff}
           onValueChange={setCutoff}

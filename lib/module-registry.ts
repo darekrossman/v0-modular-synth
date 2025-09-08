@@ -100,8 +100,8 @@ export const availableModules: ModuleCatalogEntry[] = [
     component: LowPassFilterModule,
   },
   {
-    type: 'svf-filter' as ModuleType,
-    name: 'SVF Filter',
+    type: 'filter' as ModuleType,
+    name: 'Filter',
     description: 'State-variable filter with LP/HP outs',
     component: SVFFilterModule,
   },
