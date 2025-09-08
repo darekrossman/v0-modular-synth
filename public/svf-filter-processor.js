@@ -116,7 +116,18 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
     this.s1 = bp + g * hp
     this.s2 = lp + g * bp
 
-    return { hp, bp, lp }
+    // More aggressive state limiting for high-frequency stability
+    const stateLimit = 10 // Reduced from 20
+    this.s1 = this._clamp(this.s1, -stateLimit, stateLimit)
+    this.s2 = this._clamp(this.s2, -stateLimit, stateLimit)
+
+    // Final safety check on outputs
+    const outputLimit = 15
+    const hpSafe = this._clamp(hp, -outputLimit, outputLimit)
+    const bpSafe = this._clamp(bp, -outputLimit, outputLimit)
+    const lpSafe = this._clamp(lp, -outputLimit, outputLimit)
+
+    return { hp: hpSafe, bp: bpSafe, lp: lpSafe }
   }
 
   // No decimator/upsampler in the 1x path
@@ -181,7 +192,7 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
       this.resSm = this.smoothA * this.resSm + this.smoothB * rNorm
       this.drvSm = this.smoothA * this.drvSm + this.smoothB * dNorm
 
-      // Compute filter coefficient from smoothed cutoff
+      // Compute filter coefficient from smoothed cutoff (moved up for Q calculation)
       const g = Math.tan((Math.PI * this.cutSm) / this.fs)
 
       // Simple, stable resonance curve
@@ -193,14 +204,25 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
       // Use smoothed resonance for consistency
       let Q = minQ + this.resSm ** 1.8 * (maxQ - minQ)
 
-      // Frequency-dependent Q reduction to prevent low-frequency instability
-      // More aggressive reduction at very low frequencies
+      // Frequency-dependent Q reduction to prevent instability at both ends
       const freqNorm = this.cutSm / this.ny
+
+      // Low-frequency instability prevention
       if (freqNorm < 0.02) {
         // Below ~200 Hz at 48kHz
         // Exponential reduction for smoother transition
         const lfScale = (freqNorm / 0.02) ** 1.5
         Q = minQ + (Q - minQ) * lfScale
+      }
+
+      // High-frequency instability prevention - very aggressive
+      // Start reducing Q much earlier to prevent any instability
+      if (g > 0.3) {
+        // Start reducing Q around 2 kHz at 48 kHz (much earlier)
+        // Exponential reduction for more aggressive control
+        const normalizedG = (g - 0.3) / (1 - 0.3) // 0 to 1 range from g=0.3 to g=1
+        const hfScale = Math.max(0.1, (1 - normalizedG) ** 2) // Quadratic falloff
+        Q = minQ + (Q - minQ) * hfScale
       }
 
       const R = 1 / Q
