@@ -98,13 +98,35 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
     return Math.tanh(k * x) / k
   }
 
+  // Drive saturation with smooth blending
+  _driveSat(x, amount) {
+    // Always process through same signal path to avoid discontinuities
+    // Drive amount controls how much saturation and gain we apply
+
+    // Normalize to ±1 for tanh processing
+    const normalized = x / 5
+
+    // Drive increases both gain and saturation amount
+    // At 0: gain = 1, sat = 0 (linear)
+    // At 1: gain = 2.5, sat = 1 (full saturation)
+    const driveGain = 1 + amount * 1.5
+    const satAmount = amount
+
+    // Apply gain before saturation
+    const gained = normalized * driveGain
+
+    // Blend between linear and saturated based on drive amount
+    // This ensures smooth transition from dry to wet
+    const saturated =
+      gained * (1 - satAmount) + Math.tanh(gained * 0.7) * satAmount
+
+    // Scale back to Eurorack levels
+    return saturated * 5
+  }
+
   _processSVFStep(x, g, R, driveNorm) {
-    // Optional input drive saturation
-    let xIn = x
-    if (driveNorm > 0) {
-      const driveGain = 1 + driveNorm ** 1.5 * 4
-      xIn = this._sat(x * driveGain, driveNorm * 0.5)
-    }
+    // Apply drive saturation consistently
+    const xIn = this._driveSat(x, driveNorm)
 
     // Standard Zavalishin TPT SVF equations
     const denom = 1 + R * g + g * g
@@ -116,18 +138,12 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
     this.s1 = bp + g * hp
     this.s2 = lp + g * bp
 
-    // More aggressive state limiting for high-frequency stability
-    const stateLimit = 10 // Reduced from 20
+    // Conservative state limiting for stability
+    const stateLimit = 15
     this.s1 = this._clamp(this.s1, -stateLimit, stateLimit)
     this.s2 = this._clamp(this.s2, -stateLimit, stateLimit)
 
-    // Final safety check on outputs
-    const outputLimit = 15
-    const hpSafe = this._clamp(hp, -outputLimit, outputLimit)
-    const bpSafe = this._clamp(bp, -outputLimit, outputLimit)
-    const lpSafe = this._clamp(lp, -outputLimit, outputLimit)
-
-    return { hp: hpSafe, bp: bpSafe, lp: lpSafe }
+    return { hp, bp, lp }
   }
 
   // No decimator/upsampler in the 1x path
