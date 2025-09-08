@@ -65,6 +65,7 @@ export function SVFFilterModule({ moduleId }: { moduleId: string }) {
     const ac = acRef.current
     const w = workletRef.current
     if (!ac || !w) return
+    // Cutoff knob now has exponential response
     const cutHz = utils.mapLogarithmic(
       Math.max(0.0001, cutoff[0]),
       MIN_CUTOFF,
@@ -149,6 +150,7 @@ export function SVFFilterModule({ moduleId }: { moduleId: string }) {
     driveCVInRef.current.gain.value = 1
     registerAudioNode(`${moduleId}-drive-cv-in`, driveCVInRef.current, 'input')
 
+    // Initialize with logarithmic mapping for exponential response
     const initCut = utils.mapLogarithmic(
       Math.max(0.0001, cutoff[0]),
       MIN_CUTOFF,
