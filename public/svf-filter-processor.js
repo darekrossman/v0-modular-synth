@@ -276,10 +276,10 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
         gainComp = 1 / (1 + (resonanceGain - 1) * compStrength * freqFactor)
       }
 
-      // Additional low-cutoff gain compensation
-      // At very low cutoff frequencies, reduce overall signal level
+      // Additional low-cutoff gain compensation for LOWPASS only
+      // At very low cutoff frequencies, reduce lowpass signal level
       // to simulate natural filter roll-off behavior
-      let lowCutoffComp = 1
+      let lpCutoffComp = 1
       if (this.cutSm < 200) {
         // Below 200 Hz, apply progressive gain reduction
         // At 20 Hz: 0% (complete silence)
@@ -287,15 +287,18 @@ class SVFFilterProcessor extends AudioWorkletProcessor {
         const cutoffRatio = (this.cutSm - 20) / (200 - 20) // 0 to 1 from 20Hz to 200Hz
         const normalizedRatio = Math.max(0, cutoffRatio) // Ensure no negative values
         // Use a gentler curve: square root gives more usable range at low end
-        lowCutoffComp = Math.sqrt(normalizedRatio)
+        lpCutoffComp = Math.sqrt(normalizedRatio)
       }
 
-      // Combine all gain compensations
-      const totalGainComp = gainComp * lowCutoffComp
+      // Apply appropriate gain compensation to each output
+      // Lowpass gets both resonance and cutoff compensation
+      const lpGainComp = gainComp * lpCutoffComp
+      // Highpass only gets resonance compensation (no cutoff silencing)
+      const hpGainComp = gainComp
 
       // Apply gain compensation and soft limit
-      const lp = this._limit(s.lp * totalGainComp)
-      const hp = this._limit(s.hp * totalGainComp)
+      const lp = this._limit(s.lp * lpGainComp)
+      const hp = this._limit(s.hp * hpGainComp)
       lpOut[i] = Number.isFinite(lp) ? lp : 0
       hpOut[i] = Number.isFinite(hp) ? hp : 0
     }
