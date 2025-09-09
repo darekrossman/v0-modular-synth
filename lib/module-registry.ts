@@ -5,6 +5,7 @@ import { ClockModule } from '@/components/modules/clock-module'
 import { DelayModule } from '@/components/modules/delay-module'
 import { EuclidModule } from '@/components/modules/euclid-module'
 import { KeyboardCVModule } from '@/components/modules/keyboard-cv-module'
+import { KickModule } from '@/components/modules/kick-module'
 import { LFOModule } from '@/components/modules/lfo-module'
 import { LowPassFilterModule } from '@/components/modules/lowpass-filter-module'
 import { MixerVCAModule } from '@/components/modules/mixer-vca-module'
@@ -39,6 +40,7 @@ export type ModuleType =
   | 'euclid'
   | 'attenuverter'
   | 'process'
+  | 'kick'
 
 export interface ModuleInstance {
   id: string
@@ -170,5 +172,11 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'Process',
     description: 'CV utilities: S&H, T&H, H&T, Slew, Glide',
     component: ProcessModule,
+  },
+  {
+    type: 'kick' as ModuleType,
+    name: 'Kick',
+    description: 'Analog 808/909 kick drum',
+    component: KickModule,
   },
 ]
