@@ -17,27 +17,26 @@ interface KnobProps {
   showTicks?: boolean // Whether to show tick marks at all
   steps?: number // Number of discrete steps (e.g., steps=5 creates 0.0, 0.25, 0.5, 0.75, 1.0)
   turnSpeed?: 'slow' | 'medium' | 'fast' // Controls the default turn sensitivity
+  ref?: React.RefObject<HTMLDivElement>
 }
 
-export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
-  (
-    {
-      value,
-      defaultValue,
-      onValueChange,
-      size = 'md',
-      className,
-      disabled = false,
-      label,
-      tickCount = 11,
-      tickLabels,
-      showTicks = true,
-      steps,
-      turnSpeed = 'medium',
-      ...props
-    },
+export const Knob = React.memo(
+  ({
+    value,
+    defaultValue,
+    onValueChange,
+    size = 'md',
+    className,
+    disabled = false,
+    label,
+    tickCount = 11,
+    tickLabels,
+    showTicks = true,
+    steps,
+    turnSpeed = 'medium',
     ref,
-  ) => {
+    ...props
+  }: KnobProps) => {
     const [internalValue, setInternalValue] = React.useState(
       defaultValue || [0],
     )
@@ -281,7 +280,7 @@ export const Knob = React.forwardRef<HTMLDivElement, KnobProps>(
     const pathData = `M ${start.x} ${start.y} A ${radius} ${radius} 0 1 1 ${end.x} ${end.y}`
     const offset = arcLength - 1 * arcLength
     const dotRotation = -135 + 1 * 270
-
+    console.log('knob', label)
     return (
       <div
         className={cn(

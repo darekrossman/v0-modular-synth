@@ -10,6 +10,10 @@
 //   0: sendA L, 1: sendA R, 2: sendB L, 3: sendB R, 4: mix L, 5: mix R
 
 class StereoMixerProcessor extends AudioWorkletProcessor {
+  static get sabBytes() {
+    // 6 channels + L + R = 8 floats
+    return 8 * 4
+  }
   static get parameterDescriptors() {
     const params = []
     // Per-channel controls (i = 0..5)
@@ -193,6 +197,18 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
     this._meterN = 0
     this._meterSamples = 0
     this._meterInterval = 1280 // ~25-35 fps depending on block size
+
+    // SAB for meters (optional). UI provides via port.postMessage({ type:'initMeters', sab })
+    this._meterArray = null
+
+    this.port.onmessage = (e) => {
+      const data = e.data
+      if (data && data.type === 'initMeters' && data.sab) {
+        try {
+          this._meterArray = new Float32Array(data.sab)
+        } catch {}
+      }
+    }
   }
 
   _expoCurve(x) {
@@ -444,23 +460,18 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
       if (this._meterSamples >= this._meterInterval) {
         const nFrames = this._meterN
         if (nFrames > 0) {
-          const chLevels = new Float32Array(6)
-          for (let c = 0; c < 6; c++) {
-            // per-channel RMS across L+R combined
-            chLevels[c] = Math.sqrt(this._accCh[c] / (nFrames * 2))
-            this._accCh[c] = 0
+          const meterArray = this._meterArray
+          if (meterArray && meterArray.length >= 8) {
+            for (let c = 0; c < 6; c++) {
+              meterArray[c] = Math.sqrt(this._accCh[c] / (nFrames * 2))
+              this._accCh[c] = 0
+            }
+            meterArray[6] = Math.sqrt(this._accMixL / nFrames)
+            meterArray[7] = Math.sqrt(this._accMixR / nFrames)
           }
-          const lRMS = Math.sqrt(this._accMixL / nFrames)
-          const rRMS = Math.sqrt(this._accMixR / nFrames)
           this._accMixL = 0
           this._accMixR = 0
           this._meterN = 0
-          this.port.postMessage({
-            type: 'meters',
-            ch: chLevels,
-            l: lRMS,
-            r: rRMS,
-          })
         }
         this._meterSamples = 0
       }

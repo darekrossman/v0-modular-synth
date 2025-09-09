@@ -71,181 +71,184 @@ export interface SliderProps
   extends React.ComponentProps<typeof SliderPrimitive.Root>,
     VariantProps<typeof sliderVariants> {}
 
-function Slider({
-  className,
-  variant,
-  size,
-  defaultValue,
-  value,
-  min = 0,
-  max = 100,
-  step = 1,
-  orientation = 'horizontal',
-  onValueChange,
-  ...props
-}: SliderProps) {
-  const _values = React.useMemo(
-    () =>
-      Array.isArray(value)
-        ? value
-        : Array.isArray(defaultValue)
-          ? defaultValue
-          : [min, max],
-    [value, defaultValue, min, max],
-  )
+const Slider = React.memo(
+  ({
+    className,
+    variant,
+    size,
+    defaultValue,
+    value,
+    min = 0,
+    max = 100,
+    step = 1,
+    orientation = 'horizontal',
+    onValueChange,
+    ...props
+  }: SliderProps) => {
+    const _values = React.useMemo(
+      () =>
+        Array.isArray(value)
+          ? value
+          : Array.isArray(defaultValue)
+            ? defaultValue
+            : [min, max],
+      [value, defaultValue, min, max],
+    )
 
-  const isControlled = value !== undefined
-  const [internalValues, setInternalValues] = React.useState<number[]>(_values)
-  React.useEffect(() => {
-    if (isControlled && Array.isArray(value)) setInternalValues(value)
-  }, [isControlled, value])
+    const isControlled = value !== undefined
+    const [internalValues, setInternalValues] =
+      React.useState<number[]>(_values)
+    React.useEffect(() => {
+      if (isControlled && Array.isArray(value)) setInternalValues(value)
+    }, [isControlled, value])
 
-  const currentValues = isControlled ? (value as number[]) : internalValues
+    const currentValues = isControlled ? (value as number[]) : internalValues
 
-  const rootRef = React.useRef<HTMLSpanElement | null>(null)
-  const trackRef = React.useRef<HTMLSpanElement | null>(null)
+    const rootRef = React.useRef<HTMLSpanElement | null>(null)
+    const trackRef = React.useRef<HTMLSpanElement | null>(null)
 
-  // Thumb-drag state to keep movement relative to initial click point
-  const dragState = React.useRef<{
-    activeIndex: number
-    offsetPx: number
-    trackRect: DOMRect
-  } | null>(null)
+    // Thumb-drag state to keep movement relative to initial click point
+    const dragState = React.useRef<{
+      activeIndex: number
+      offsetPx: number
+      trackRect: DOMRect
+    } | null>(null)
 
-  // Prevent clicks on the track from jumping the value; only drag the thumb updates
-  const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
-    const target = e.target as HTMLElement | null
-    const isThumb = target?.closest('[data-slot="slider-thumb"]') != null
-    if (!isThumb) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-  }, [])
-
-  const valueToRatio = React.useCallback(
-    (val: number) => {
-      return (val - min) / (max - min || 1)
-    },
-    [min, max],
-  )
-
-  const ratioToValue = React.useCallback(
-    (ratio: number) => {
-      const unclamped = min + ratio * (max - min)
-      const stepped = Math.round(unclamped / step) * step
-      return Math.max(min, Math.min(max, stepped))
-    },
-    [min, max, step],
-  )
-
-  const posForRatio = React.useCallback(
-    (rect: DOMRect, ratio: number) => {
-      if (orientation === 'vertical') {
-        return rect.top + (1 - ratio) * rect.height
+    // Prevent clicks on the track from jumping the value; only drag the thumb updates
+    const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
+      const target = e.target as HTMLElement | null
+      const isThumb = target?.closest('[data-slot="slider-thumb"]') != null
+      if (!isThumb) {
+        e.preventDefault()
+        e.stopPropagation()
       }
-      return rect.left + ratio * rect.width
-    },
-    [orientation],
-  )
+    }, [])
 
-  const ratioFromPos = React.useCallback(
-    (rect: DOMRect, pos: number) => {
-      let ratio: number
-      if (orientation === 'vertical') {
-        ratio = 1 - (pos - rect.top) / rect.height
-      } else {
-        ratio = (pos - rect.left) / rect.width
-      }
-      if (!Number.isFinite(ratio)) ratio = 0
-      return Math.max(0, Math.min(1, ratio))
-    },
-    [orientation],
-  )
+    const valueToRatio = React.useCallback(
+      (val: number) => {
+        return (val - min) / (max - min || 1)
+      },
+      [min, max],
+    )
 
-  const beginThumbDrag = React.useCallback(
-    (index: number, e: React.PointerEvent) => {
-      const trackEl = trackRef.current
-      if (!trackEl) return
-      const rect = trackEl.getBoundingClientRect()
-      const pointerPos = orientation === 'vertical' ? e.clientY : e.clientX
-      const ratio0 = valueToRatio(currentValues[index])
-      const thumbPos = posForRatio(rect, ratio0)
-      const offsetPx = pointerPos - thumbPos
-      dragState.current = { activeIndex: index, offsetPx, trackRect: rect }
-      e.preventDefault()
-      e.stopPropagation()
+    const ratioToValue = React.useCallback(
+      (ratio: number) => {
+        const unclamped = min + ratio * (max - min)
+        const stepped = Math.round(unclamped / step) * step
+        return Math.max(min, Math.min(max, stepped))
+      },
+      [min, max, step],
+    )
 
-      const onMove = (ev: PointerEvent) => {
-        const ds = dragState.current
-        if (!ds) return
-        const pointer = orientation === 'vertical' ? ev.clientY : ev.clientX
-        const pos = pointer - ds.offsetPx
-        const ratio = ratioFromPos(ds.trackRect, pos)
-        const newVal = ratioToValue(ratio)
-        const next = [...currentValues]
-        next[index] = newVal
-        if (isControlled) onValueChange?.(next)
-        else
-          setInternalValues((prev) => {
-            const arr = [...prev]
-            arr[index] = newVal
-            return arr
-          })
-      }
-      const onUp = () => {
-        dragState.current = null
-        window.removeEventListener('pointermove', onMove)
-        window.removeEventListener('pointerup', onUp)
-      }
-      window.addEventListener('pointermove', onMove)
-      window.addEventListener('pointerup', onUp, { once: true })
-    },
-    [
-      currentValues,
-      isControlled,
-      onValueChange,
-      orientation,
-      posForRatio,
-      ratioFromPos,
-      ratioToValue,
-      valueToRatio,
-    ],
-  )
+    const posForRatio = React.useCallback(
+      (rect: DOMRect, ratio: number) => {
+        if (orientation === 'vertical') {
+          return rect.top + (1 - ratio) * rect.height
+        }
+        return rect.left + ratio * rect.width
+      },
+      [orientation],
+    )
 
-  return (
-    <SliderPrimitive.Root
-      data-slot="slider"
-      onPointerDown={handlePointerDown}
-      value={currentValues}
-      min={min}
-      max={max}
-      step={step}
-      orientation={orientation}
-      className={cn(sliderVariants({ variant, size, className }))}
-      {...props}
-    >
-      <SliderPrimitive.Track
-        ref={trackRef}
-        data-slot="slider-track"
-        className={cn(trackVariants({ variant }))}
+    const ratioFromPos = React.useCallback(
+      (rect: DOMRect, pos: number) => {
+        let ratio: number
+        if (orientation === 'vertical') {
+          ratio = 1 - (pos - rect.top) / rect.height
+        } else {
+          ratio = (pos - rect.left) / rect.width
+        }
+        if (!Number.isFinite(ratio)) ratio = 0
+        return Math.max(0, Math.min(1, ratio))
+      },
+      [orientation],
+    )
+
+    const beginThumbDrag = React.useCallback(
+      (index: number, e: React.PointerEvent) => {
+        const trackEl = trackRef.current
+        if (!trackEl) return
+        const rect = trackEl.getBoundingClientRect()
+        const pointerPos = orientation === 'vertical' ? e.clientY : e.clientX
+        const ratio0 = valueToRatio(currentValues[index])
+        const thumbPos = posForRatio(rect, ratio0)
+        const offsetPx = pointerPos - thumbPos
+        dragState.current = { activeIndex: index, offsetPx, trackRect: rect }
+        e.preventDefault()
+        e.stopPropagation()
+
+        const onMove = (ev: PointerEvent) => {
+          const ds = dragState.current
+          if (!ds) return
+          const pointer = orientation === 'vertical' ? ev.clientY : ev.clientX
+          const pos = pointer - ds.offsetPx
+          const ratio = ratioFromPos(ds.trackRect, pos)
+          const newVal = ratioToValue(ratio)
+          const next = [...currentValues]
+          next[index] = newVal
+          if (isControlled) onValueChange?.(next)
+          else
+            setInternalValues((prev) => {
+              const arr = [...prev]
+              arr[index] = newVal
+              return arr
+            })
+        }
+        const onUp = () => {
+          dragState.current = null
+          window.removeEventListener('pointermove', onMove)
+          window.removeEventListener('pointerup', onUp)
+        }
+        window.addEventListener('pointermove', onMove)
+        window.addEventListener('pointerup', onUp, { once: true })
+      },
+      [
+        currentValues,
+        isControlled,
+        onValueChange,
+        orientation,
+        posForRatio,
+        ratioFromPos,
+        ratioToValue,
+        valueToRatio,
+      ],
+    )
+
+    return (
+      <SliderPrimitive.Root
+        data-slot="slider"
+        onPointerDown={handlePointerDown}
+        value={currentValues}
+        min={min}
+        max={max}
+        step={step}
+        orientation={orientation}
+        className={cn(sliderVariants({ variant, size, className }))}
+        {...props}
       >
-        <SliderPrimitive.Range
-          data-slot="slider-range"
-          className={cn(
-            'absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full',
-          )}
-        />
-      </SliderPrimitive.Track>
-      {Array.from({ length: _values.length }, (_, index) => (
-        <SliderPrimitive.Thumb
-          data-slot="slider-thumb"
-          key={index}
-          className={cn(thumbVariants({ variant }))}
-          onPointerDown={(e) => beginThumbDrag(index, e)}
-        ></SliderPrimitive.Thumb>
-      ))}
-    </SliderPrimitive.Root>
-  )
-}
+        <SliderPrimitive.Track
+          ref={trackRef}
+          data-slot="slider-track"
+          className={cn(trackVariants({ variant }))}
+        >
+          <SliderPrimitive.Range
+            data-slot="slider-range"
+            className={cn(
+              'absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full',
+            )}
+          />
+        </SliderPrimitive.Track>
+        {Array.from({ length: _values.length }, (_, index) => (
+          <SliderPrimitive.Thumb
+            data-slot="slider-thumb"
+            key={index}
+            className={cn(thumbVariants({ variant }))}
+            onPointerDown={(e) => beginThumbDrag(index, e)}
+          ></SliderPrimitive.Thumb>
+        ))}
+      </SliderPrimitive.Root>
+    )
+  },
+)
 
 export { Slider, sliderVariants }

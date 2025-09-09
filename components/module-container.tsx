@@ -16,6 +16,7 @@ export function ModuleContainer({
   children,
   className = '',
 }: ModuleContainerProps) {
+  console.log('module container', title)
   return (
     <div
       className="h-full bg-gradient-to-b from-module-background-gradient to-module-background overflow-hidden text-module-foreground"

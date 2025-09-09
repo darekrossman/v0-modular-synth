@@ -113,7 +113,7 @@ const createDefaultPatch = (): Patch => ({
       type: 'oscillator',
       parameters: {
         tune: 0,
-        octave: -2,
+        octave: 0.25,
         phase: 0,
         waveType: 'square',
         pulseWidth: 0.5,

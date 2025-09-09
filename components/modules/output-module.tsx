@@ -42,17 +42,13 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
   )
   const [volume, setVolume] = useState(initialParameters?.volume ?? 0.75)
 
-  // RMS bars (0..1.2 for headroom)
-  const [leftLevel, setLeftLevel] = useState(0)
-  const [rightLevel, setRightLevel] = useState(0)
-
-  // Peak-hold markers (0..1)
-  const [leftPeakHold, setLeftPeakHold] = useState(0)
-  const [rightPeakHold, setRightPeakHold] = useState(0)
-
-  // Clip LEDs (latched)
-  const [leftClipLED, setLeftClipLED] = useState(false)
-  const [rightClipLED, setRightClipLED] = useState(false)
+  // Meter DOM element refs (no React state for metering)
+  const leftBarElRef = useRef<HTMLDivElement | null>(null)
+  const rightBarElRef = useRef<HTMLDivElement | null>(null)
+  const leftPeakElRef = useRef<HTMLDivElement | null>(null)
+  const rightPeakElRef = useRef<HTMLDivElement | null>(null)
+  const leftClipElRef = useRef<HTMLDivElement | null>(null)
+  const rightClipElRef = useRef<HTMLDivElement | null>(null)
 
   // Audio graph
   const acRef = useRef<AudioContext | null>(null)
@@ -84,6 +80,12 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     peakRRef = useRef(0)
   const clipLDeadline = useRef(0),
     clipRDeadline = useRef(0)
+
+  // UI smoothing/hold values (visual only)
+  const dispRmsLRef = useRef(0)
+  const dispRmsRRef = useRef(0)
+  const holdLRef = useRef(0)
+  const holdRRef = useRef(0)
 
   // Mapping: 0..1 knob → -48..0 dB → linear, then scaled
   const knobToGain = (v: number) => (v <= 0 ? 0 : 10 ** ((-48 + v * 48) / 20))
@@ -226,6 +228,23 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     rAF.current = requestAnimationFrame(meterLoop)
   }, moduleId)
 
+  // console removed
+
+  // Cleanup on unmount: stop RAF and detach meter port
+  useEffect(() => {
+    return () => {
+      if (rAF.current != null) {
+        cancelAnimationFrame(rAF.current)
+        rAF.current = null
+      }
+      if (meterNodeRef.current) {
+        try {
+          meterNodeRef.current.port.onmessage = null
+        } catch {}
+      }
+    }
+  }, [])
+
   // Volume smoothing
   useEffect(() => {
     const ac = acRef.current,
@@ -257,7 +276,7 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     setIsPlaying(false)
   }, [])
 
-  // rAF meter loop (30fps throttle, peak-hold decay, clip-LED latch)
+  // rAF meter loop (30fps throttle, peak-hold decay, clip-LED latch) – DOM updates only
   const meterLoop = useCallback((ts: number) => {
     if (!lastMeterTs.current || ts - lastMeterTs.current > 33) {
       // Fallback analyser compute (RMS + peak + simple 2× inter-sample check)
@@ -302,84 +321,123 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
         if (pR >= clipTh) clipRDeadline.current = now + 750
       }
 
-      // Smooth UI updates + holds
+      // Smooth UI values and update DOM directly
       const smooth = (prev: number, next: number, a = 0.15) =>
         prev + (next - prev) * a
 
-      setLeftLevel((prev) => smooth(prev, rmsLRef.current))
-      setRightLevel((prev) => smooth(prev, rmsRRef.current))
+      dispRmsLRef.current = smooth(dispRmsLRef.current, rmsLRef.current)
+      dispRmsRRef.current = smooth(dispRmsRRef.current, rmsRRef.current)
 
-      setLeftPeakHold((prev) => {
-        const target = peakLRef.current
-        const decayed = Math.max(target, prev - 0.015) // slow fall
-        return Math.abs(decayed - prev) > 0.005 ? decayed : prev
-      })
-      setRightPeakHold((prev) => {
-        const target = peakRRef.current
-        const decayed = Math.max(target, prev - 0.015)
-        return Math.abs(decayed - prev) > 0.005 ? decayed : prev
-      })
+      const nextHoldL = Math.max(peakLRef.current, holdLRef.current - 0.015)
+      const nextHoldR = Math.max(peakRRef.current, holdRRef.current - 0.015)
+      if (Math.abs(nextHoldL - holdLRef.current) > 0.001)
+        holdLRef.current = nextHoldL
+      if (Math.abs(nextHoldR - holdRRef.current) > 0.001)
+        holdRRef.current = nextHoldR
 
       const now = performance.now()
-      setLeftClipLED(now < clipLDeadline.current)
-      setRightClipLED(now < clipRDeadline.current)
+      const clipActiveL = now < clipLDeadline.current
+      const clipActiveR = now < clipRDeadline.current
+
+      // Update left channel DOM
+      const lBar = leftBarElRef.current
+      const lPeak = leftPeakElRef.current
+      const lClip = leftClipElRef.current
+      if (lBar) {
+        const level = Math.min(dispRmsLRef.current * 1.25, 1.25)
+        lBar.style.transform = `scaleY(${level})`
+        lBar.style.backgroundColor =
+          dispRmsLRef.current > 0.9 ? '#ef4444' : '#22c55e'
+      }
+      if (lPeak) {
+        const bottom = Math.min(holdLRef.current * 100, 125)
+        lPeak.style.bottom = `calc(${bottom}% - 1px)`
+      }
+      if (lClip) {
+        lClip.style.backgroundColor = clipActiveL ? '#ef4444' : '#404040'
+      }
+
+      // Update right channel DOM
+      const rBar = rightBarElRef.current
+      const rPeak = rightPeakElRef.current
+      const rClip = rightClipElRef.current
+      if (rBar) {
+        const level = Math.min(dispRmsRRef.current * 1.25, 1.25)
+        rBar.style.transform = `scaleY(${level})`
+        rBar.style.backgroundColor =
+          dispRmsRRef.current > 0.9 ? '#ef4444' : '#22c55e'
+      }
+      if (rPeak) {
+        const bottom = Math.min(holdRRef.current * 100, 125)
+        rPeak.style.bottom = `calc(${bottom}% - 1px)`
+      }
+      if (rClip) {
+        rClip.style.backgroundColor = clipActiveR ? '#ef4444' : '#404040'
+      }
 
       lastMeterTs.current = ts
     }
     rAF.current = requestAnimationFrame(meterLoop)
   }, [])
 
-  const getLevelColor = (level: number) =>
-    level > 0.9 ? 'bg-red-500' : 'bg-green-500'
-
   return (
     <ModuleContainer title="Output" moduleId={moduleId}>
       <div className="flex-1 flex flex-col gap-4 mt-4">
         {/* VU meters with peak/clip indicators */}
         <div className="flex flex-1 justify-center gap-3 mb-2">
-          {(
-            [
-              {
-                label: 'L',
-                level: leftLevel,
-                peak: leftPeakHold,
-                clip: leftClipLED,
-              },
-              {
-                label: 'R',
-                level: rightLevel,
-                peak: rightPeakHold,
-                clip: rightClipLED,
-              },
-            ] as const
-          ).map(({ label, level, peak, clip }) => (
-            <div
-              key={label}
-              className="flex h-full flex-col items-center gap-1"
-            >
-              <div className="relative w-5 h-full bg-black rounded-xs overflow-hidden flex flex-col-reverse">
-                {/* 0 dB reference mark */}
-                <div className="absolute top-[20%] left-0 right-0 h-0.5 bg-white/60 z-10" />
-                {/* CLIP LED (latched) */}
-                <div
-                  className={`absolute -top-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${clip ? 'bg-red-500' : 'bg-neutral-700'}`}
-                />
-                {/* Peak-hold marker (thin line) */}
-                <div
-                  className="absolute left-0 right-0 h-[2px] bg-yellow-300/90"
-                  style={{
-                    bottom: `calc(${Math.min(peak * 100, 125)}% - 1px)`,
-                  }}
-                />
-                {/* RMS bar */}
-                <div
-                  className={`w-full transition-all duration-75 ${getLevelColor(level)}`}
-                  style={{ height: `${Math.min(level * 100, 125)}%` }}
-                />
-              </div>
-              <div className="text-xs font-medium">{label}</div>
+          {/* Left meter */}
+          <div className="flex h-full flex-col items-center gap-1">
+            <div className="relative w-5 h-full bg-black rounded-xs overflow-hidden">
+              {/* 0 dB reference mark */}
+              <div className="absolute top-[20%] left-0 right-0 h-0.5 bg-white/60 z-10" />
+              {/* CLIP LED (latched) */}
+              <div
+                ref={leftClipElRef}
+                className="absolute -top-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full"
+                style={{ backgroundColor: '#404040' }}
+              />
+              {/* Peak-hold marker (thin line) */}
+              <div
+                ref={leftPeakElRef}
+                className="absolute left-0 right-0 h-[2px] bg-yellow-300/90"
+                style={{ bottom: '0%' }}
+              />
+              {/* RMS bar (transform-based for perf) */}
+              <div
+                ref={leftBarElRef}
+                className="absolute bottom-0 left-0 right-0 h-full origin-bottom will-change-transform"
+                style={{ transform: 'scaleY(0)', backgroundColor: '#22c55e' }}
+              />
             </div>
-          ))}
+            <div className="text-xs font-medium">L</div>
+          </div>
+
+          {/* Right meter */}
+          <div className="flex h-full flex-col items-center gap-1">
+            <div className="relative w-5 h-full bg-black rounded-xs overflow-hidden">
+              {/* 0 dB reference mark */}
+              <div className="absolute top-[20%] left-0 right-0 h-0.5 bg-white/60 z-10" />
+              {/* CLIP LED (latched) */}
+              <div
+                ref={rightClipElRef}
+                className="absolute -top-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full"
+                style={{ backgroundColor: '#404040' }}
+              />
+              {/* Peak-hold marker (thin line) */}
+              <div
+                ref={rightPeakElRef}
+                className="absolute left-0 right-0 h-[2px] bg-yellow-300/90"
+                style={{ bottom: '0%' }}
+              />
+              {/* RMS bar (transform-based for perf) */}
+              <div
+                ref={rightBarElRef}
+                className="absolute bottom-0 left-0 right-0 h-full origin-bottom will-change-transform"
+                style={{ transform: 'scaleY(0)', backgroundColor: '#22c55e' }}
+              />
+            </div>
+            <div className="text-xs font-medium">R</div>
+          </div>
         </div>
 
         {/* Volume */}

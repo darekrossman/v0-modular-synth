@@ -149,8 +149,8 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
     w.parameters.get('frequency')?.setValueAtTime(440, t)
     w.parameters.get('waveform')?.setValueAtTime(getWaveformIndex(waveType), t)
     w.parameters.get('phase')?.setValueAtTime(phase[0], t)
-    w.parameters.get('tune')?.setValueAtTime(tune[0], t)
-    w.parameters.get('octave')?.setValueAtTime(octave[0], t)
+    w.parameters.get('tune')?.setValueAtTime(knobToTune(tune[0]), t)
+    w.parameters.get('octave')?.setValueAtTime(knobToOctave(octave[0]), t)
     w.parameters.get('pulseWidth')?.setValueAtTime(pulseWidth[0], t)
     w.parameters.get('gain')?.setValueAtTime(5, t)
     w.parameters.get('syncAmount')?.setValueAtTime(syncAmount[0], t)
@@ -186,8 +186,10 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
     if (!ac || !w) return
     const now = ac.currentTime
 
-    w.parameters.get('tune')?.setTargetAtTime(tune[0], now, 0.01)
-    w.parameters.get('octave')?.setTargetAtTime(octave[0], now, 0.01)
+    w.parameters.get('tune')?.setTargetAtTime(knobToTune(tune[0]), now, 0.01)
+    w.parameters
+      .get('octave')
+      ?.setTargetAtTime(knobToOctave(octave[0]), now, 0.01)
     w.parameters.get('phase')?.setTargetAtTime(phase[0], now, 0.01)
     const wf = w.parameters.get('waveform')
     if (wf) {
@@ -240,19 +242,14 @@ export function OscillatorModule({ moduleId }: { moduleId: string }) {
 
       <div className="flex flex-col items-center gap-6 mt-5">
         <Knob
-          value={[octaveToKnob(octave[0])]}
-          onValueChange={(value) => setOctave([knobToOctave(value[0])])}
+          value={octave}
+          onValueChange={setOctave}
           size="lg"
           label="Octave"
-          tickLabels={[0, 1, 2, 3, 4, 5, 6, 7, 8]}
+          steps={9}
         />
 
-        <Knob
-          value={[tuneToKnob(tune[0])]}
-          onValueChange={(v) => setTune([knobToTune(v[0])])}
-          size="md"
-          label="Tune"
-        />
+        <Knob value={tune} onValueChange={setTune} size="md" label="Tune" />
         {/* <Knob
             value={[phaseToKnob(phase[0])]}
             onValueChange={(v) => setPhase([knobToPhase(v[0])])}

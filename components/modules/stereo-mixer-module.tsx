@@ -62,6 +62,8 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     Array.from({ length: 6 }, () => 0),
   )
   const [mixMeters, setMixMeters] = useState<[number, number]>([0, 0])
+  const meterRAF = useRef<number | null>(null)
+  const meterSAB = useRef<Float32Array | null>(null)
 
   // Register with patch manager
   useModulePatch(moduleId, () => ({
@@ -207,19 +209,38 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     ;(mixOutL.current as GainNode).connect(keepAliveRef.current)
     keepAliveRef.current.connect(ac.destination)
 
-    // Meter messages
-    node.port.onmessage = (e: MessageEvent) => {
-      const data = e.data as any
-      if (data?.type === 'meters') {
-        const md = data as unknown as MeterData & { ch: Float32Array }
-        const arr = Array.from(md.ch as any as number[])
-        setChMeters(arr)
-        setMixMeters([md.l, md.r])
+    // Setup SAB metering buffer
+    try {
+      const sab = new SharedArrayBuffer(8 * 4)
+      meterSAB.current = new Float32Array(sab)
+      node.port.postMessage({ type: 'initMeters', sab })
+    } catch {}
+
+    // UI meter read loop (single rAF)
+    const meterLoop = () => {
+      const arr = meterSAB.current
+      if (arr && arr.length >= 8) {
+        // Copy to React state with minimal overhead
+        setChMeters((prev) => {
+          const next = prev.slice()
+          for (let i = 0; i < 6; i++) next[i] = arr[i]
+          return next
+        })
+        setMixMeters([arr[6], arr[7]])
       }
+      meterRAF.current = requestAnimationFrame(meterLoop)
     }
+    meterRAF.current = requestAnimationFrame(meterLoop)
 
     setNodeReady(true)
   }, moduleId)
+  useEffect(() => {
+    return () => {
+      if (meterRAF.current) cancelAnimationFrame(meterRAF.current)
+      meterRAF.current = null
+      meterSAB.current = null
+    }
+  }, [])
 
   // Connect/disconnect CV based on cables, and flip offset/amount semantics
   const { current: cvConn } = chCvConnected
@@ -387,6 +408,8 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
       }
     }
   }, [])
+
+  console.log('mixer')
 
   return (
     <ModuleContainer title="Stereo Mixer" moduleId={moduleId}>
