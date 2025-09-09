@@ -113,6 +113,16 @@ class KickProcessor extends AudioWorkletProcessor {
 
     // Simple noise LCG for click
     this.rng = 123456789
+
+    // De-click smoothing (~0.5 ms) after retriggers
+    this.declickWindowSamples = Math.max(1, Math.floor(sampleRate * 0.0005))
+    this.declickAlpha = 1 - Math.exp(-1 / (sampleRate * 0.0005))
+    this.declickSamplesLeft = 0
+    this.smoothY = 0
+
+    // Click envelope time range (manages transient length without hard impulses)
+    this.clickTauMin = 0.001 // 1 ms (most intense)
+    this.clickTauMax = 0.008 // 8 ms (softer)
   }
 
   rand() {
@@ -171,7 +181,10 @@ class KickProcessor extends AudioWorkletProcessor {
           this.deadUntil = currentFrame + i + Math.floor(sampleRate * 0.0005)
           // Rising edge: start hit
           this.active = true
-          this.phase = 0
+          // Start at zero-crossing to avoid clicks (sine=0 phase, triangle=quarter-cycle)
+          this.phase = model === 0 ? 0 : TWO_PI * 0.25
+          // Enable brief output smoothing window
+          this.declickSamplesLeft = this.declickWindowSamples
           // Initialize envelopes
           // Pitch env starts at computed sweep (semis) and decays to 0
           const sweepFromCv = sweepCv * 12 * sweepCvAmt // ±12 semis scaled
@@ -222,8 +235,10 @@ class KickProcessor extends AudioWorkletProcessor {
       this.ampEnv = this.stepToward(this.ampEnv, 0.0, tauAmp)
       // Pitch env decays from current -> 0
       this.pitchEnv = this.stepToward(this.pitchEnv, 0.0, tauPitch)
-      // Click env: very fast decay ~1-3 ms
-      this.clickEnv = this.stepToward(this.clickEnv, 0.0, 0.002)
+      // Click env: attack knob is inverse intensity; also lengthen slightly with higher attack
+      const clickTau =
+        this.clickTauMin + (this.clickTauMax - this.clickTauMin) * attackEff
+      this.clickEnv = this.stepToward(this.clickEnv, 0.0, clickTau)
 
       // Core oscillator
       let core = 0
@@ -240,9 +255,9 @@ class KickProcessor extends AudioWorkletProcessor {
       this.phase += (TWO_PI * frequency) / sampleRate
       if (this.phase >= TWO_PI) this.phase -= TWO_PI
 
-      // Attack transient (click): highpassed noise burst scaled by attackEff
+      // Attack transient (click): highpassed noise burst
       let click = 0
-      if (attackEff > 0 && this.clickEnv > this.FLOOR) {
+      if (this.clickEnv > this.FLOOR) {
         // White noise sample
         const n0 = this.rand()
         // Simple 1st-order HP at ~1kHz for click sharpness
@@ -250,7 +265,9 @@ class KickProcessor extends AudioWorkletProcessor {
         // Reuse dc filter state variables for a local HP would be unsafe; create local z
         // But allocations are not allowed; approximate with (n0 - previous n0) by storing lastNoise
         this.lastNoise = this.lastNoise === undefined ? 0 : this.lastNoise
-        click = (n0 - this.lastNoise) * this.clickEnv * attackEff * 0.6
+        // Invert mapping: smaller attack => stronger transient
+        const clickGain = 1 - attackEff
+        click = (n0 - this.lastNoise) * this.clickEnv * clickGain * 0.8
         this.lastNoise = n0 * hpCoef + this.lastNoise * (1 - hpCoef)
       }
 
@@ -261,6 +278,15 @@ class KickProcessor extends AudioWorkletProcessor {
 
       // Mix
       let s = core * this.ampEnv + click
+
+      // Brief smoothing after retrigger to avoid discontinuities/clicks
+      if (this.declickSamplesLeft > 0) {
+        this.smoothY = this.smoothY + this.declickAlpha * (s - this.smoothY)
+        s = this.smoothY
+        this.declickSamplesLeft--
+      } else {
+        this.smoothY = s
+      }
 
       // DC block
       const x = s
