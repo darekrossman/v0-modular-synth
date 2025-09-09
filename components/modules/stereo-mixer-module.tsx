@@ -1,0 +1,717 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useConnections } from '@/components/connection-manager'
+import { ModuleContainer } from '@/components/module-container'
+import { useModulePatch } from '@/components/patch-manager'
+import { Port, PortGroup } from '@/components/port'
+import { TextLabel } from '@/components/text-label'
+import { Knob } from '@/components/ui/knob'
+import { Slider } from '@/components/ui/slider'
+import { Toggle } from '@/components/ui/toggle'
+import { ToggleSwitch } from '@/components/ui/toggle-switch'
+import { useModuleInit } from '@/hooks/use-module-init'
+import { getAudioContext } from '@/lib/helpers'
+import { HLine, VLine } from '../marks'
+
+type MeterData = { ch: Float32Array; l: number; r: number }
+
+const map12dB = (v: number) => (v <= 0.75 ? v / 0.75 : 1 + (v - 0.75) * 12)
+
+export function StereoMixerModule({ moduleId }: { moduleId: string }) {
+  // Persistent state
+  const [chLevel, setChLevel] = useState<number[]>(
+    Array.from({ length: 6 }, () => 0.75),
+  )
+  const [chPan, setChPan] = useState<number[]>(
+    Array.from({ length: 6 }, () => 0),
+  )
+  const [chWidth, setChWidth] = useState<number[]>(
+    Array.from({ length: 6 }, () => 1),
+  )
+  const [chSendA, setChSendA] = useState<number[]>(
+    Array.from({ length: 6 }, () => 0),
+  )
+  const [chSendB, setChSendB] = useState<number[]>(
+    Array.from({ length: 6 }, () => 0),
+  )
+  const [chSendAPre, setChSendAPre] = useState<boolean[]>(
+    Array.from({ length: 6 }, () => true),
+  )
+  const [chSendBPre, setChSendBPre] = useState<boolean[]>(
+    Array.from({ length: 6 }, () => true),
+  )
+  const [chMute, setChMute] = useState<boolean[]>(
+    Array.from({ length: 6 }, () => false),
+  )
+  const [retALevel, setRetALevel] = useState([0.75])
+  const [retBLevel, setRetBLevel] = useState([0.75])
+  const [mixLLevel, setMixLLevel] = useState([0.75])
+  const [mixRLevel, setMixRLevel] = useState([0.75])
+  const [mixSat, setMixSat] = useState([0])
+  const [expo, setExpo] = useState(false)
+  const [muteAffectsSends, setMuteAffectsSends] = useState(true)
+
+  // Slider semantics: offset vs amount depending on CV connection
+  const [chOffset, setChOffset] = useState<number[]>(
+    Array.from({ length: 6 }, () => 1),
+  )
+  const [chAmount, setChAmount] = useState<number[]>(
+    Array.from({ length: 6 }, () => 0),
+  )
+
+  // Meters
+  const [chMeters, setChMeters] = useState<number[]>(
+    Array.from({ length: 6 }, () => 0),
+  )
+  const [mixMeters, setMixMeters] = useState<[number, number]>([0, 0])
+
+  // Register with patch manager
+  useModulePatch(moduleId, () => ({
+    chLevel,
+    chPan,
+    chWidth,
+    chSendA,
+    chSendB,
+    chSendAPre,
+    chSendBPre,
+    chMute,
+    retALevel: retALevel[0],
+    retBLevel: retBLevel[0],
+    mixLLevel: mixLLevel[0],
+    mixRLevel: mixRLevel[0],
+    mixSat: mixSat[0],
+    expo,
+    muteAffectsSends,
+  }))
+
+  const acRef = useRef<AudioContext | null>(null)
+  const nodeRef = useRef<AudioWorkletNode | null>(null)
+  const keepAliveRef = useRef<GainNode | null>(null)
+
+  // Inputs
+  const chInL = useRef<GainNode[]>([])
+  const chInR = useRef<GainNode[]>([])
+  const chCvIn = useRef<GainNode[]>([])
+  const retAL = useRef<GainNode | null>(null)
+  const retAR = useRef<GainNode | null>(null)
+  const retBL = useRef<GainNode | null>(null)
+  const retBR = useRef<GainNode | null>(null)
+  const mixCvIn = useRef<GainNode | null>(null)
+
+  // Outputs
+  const sendAL = useRef<GainNode | null>(null)
+  const sendAR = useRef<GainNode | null>(null)
+  const sendBL = useRef<GainNode | null>(null)
+  const sendBR = useRef<GainNode | null>(null)
+  const mixOutL = useRef<GainNode | null>(null)
+  const mixOutR = useRef<GainNode | null>(null)
+
+  const { connections } = useConnections()
+  const chCvConnected = useRef<boolean[]>(
+    Array.from({ length: 6 }, () => false),
+  )
+  const mixCvConnected = useRef(false)
+  const [nodeReady, setNodeReady] = useState(false)
+
+  useModuleInit(async () => {
+    if (nodeRef.current) return
+    const ac = getAudioContext()
+    acRef.current = ac
+    await ac.audioWorklet.addModule('/stereo-mixer-processor.js')
+
+    // Inputs
+    chInL.current = Array.from({ length: 6 }, () => {
+      const g = ac.createGain()
+      g.gain.value = 1
+      return g
+    })
+    chInR.current = Array.from({ length: 6 }, () => {
+      const g = ac.createGain()
+      g.gain.value = 1
+      return g
+    })
+    chCvIn.current = Array.from({ length: 6 }, () => {
+      const g = ac.createGain()
+      g.gain.value = 1
+      return g
+    })
+    retAL.current = ac.createGain()
+    ;(retAL.current as GainNode).gain.value = 1
+    retAR.current = ac.createGain()
+    ;(retAR.current as GainNode).gain.value = 1
+    retBL.current = ac.createGain()
+    ;(retBL.current as GainNode).gain.value = 1
+    retBR.current = ac.createGain()
+    ;(retBR.current as GainNode).gain.value = 1
+    mixCvIn.current = ac.createGain()
+    ;(mixCvIn.current as GainNode).gain.value = 1
+
+    // Outputs
+    sendAL.current = ac.createGain()
+    ;(sendAL.current as GainNode).gain.value = 1
+    sendAR.current = ac.createGain()
+    ;(sendAR.current as GainNode).gain.value = 1
+    sendBL.current = ac.createGain()
+    ;(sendBL.current as GainNode).gain.value = 1
+    sendBR.current = ac.createGain()
+    ;(sendBR.current as GainNode).gain.value = 1
+    mixOutL.current = ac.createGain()
+    ;(mixOutL.current as GainNode).gain.value = 1
+    mixOutR.current = ac.createGain()
+    ;(mixOutR.current as GainNode).gain.value = 1
+
+    const node = new AudioWorkletNode(ac, 'stereo-mixer-processor', {
+      numberOfInputs: 23,
+      numberOfOutputs: 6,
+      outputChannelCount: [1, 1, 1, 1, 1, 1],
+      parameterData: {
+        // defaults aligned to state
+        expo: expo ? 1 : 0,
+        dcBlock: 1,
+        dcCutHz: 5,
+        slewMs: 1,
+        hardGateDb: -90,
+        retALevel: retALevel[0],
+        retBLevel: retBLevel[0],
+        mixLLevel: mixLLevel[0],
+        mixRLevel: mixRLevel[0],
+        mixOffset: 1,
+        mixAmount: 1,
+        muteAffectsSends: muteAffectsSends ? 1 : 0,
+        mixSat: mixSat[0],
+      },
+    })
+    nodeRef.current = node
+
+    // Connect inputs to node
+    for (let i = 0; i < 6; i++) {
+      chInL.current[i].connect(node, 0, i * 2)
+      chInR.current[i].connect(node, 0, i * 2 + 1)
+    }
+    // CV, mix CV will be connected conditionally
+    ;(retAL.current as GainNode).connect(node, 0, 19)
+    ;(retAR.current as GainNode).connect(node, 0, 20)
+    ;(retBL.current as GainNode).connect(node, 0, 21)
+    ;(retBR.current as GainNode).connect(node, 0, 22)
+
+    // Outputs mapping: 0..5 are mono
+    node.connect(sendAL.current as GainNode, 0)
+    node.connect(sendAR.current as GainNode, 1)
+    node.connect(sendBL.current as GainNode, 2)
+    node.connect(sendBR.current as GainNode, 3)
+    node.connect(mixOutL.current as GainNode, 4)
+    node.connect(mixOutR.current as GainNode, 5)
+
+    // Keep alive
+    keepAliveRef.current = ac.createGain()
+    keepAliveRef.current.gain.value = 0
+    ;(mixOutL.current as GainNode).connect(keepAliveRef.current)
+    keepAliveRef.current.connect(ac.destination)
+
+    // Meter messages
+    node.port.onmessage = (e: MessageEvent) => {
+      const data = e.data as any
+      if (data?.type === 'meters') {
+        const md = data as unknown as MeterData & { ch: Float32Array }
+        const arr = Array.from(md.ch as any as number[])
+        setChMeters(arr)
+        setMixMeters([md.l, md.r])
+      }
+    }
+
+    setNodeReady(true)
+  }, moduleId)
+
+  // Connect/disconnect CV based on cables, and flip offset/amount semantics
+  const { current: cvConn } = chCvConnected
+  useEffect(() => {
+    if (!nodeRef.current) return
+    const node = nodeRef.current
+    const ac = acRef.current as AudioContext
+    for (let i = 0; i < 6; i++) {
+      const portId = `${moduleId}-ch${i + 1}-cv-in`
+      const isConn = connections.some((e) => e.to === portId)
+      if (isConn && !cvConn[i]) {
+        chCvIn.current[i].connect(node, 0, 12 + i)
+        cvConn[i] = true
+        // switch: slider becomes CV amount, offset to 0
+        node.parameters
+          .get(`ch${i}Amount`)
+          ?.setValueAtTime(chLevel[i], ac.currentTime)
+        node.parameters.get(`ch${i}Offset`)?.setValueAtTime(0, ac.currentTime)
+      } else if (!isConn && cvConn[i]) {
+        try {
+          chCvIn.current[i].disconnect(node)
+        } catch {}
+        cvConn[i] = false
+        // switch: slider becomes offset, amount to 0
+        node.parameters
+          .get(`ch${i}Offset`)
+          ?.setValueAtTime(chLevel[i], ac.currentTime)
+        node.parameters.get(`ch${i}Amount`)?.setValueAtTime(0, ac.currentTime)
+      }
+    }
+  }, [connections, moduleId, nodeReady, chLevel])
+
+  useEffect(() => {
+    if (!nodeRef.current) return
+    const ac = acRef.current as AudioContext
+    const node = nodeRef.current
+    // static params
+    node.parameters.get('expo')?.setValueAtTime(expo ? 1 : 0, ac.currentTime)
+    node.parameters
+      .get('muteAffectsSends')
+      ?.setValueAtTime(muteAffectsSends ? 1 : 0, ac.currentTime)
+    node.parameters
+      .get('retALevel')
+      ?.setValueAtTime(retALevel[0], ac.currentTime)
+    node.parameters
+      .get('retBLevel')
+      ?.setValueAtTime(retBLevel[0], ac.currentTime)
+    node.parameters
+      .get('mixLLevel')
+      ?.setValueAtTime(mixLLevel[0], ac.currentTime)
+    node.parameters
+      .get('mixRLevel')
+      ?.setValueAtTime(mixRLevel[0], ac.currentTime)
+    node.parameters.get('mixSat')?.setValueAtTime(mixSat[0], ac.currentTime)
+  }, [
+    expo,
+    muteAffectsSends,
+    retALevel,
+    retBLevel,
+    mixLLevel,
+    mixRLevel,
+    mixSat,
+  ])
+
+  // Update per-channel params when knobs/sliders change
+  useEffect(() => {
+    if (!nodeRef.current) return
+    const ac = acRef.current as AudioContext
+    const node = nodeRef.current
+    for (let i = 0; i < 6; i++) {
+      node.parameters
+        .get(`ch${i}Level`)
+        ?.setValueAtTime(chLevel[i], ac.currentTime)
+      node.parameters.get(`ch${i}Pan`)?.setValueAtTime(chPan[i], ac.currentTime)
+      node.parameters
+        .get(`ch${i}Width`)
+        ?.setValueAtTime(chWidth[i], ac.currentTime)
+      node.parameters
+        .get(`ch${i}SendA`)
+        ?.setValueAtTime(chSendA[i], ac.currentTime)
+      node.parameters
+        .get(`ch${i}SendB`)
+        ?.setValueAtTime(chSendB[i], ac.currentTime)
+      node.parameters
+        .get(`ch${i}SendAPre`)
+        ?.setValueAtTime(chSendAPre[i] ? 1 : 0, ac.currentTime)
+      node.parameters
+        .get(`ch${i}SendBPre`)
+        ?.setValueAtTime(chSendBPre[i] ? 1 : 0, ac.currentTime)
+      node.parameters
+        .get(`ch${i}Mute`)
+        ?.setValueAtTime(chMute[i] ? 1 : 0, ac.currentTime)
+      // Offset/Amount values depend on CV connection (handled in connection effect and on slider change)
+    }
+  }, [
+    chLevel,
+    chPan,
+    chWidth,
+    chSendA,
+    chSendB,
+    chSendAPre,
+    chSendBPre,
+    chMute,
+  ])
+
+  // Mix CV connect/disconnect
+  useEffect(() => {
+    if (!nodeRef.current || !mixCvIn.current) return
+    const node = nodeRef.current
+    const isConn = connections.some((e) => e.to === `${moduleId}-mix-cv-in`)
+    if (isConn && !mixCvConnected.current) {
+      mixCvIn.current.connect(node, 0, 18)
+      mixCvConnected.current = true
+    } else if (!isConn && mixCvConnected.current) {
+      try {
+        mixCvIn.current.disconnect(node)
+      } catch {}
+      mixCvConnected.current = false
+    }
+  }, [connections, moduleId, nodeReady])
+
+  // Channel level slider change handler: flips offset/amount based on CV connection
+  const onLevelChange = useCallback((idx: number, v: number[]) => {
+    setChLevel((prev) => {
+      const next = prev.slice()
+      next[idx] = v[0]
+      return next
+    })
+    const node = nodeRef.current
+    const ac = acRef.current
+    if (node && ac) {
+      if (chCvConnected.current[idx]) {
+        node.parameters
+          .get(`ch${idx}Amount`)
+          ?.setValueAtTime(v[0], ac.currentTime)
+      } else {
+        node.parameters
+          .get(`ch${idx}Offset`)
+          ?.setValueAtTime(v[0], ac.currentTime)
+      }
+    }
+  }, [])
+
+  const ChannelCol = useCallback(
+    (i: number) => {
+      return (
+        <div key={`ch-${i}`} className="flex flex-col items-center gap-2">
+          <Slider
+            orientation="vertical"
+            size="sm"
+            value={[chLevel[i]]}
+            min={0}
+            max={1}
+            step={0.01}
+            onValueChange={(v) => onLevelChange(i, v as number[])}
+          />
+          <TextLabel variant="control" className="text-[10px] mb-2">
+            CH{i + 1}
+          </TextLabel>
+          <VLine />
+          <Port
+            id={`${moduleId}-ch${i + 1}-cv-in`}
+            type="input"
+            audioType="cv"
+            audioNode={chCvIn.current[i] ?? undefined}
+          />
+
+          <div className="flex gap-2">
+            <Knob
+              value={[(chPan[i] + 1) / 2]}
+              onValueChange={(v) =>
+                setChPan((prev) => {
+                  const n = [...prev]
+                  n[i] = v[0] * 2 - 1 // map 0..1 knob to -1..1 pan
+                  return n
+                })
+              }
+              size="xs"
+              label="Pan"
+            />
+            <Knob
+              value={[chWidth[i]]}
+              onValueChange={(v) =>
+                setChWidth((prev) => {
+                  const n = [...prev]
+                  n[i] = v[0]
+                  return n
+                })
+              }
+              size="xs"
+              label="Width"
+            />
+          </div>
+          <div className="flex gap-2">
+            <div className="flex flex-col items-center gap-1">
+              <Knob
+                value={[chSendA[i]]}
+                onValueChange={(v) =>
+                  setChSendA((prev) => {
+                    const n = [...prev]
+                    n[i] = v[0]
+                    return n
+                  })
+                }
+                size="xs"
+                label="A"
+              />
+              <Toggle
+                size="xs"
+                pressed={chSendAPre[i]}
+                onPressedChange={(t) =>
+                  setChSendAPre((prev) => {
+                    const n = [...prev]
+                    n[i] = !!t
+                    return n
+                  })
+                }
+                className="px-1 py-0.5 text-[10px]"
+              >
+                Pre
+              </Toggle>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <Knob
+                value={[chSendB[i]]}
+                onValueChange={(v) =>
+                  setChSendB((prev) => {
+                    const n = [...prev]
+                    n[i] = v[0]
+                    return n
+                  })
+                }
+                size="xs"
+                label="B"
+              />
+              <Toggle
+                size="xs"
+                pressed={chSendBPre[i]}
+                onPressedChange={(t) =>
+                  setChSendBPre((prev) => {
+                    const n = [...prev]
+                    n[i] = !!t
+                    return n
+                  })
+                }
+                className="px-1 py-0.5 text-[10px]"
+              >
+                Pre
+              </Toggle>
+            </div>
+          </div>
+          <Toggle
+            size="xs"
+            pressed={chMute[i]}
+            onPressedChange={(t) =>
+              setChMute((prev) => {
+                const n = [...prev]
+                n[i] = !!t
+                return n
+              })
+            }
+            className="px-2 py-0.5 text-[10px]"
+          >
+            Mute
+          </Toggle>
+          {/* Ports */}
+          <div className="flex items-center mt-2">
+            <Port
+              id={`${moduleId}-ch${i + 1}-l-in`}
+              type="input"
+              label="L"
+              audioType="audio"
+              audioNode={chInL.current[i] ?? undefined}
+            />
+            <Port
+              id={`${moduleId}-ch${i + 1}-r-in`}
+              type="input"
+              label="R"
+              audioType="audio"
+              audioNode={chInR.current[i] ?? undefined}
+            />
+          </div>
+          {/* Tiny meter */}
+          <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
+            <div
+              className="absolute left-0 right-0 bottom-0 bg-green-500"
+              style={{ height: `${Math.min(100, chMeters[i] * 120)}%` }}
+            />
+          </div>
+        </div>
+      )
+    },
+    [
+      chLevel,
+      chPan,
+      chWidth,
+      chSendA,
+      chSendB,
+      chSendAPre,
+      chSendBPre,
+      chMute,
+      chMeters,
+    ],
+  )
+
+  return (
+    <ModuleContainer title="Stereo Mixer" moduleId={moduleId}>
+      <div className="flex gap-4 flex-1">
+        {/* Channels */}
+        <div className="grid grid-cols-6 gap-4 items-start">
+          {Array.from({ length: 6 }, (_, i) => ChannelCol(i))}
+        </div>
+
+        {/* Returns, Master, Sends */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Returns */}
+          <div className="flex flex-col items-center gap-2">
+            <TextLabel>Returns</TextLabel>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col items-center gap-2">
+                <Knob
+                  value={retALevel}
+                  onValueChange={setRetALevel}
+                  label="A"
+                  size="sm"
+                />
+                <div className="flex items-center gap-1">
+                  <Port
+                    id={`${moduleId}-retA-l-in`}
+                    type="input"
+                    label="L"
+                    audioType="audio"
+                    audioNode={retAL.current ?? undefined}
+                  />
+                  <Port
+                    id={`${moduleId}-retA-r-in`}
+                    type="input"
+                    label="R"
+                    audioType="audio"
+                    audioNode={retAR.current ?? undefined}
+                  />
+                </div>
+                <PortGroup>
+                  <Port
+                    id={`${moduleId}-sendA-l-out`}
+                    type="output"
+                    label="A L"
+                    audioType="audio"
+                    audioNode={sendAL.current ?? undefined}
+                  />
+                  <Port
+                    id={`${moduleId}-sendA-r-out`}
+                    type="output"
+                    label="A R"
+                    audioType="audio"
+                    audioNode={sendAR.current ?? undefined}
+                  />
+                </PortGroup>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <Knob
+                  value={retBLevel}
+                  onValueChange={setRetBLevel}
+                  label="B"
+                  size="sm"
+                />
+                <div className="flex items-center">
+                  <Port
+                    id={`${moduleId}-retB-l-in`}
+                    type="input"
+                    label="L"
+                    audioType="audio"
+                    audioNode={retBL.current ?? undefined}
+                  />
+                  <Port
+                    id={`${moduleId}-retB-r-in`}
+                    type="input"
+                    label="R"
+                    audioType="audio"
+                    audioNode={retBR.current ?? undefined}
+                  />
+                </div>
+
+                <PortGroup>
+                  <Port
+                    id={`${moduleId}-sendB-l-out`}
+                    type="output"
+                    label="B L"
+                    audioType="audio"
+                    audioNode={sendBL.current ?? undefined}
+                  />
+                  <Port
+                    id={`${moduleId}-sendB-r-out`}
+                    type="output"
+                    label="B R"
+                    audioType="audio"
+                    audioNode={sendBR.current ?? undefined}
+                  />
+                </PortGroup>
+              </div>
+            </div>
+          </div>
+
+          {/* Master */}
+          <div className="flex flex-col items-center gap-2">
+            <TextLabel>Master</TextLabel>
+            <div className="flex items-end gap-4">
+              <Slider
+                orientation="vertical"
+                size="md"
+                value={mixLLevel}
+                onValueChange={setMixLLevel}
+                min={0}
+                max={1}
+                step={0.01}
+              />
+              <Slider
+                orientation="vertical"
+                size="md"
+                value={mixRLevel}
+                onValueChange={setMixRLevel}
+                min={0}
+                max={1}
+                step={0.01}
+              />
+              <div className="flex flex-col items-center gap-2 ml-2">
+                <Port
+                  id={`${moduleId}-mix-cv-in`}
+                  type="input"
+                  label="Mix CV"
+                  audioType="cv"
+                  audioNode={mixCvIn.current ?? undefined}
+                />
+                <ToggleSwitch
+                  label="Lin"
+                  topLabel="Exp"
+                  orientation="horizontal"
+                  value={expo}
+                  onValueChange={setExpo}
+                />
+                <Toggle
+                  pressed={muteAffectsSends}
+                  onPressedChange={(t) => setMuteAffectsSends(!!t)}
+                  className="px-2 py-0.5 text-[10px]"
+                >
+                  Mute→Sends
+                </Toggle>
+                <Knob
+                  value={mixSat}
+                  onValueChange={setMixSat}
+                  size="xs"
+                  label="Clip"
+                />
+              </div>
+            </div>
+            {/* Master tiny meters */}
+            <div className="flex gap-2 mt-2">
+              <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
+                <div
+                  className="absolute left-0 right-0 bottom-0 bg-green-500"
+                  style={{ height: `${Math.min(100, mixMeters[0] * 120)}%` }}
+                />
+              </div>
+              <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
+                <div
+                  className="absolute left-0 right-0 bottom-0 bg-green-500"
+                  style={{ height: `${Math.min(100, mixMeters[1] * 120)}%` }}
+                />
+              </div>
+            </div>
+
+            <PortGroup>
+              <Port
+                id={`${moduleId}-mix-l-out`}
+                type="output"
+                label="L"
+                audioType="audio"
+                audioNode={mixOutL.current ?? undefined}
+              />
+              <Port
+                id={`${moduleId}-mix-r-out`}
+                type="output"
+                label="R"
+                audioType="audio"
+                audioNode={mixOutR.current ?? undefined}
+              />
+            </PortGroup>
+          </div>
+        </div>
+      </div>
+    </ModuleContainer>
+  )
+}

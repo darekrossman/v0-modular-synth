@@ -22,6 +22,7 @@ const toggleVariants = cva(
         true: 'from-red-500! from-20% to-red-600! to-80% text-white data-[state=on]:text-white shadow-[inset_0_-1px_0px_0px_rgba(0,0,0,0.2),inset_0_1px_0px_0px_rgba(255,255,255,0.2)] data-[state=on]:shadow-[inset_0_1px_0px_0px_rgba(255,255,255,0.2),0_0_6px_1px_rgba(255,0,0,0.5)] shadow-[inset_0_1px_0px_0px_rgba(255,255,255,0.2),0_0_6px_1px_rgba(255,0,0,0.5)] data-[state=on]:border-red-800 border-red-900',
       },
       size: {
+        xs: 'h-5 min-w-5 px-1 empty:p-0',
         default: 'h-8 min-w-8 px-1 empty:p-0',
         md: 'h-6 min-w-6 px-1 empty:p-0',
         sm: 'h-5 min-w-5 px-1 empty:p-0',

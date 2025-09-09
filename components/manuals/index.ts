@@ -16,6 +16,7 @@ import RandomManual from '@/components/manuals/random-manual'
 import ReverbManual from '@/components/manuals/reverb-manual'
 import ScopeManual from '@/components/manuals/scope-manual'
 import SequencerManual from '@/components/manuals/sequencer-manual'
+import StereoMixerManual from '@/components/manuals/stereo-mixer-manual'
 import VCAManual from '@/components/manuals/vca-manual'
 import type { ModuleType } from '@/lib/module-registry'
 
@@ -36,6 +37,7 @@ export const manuals: Partial<Record<ModuleType, ComponentType>> = {
   quantizer: QuantizerManual,
   vca: VCAManual,
   'mixer-vca': MixerVCAManual,
+  'stereo-mixer': StereoMixerManual,
   clock: ClockManual,
   process: ProcessManual,
 }

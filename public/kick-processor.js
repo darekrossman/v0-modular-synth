@@ -243,10 +243,16 @@ class KickProcessor extends AudioWorkletProcessor {
       const cFMax = model === 0 ? 0.0018 : 0.0012
       const cSMin = model === 0 ? 0.0016 : 0.001
       const cSMax = model === 0 ? 0.006 : 0.004
-      const tauFast = cFMin + (cFMax - cFMin) * attackEff
-      const tauSlow = cSMin + (cSMax - cSMin) * attackEff
+      const invA = 1 - attackEff
+      const tauFast = cFMin + (cFMax - cFMin) * invA
+      const tauSlow = cSMin + (cSMax - cSMin) * invA
       this.clickFast = this.stepToward(this.clickFast, 0.0, tauFast)
       this.clickSlow = this.stepToward(this.clickSlow, 0.0, tauSlow)
+
+      // Predict first-sample magnitude for normalization to decouple intensity from tau
+      const aFast = Math.exp(-1 / (tauFast * sampleRate))
+      const aSlow = Math.exp(-1 / (tauSlow * sampleRate))
+      const clickNorm = 1 / Math.max(1e-4, Math.abs(aFast - aSlow))
 
       // Core oscillator
       let core = 0
@@ -267,8 +273,8 @@ class KickProcessor extends AudioWorkletProcessor {
       let click = 0
       const clickPower = Math.abs(this.clickFast - this.clickSlow)
       if (clickPower > this.FLOOR) {
-        const clickGain = 1 - attackEff // min attack => strongest
-        click = (this.clickFast - this.clickSlow) * clickGain * 1.2
+        const intensity = 1 - attackEff // min attack => strongest
+        click = (this.clickFast - this.clickSlow) * clickNorm * intensity * 0.9
       }
 
       // Soft drive for 909

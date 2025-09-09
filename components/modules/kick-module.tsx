@@ -195,7 +195,7 @@ export function KickModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer moduleId={moduleId} title="Kick">
-      <div className="flex flex-col gap-6 items-center mt-4">
+      <div className="flex flex-col gap-6 items-center mt-4 flex-1">
         <div className="flex gap-8 items-center">
           <Knob value={tuneN} onValueChange={setTuneN} size="md" label="Tune" />
           <Knob
@@ -204,6 +204,9 @@ export function KickModule({ moduleId }: { moduleId: string }) {
             size="md"
             label="Sweep"
           />
+        </div>
+
+        <div className="flex gap-8 items-center">
           <Knob
             value={attackN}
             onValueChange={setAttackN}
@@ -216,16 +219,32 @@ export function KickModule({ moduleId }: { moduleId: string }) {
             size="md"
             label="Decay"
           />
+        </div>
+
+        <div className="flex gap-8 items-center mt-4">
           <ToggleSwitch
-            label={is909 ? '909' : '808'}
+            label="808"
+            topLabel="909"
+            orientation="horizontal"
             value={is909}
             onValueChange={setIs909}
           />
         </div>
 
+        <div className="flex-grow" />
+
         <div className="flex flex-col gap-1 w-full">
-          <div className="flex justify-between">
-            <div className="flex flex-col items-center gap-3">
+          <div className="flex justify-between align-end">
+            <div className="flex flex-col items-center justify-end gap-3">
+              <Port
+                id={`${moduleId}-tune-in`}
+                type="input"
+                audioType="cv"
+                label="Tune"
+                audioNode={tuneInRef.current ?? undefined}
+              />
+            </div>
+            <div className="flex flex-col items-center justify-end gap-3">
               <Knob
                 value={sweepCvAmt}
                 onValueChange={setSweepCvAmt}
@@ -240,7 +259,7 @@ export function KickModule({ moduleId }: { moduleId: string }) {
                 audioNode={sweepInRef.current ?? undefined}
               />
             </div>
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center justify-end gap-3">
               <Knob
                 value={attackCvAmt}
                 onValueChange={setAttackCvAmt}
@@ -255,7 +274,7 @@ export function KickModule({ moduleId }: { moduleId: string }) {
                 audioNode={attackInRef.current ?? undefined}
               />
             </div>
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center justify-end gap-3">
               <Knob
                 value={decayCvAmt}
                 onValueChange={setDecayCvAmt}
@@ -280,13 +299,7 @@ export function KickModule({ moduleId }: { moduleId: string }) {
               label="Trig"
               audioNode={trigInRef.current ?? undefined}
             />
-            <Port
-              id={`${moduleId}-tune-in`}
-              type="input"
-              audioType="cv"
-              label="Tune"
-              audioNode={tuneInRef.current ?? undefined}
-            />
+
             <PortGroup>
               <Port
                 id={`${moduleId}-audio-out`}

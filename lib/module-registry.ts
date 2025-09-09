@@ -17,6 +17,7 @@ import { RandomModule } from '@/components/modules/random-module'
 import { ReverbModule } from '@/components/modules/reverb-module'
 import { ScopeModule } from '@/components/modules/scope-module'
 import { SequencerModule } from '@/components/modules/sequencer-module'
+import { StereoMixerModule } from '@/components/modules/stereo-mixer-module'
 import { SVFFilterModule } from '@/components/modules/svf-filter-module'
 import { VCAModule } from '@/components/modules/vca-module'
 
@@ -25,6 +26,7 @@ export type ModuleType =
   | 'lfo'
   | 'vca'
   | 'mixer-vca'
+  | 'stereo-mixer'
   | 'output'
   | 'adsr'
   | 'keyboard-cv'
@@ -160,6 +162,12 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'Mixer VCA',
     description: '4-channel mixer with per-channel VCAs and master VCA',
     component: MixerVCAModule,
+  },
+  {
+    type: 'stereo-mixer' as ModuleType,
+    name: 'Stereo Mixer',
+    description: '6-ch stereo mixer, 2 sends/returns, VCAs',
+    component: StereoMixerModule,
   },
   {
     type: 'attenuverter' as ModuleType,
