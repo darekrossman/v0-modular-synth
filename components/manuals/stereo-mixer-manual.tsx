@@ -21,7 +21,10 @@ export default function StereoMixerManual() {
           Sliders and masters provide up to +12 dB headroom near the top of
           travel.
         </li>
-        <li>Pan is equal-power; Width goes from mono (0) to wide (1).</li>
+        <li>
+          Pan is equal-power; if only the left input is connected, the channel
+          is treated as mono.
+        </li>
         <li>
           Optional soft clip on master bus (Clip knob) blends in gentle
           limiting.

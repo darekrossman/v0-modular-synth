@@ -43,13 +43,6 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
         automationRate: 'k-rate',
       })
       params.push({
-        name: `ch${i}Width`,
-        defaultValue: 1,
-        minValue: 0,
-        maxValue: 1,
-        automationRate: 'k-rate',
-      })
-      params.push({
         name: `ch${i}SendA`,
         defaultValue: 0,
         minValue: 0,
@@ -265,7 +258,6 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
         const amount = p[`ch${ch}Amount`][0]
         const level = p[`ch${ch}Level`][0]
         const pan = p[`ch${ch}Pan`][0]
-        const width = p[`ch${ch}Width`][0]
         const sA = p[`ch${ch}SendA`][0]
         const sB = p[`ch${ch}SendB`][0]
         const sAPre = (p[`ch${ch}SendAPre`][0] || 0) > 0.5
@@ -291,14 +283,18 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
           slewA === 0 ? gTarget : gTarget + (this._gCh[ch] - gTarget) * slewA
         this._gCh[ch] = gSm
 
-        // Apply width (mid/side) pre-pan, post-VCA
+        // Pre-pan, post-VCA stereo; if only one side is connected, treat as mono
         const preL = xL * gSm
-        const preR = xR * gSm
-        const mid = 0.5 * (preL + preR)
-        const side = 0.5 * (preR - preL)
-        const w = width < 0 ? 0 : width > 1 ? 1 : width
-        const wL = mid - side * w
-        const wR = mid + side * w
+        const preR0 = xR * gSm
+        const hasLChan = !!inputs[idxL]?.[0]
+        const hasRChan = !!inputs[idxL + 1]?.[0]
+        let stL = preL
+        let stR = preR0
+        if (hasLChan && !hasRChan) {
+          stR = stL
+        } else if (hasRChan && !hasLChan) {
+          stL = stR
+        }
 
         // Equal-power pan
         const panClamped = pan < -1 ? -1 : pan > 1 ? 1 : pan
@@ -308,24 +304,29 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
         // Channel fader (+12 dB mapping)
         const fader = this._map12dB(level)
 
-        const postL = wL * gL * fader
-        const postR = wR * gR * fader
+        // If source is effectively mono (only one side was connected),
+        // compensate pan law so center doesn't sound quieter.
+        const isMonoSource = (hasLChan && !hasRChan) || (hasRChan && !hasLChan)
+        const panComp = isMonoSource ? 1 / Math.max(gL, gR) : 1
+
+        const postL = stL * gL * fader * panComp
+        const postR = stR * gR * fader * panComp
 
         // Sends
         const preMuteScalar = 1
         const muteScalarForSends = muted && muteAffectsSends ? 0 : 1
         // A
         if (sAPre) {
-          sendA_L += wL * sA * preMuteScalar * muteScalarForSends
-          sendA_R += wR * sA * preMuteScalar * muteScalarForSends
+          sendA_L += stL * sA * preMuteScalar * muteScalarForSends
+          sendA_R += stR * sA * preMuteScalar * muteScalarForSends
         } else {
           sendA_L += postL * sA * muteScalarForSends
           sendA_R += postR * sA * muteScalarForSends
         }
         // B
         if (sBPre) {
-          sendB_L += wL * sB * preMuteScalar * muteScalarForSends
-          sendB_R += wR * sB * preMuteScalar * muteScalarForSends
+          sendB_L += stL * sB * preMuteScalar * muteScalarForSends
+          sendB_R += stR * sB * preMuteScalar * muteScalarForSends
         } else {
           sendB_L += postL * sB * muteScalarForSends
           sendB_R += postR * sB * muteScalarForSends

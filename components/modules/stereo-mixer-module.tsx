@@ -26,9 +26,6 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
   const [chPan, setChPan] = useState<number[]>(
     Array.from({ length: 6 }, () => 0),
   )
-  const [chWidth, setChWidth] = useState<number[]>(
-    Array.from({ length: 6 }, () => 1),
-  )
   const [chSendA, setChSendA] = useState<number[]>(
     Array.from({ length: 6 }, () => 0),
   )
@@ -70,7 +67,6 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
   useModulePatch(moduleId, () => ({
     chLevel,
     chPan,
-    chWidth,
     chSendA,
     chSendB,
     chSendAPre,
@@ -113,6 +109,12 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
   )
   const mixCvConnected = useRef(false)
   const [nodeReady, setNodeReady] = useState(false)
+  const chInLConnectedRef = useRef<boolean[]>(
+    Array.from({ length: 6 }, () => false),
+  )
+  const chInRConnectedRef = useRef<boolean[]>(
+    Array.from({ length: 6 }, () => false),
+  )
 
   useModuleInit(async () => {
     if (nodeRef.current) return
@@ -184,11 +186,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     })
     nodeRef.current = node
 
-    // Connect inputs to node
-    for (let i = 0; i < 6; i++) {
-      chInL.current[i].connect(node, 0, i * 2)
-      chInR.current[i].connect(node, 0, i * 2 + 1)
-    }
+    // Audio inputs will be connected conditionally based on actual cables
     // CV, mix CV will be connected conditionally
     ;(retAL.current as GainNode).connect(node, 0, 19)
     ;(retAR.current as GainNode).connect(node, 0, 20)
@@ -226,6 +224,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
   // Connect/disconnect CV based on cables, and flip offset/amount semantics
   const { current: cvConn } = chCvConnected
   useEffect(() => {
+    console.log('cv connect/disconnect')
     if (!nodeRef.current) return
     const node = nodeRef.current
     const ac = acRef.current as AudioContext
@@ -255,6 +254,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
   }, [connections, moduleId, nodeReady, chLevel])
 
   useEffect(() => {
+    console.log('static param updates')
     if (!nodeRef.current) return
     const ac = acRef.current as AudioContext
     const node = nodeRef.current
@@ -288,6 +288,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
 
   // Update per-channel params when knobs/sliders change
   useEffect(() => {
+    console.log('param updates')
     if (!nodeRef.current) return
     const ac = acRef.current as AudioContext
     const node = nodeRef.current
@@ -296,9 +297,6 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
         .get(`ch${i}Level`)
         ?.setValueAtTime(chLevel[i], ac.currentTime)
       node.parameters.get(`ch${i}Pan`)?.setValueAtTime(chPan[i], ac.currentTime)
-      node.parameters
-        .get(`ch${i}Width`)
-        ?.setValueAtTime(chWidth[i], ac.currentTime)
       node.parameters
         .get(`ch${i}SendA`)
         ?.setValueAtTime(chSendA[i], ac.currentTime)
@@ -316,19 +314,11 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
         ?.setValueAtTime(chMute[i] ? 1 : 0, ac.currentTime)
       // Offset/Amount values depend on CV connection (handled in connection effect and on slider change)
     }
-  }, [
-    chLevel,
-    chPan,
-    chWidth,
-    chSendA,
-    chSendB,
-    chSendAPre,
-    chSendBPre,
-    chMute,
-  ])
+  }, [chLevel, chPan, chSendA, chSendB, chSendAPre, chSendBPre, chMute])
 
   // Mix CV connect/disconnect
   useEffect(() => {
+    console.log('mix cv connect/disconnect')
     if (!nodeRef.current || !mixCvIn.current) return
     const node = nodeRef.current
     const isConn = connections.some((e) => e.to === `${moduleId}-mix-cv-in`)
@@ -340,6 +330,39 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
         mixCvIn.current.disconnect(node)
       } catch {}
       mixCvConnected.current = false
+    }
+  }, [connections, moduleId, nodeReady])
+
+  // Channel audio L/R connect/disconnect based on cables
+  useEffect(() => {
+    console.log('channel audio connect/disconnect')
+    const node = nodeRef.current
+    if (!node || !nodeReady) return
+    for (let i = 0; i < 6; i++) {
+      const lId = `${moduleId}-ch${i + 1}-l-in`
+      const rId = `${moduleId}-ch${i + 1}-r-in`
+      const hasL = connections.some((e) => e.to === lId)
+      const hasR = connections.some((e) => e.to === rId)
+
+      if (hasL && !chInLConnectedRef.current[i]) {
+        chInL.current[i]?.connect(node, 0, i * 2)
+        chInLConnectedRef.current[i] = true
+      } else if (!hasL && chInLConnectedRef.current[i]) {
+        try {
+          chInL.current[i]?.disconnect(node)
+        } catch {}
+        chInLConnectedRef.current[i] = false
+      }
+
+      if (hasR && !chInRConnectedRef.current[i]) {
+        chInR.current[i]?.connect(node, 0, i * 2 + 1)
+        chInRConnectedRef.current[i] = true
+      } else if (!hasR && chInRConnectedRef.current[i]) {
+        try {
+          chInR.current[i]?.disconnect(node)
+        } catch {}
+        chInRConnectedRef.current[i] = false
+      }
     }
   }, [connections, moduleId, nodeReady])
 
@@ -365,174 +388,147 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     }
   }, [])
 
-  const ChannelCol = useCallback(
-    (i: number) => {
-      return (
-        <div key={`ch-${i}`} className="flex flex-col items-center gap-2">
-          <Slider
-            orientation="vertical"
-            size="sm"
-            value={[chLevel[i]]}
-            min={0}
-            max={1}
-            step={0.01}
-            onValueChange={(v) => onLevelChange(i, v as number[])}
-          />
-          <TextLabel variant="control" className="text-[10px] mb-2">
-            CH{i + 1}
-          </TextLabel>
-          <VLine />
-          <Port
-            id={`${moduleId}-ch${i + 1}-cv-in`}
-            type="input"
-            audioType="cv"
-            audioNode={chCvIn.current[i] ?? undefined}
-          />
-
-          <div className="flex gap-2">
-            <Knob
-              value={[(chPan[i] + 1) / 2]}
-              onValueChange={(v) =>
-                setChPan((prev) => {
-                  const n = [...prev]
-                  n[i] = v[0] * 2 - 1 // map 0..1 knob to -1..1 pan
-                  return n
-                })
-              }
-              size="xs"
-              label="Pan"
-            />
-            <Knob
-              value={[chWidth[i]]}
-              onValueChange={(v) =>
-                setChWidth((prev) => {
-                  const n = [...prev]
-                  n[i] = v[0]
-                  return n
-                })
-              }
-              size="xs"
-              label="Width"
-            />
-          </div>
-          <div className="flex gap-2">
-            <div className="flex flex-col items-center gap-1">
-              <Knob
-                value={[chSendA[i]]}
-                onValueChange={(v) =>
-                  setChSendA((prev) => {
-                    const n = [...prev]
-                    n[i] = v[0]
-                    return n
-                  })
-                }
-                size="xs"
-                label="A"
-              />
-              <Toggle
-                size="xs"
-                pressed={chSendAPre[i]}
-                onPressedChange={(t) =>
-                  setChSendAPre((prev) => {
-                    const n = [...prev]
-                    n[i] = !!t
-                    return n
-                  })
-                }
-                className="px-1 py-0.5 text-[10px]"
-              >
-                Pre
-              </Toggle>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <Knob
-                value={[chSendB[i]]}
-                onValueChange={(v) =>
-                  setChSendB((prev) => {
-                    const n = [...prev]
-                    n[i] = v[0]
-                    return n
-                  })
-                }
-                size="xs"
-                label="B"
-              />
-              <Toggle
-                size="xs"
-                pressed={chSendBPre[i]}
-                onPressedChange={(t) =>
-                  setChSendBPre((prev) => {
-                    const n = [...prev]
-                    n[i] = !!t
-                    return n
-                  })
-                }
-                className="px-1 py-0.5 text-[10px]"
-              >
-                Pre
-              </Toggle>
-            </div>
-          </div>
-          <Toggle
-            size="xs"
-            pressed={chMute[i]}
-            onPressedChange={(t) =>
-              setChMute((prev) => {
-                const n = [...prev]
-                n[i] = !!t
-                return n
-              })
-            }
-            className="px-2 py-0.5 text-[10px]"
-          >
-            Mute
-          </Toggle>
-          {/* Ports */}
-          <div className="flex items-center mt-2">
-            <Port
-              id={`${moduleId}-ch${i + 1}-l-in`}
-              type="input"
-              label="L"
-              audioType="audio"
-              audioNode={chInL.current[i] ?? undefined}
-            />
-            <Port
-              id={`${moduleId}-ch${i + 1}-r-in`}
-              type="input"
-              label="R"
-              audioType="audio"
-              audioNode={chInR.current[i] ?? undefined}
-            />
-          </div>
-          {/* Tiny meter */}
-          <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
-            <div
-              className="absolute left-0 right-0 bottom-0 bg-green-500"
-              style={{ height: `${Math.min(100, chMeters[i] * 120)}%` }}
-            />
-          </div>
-        </div>
-      )
-    },
-    [
-      chLevel,
-      chPan,
-      chWidth,
-      chSendA,
-      chSendB,
-      chSendAPre,
-      chSendBPre,
-      chMute,
-      chMeters,
-    ],
-  )
-
   return (
     <ModuleContainer title="Stereo Mixer" moduleId={moduleId}>
       <div className="flex gap-4 flex-1">
         {/* Channels */}
         <div className="grid grid-cols-6 gap-4 items-start">
-          {Array.from({ length: 6 }, (_, i) => ChannelCol(i))}
+          {Array.from({ length: 6 }, (_, i) => {
+            return (
+              <div key={`ch-${i}`} className="flex flex-col items-center gap-2">
+                <Slider
+                  orientation="vertical"
+                  size="sm"
+                  value={[chLevel[i]]}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onValueChange={(v) => onLevelChange(i, v as number[])}
+                />
+                <TextLabel variant="control" className="text-[10px] mb-2">
+                  CH{i + 1}
+                </TextLabel>
+                <VLine />
+                <Port
+                  id={`${moduleId}-ch${i + 1}-cv-in`}
+                  type="input"
+                  audioType="cv"
+                  audioNode={chCvIn.current[i] ?? undefined}
+                />
+
+                <div className="flex gap-2">
+                  <Knob
+                    value={[(chPan[i] + 1) / 2]}
+                    onValueChange={(v) =>
+                      setChPan((prev) => {
+                        const n = [...prev]
+                        n[i] = v[0] * 2 - 1 // map 0..1 knob to -1..1 pan
+                        return n
+                      })
+                    }
+                    size="xs"
+                    label="Pan"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex flex-col items-center gap-1">
+                    <Knob
+                      value={[chSendA[i]]}
+                      onValueChange={(v) =>
+                        setChSendA((prev) => {
+                          const n = [...prev]
+                          n[i] = v[0]
+                          return n
+                        })
+                      }
+                      size="xs"
+                      label="A"
+                    />
+                    <Toggle
+                      size="xs"
+                      pressed={chSendAPre[i]}
+                      onPressedChange={(t) =>
+                        setChSendAPre((prev) => {
+                          const n = [...prev]
+                          n[i] = !!t
+                          return n
+                        })
+                      }
+                      className="px-1 py-0.5 text-[10px]"
+                    >
+                      Pre
+                    </Toggle>
+                  </div>
+                  <div className="flex flex-col items-center gap-1">
+                    <Knob
+                      value={[chSendB[i]]}
+                      onValueChange={(v) =>
+                        setChSendB((prev) => {
+                          const n = [...prev]
+                          n[i] = v[0]
+                          return n
+                        })
+                      }
+                      size="xs"
+                      label="B"
+                    />
+                    <Toggle
+                      size="xs"
+                      pressed={chSendBPre[i]}
+                      onPressedChange={(t) =>
+                        setChSendBPre((prev) => {
+                          const n = [...prev]
+                          n[i] = !!t
+                          return n
+                        })
+                      }
+                      className="px-1 py-0.5 text-[10px]"
+                    >
+                      Pre
+                    </Toggle>
+                  </div>
+                </div>
+                <Toggle
+                  size="xs"
+                  pressed={chMute[i]}
+                  onPressedChange={(t) =>
+                    setChMute((prev) => {
+                      const n = [...prev]
+                      n[i] = !!t
+                      return n
+                    })
+                  }
+                  className="px-2 py-0.5 text-[10px]"
+                >
+                  Mute
+                </Toggle>
+                {/* Ports */}
+                <div className="flex items-center mt-2">
+                  <Port
+                    id={`${moduleId}-ch${i + 1}-l-in`}
+                    type="input"
+                    label="L"
+                    audioType="audio"
+                    audioNode={chInL.current[i] ?? undefined}
+                  />
+                  <Port
+                    id={`${moduleId}-ch${i + 1}-r-in`}
+                    type="input"
+                    label="R"
+                    audioType="audio"
+                    audioNode={chInR.current[i] ?? undefined}
+                  />
+                </div>
+                {/* Tiny meter */}
+                <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
+                  <div
+                    className="absolute left-0 right-0 bottom-0 bg-green-500"
+                    style={{ height: `${Math.min(100, chMeters[i] * 120)}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
         </div>
 
         {/* Returns, Master, Sends */}
