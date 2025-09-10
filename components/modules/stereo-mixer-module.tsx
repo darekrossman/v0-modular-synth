@@ -19,49 +19,54 @@ type MeterData = { ch: Float32Array; l: number; r: number }
 const map12dB = (v: number) => (v <= 0.75 ? v / 0.75 : 1 + (v - 0.75) * 12)
 
 export function StereoMixerModule({ moduleId }: { moduleId: string }) {
+  // Register with patch manager
+  const { initialParameters } = useModulePatch(moduleId, () => ({
+    chLevel: chLevel.current,
+    chPan: chPan.current,
+    chSendA: chSendA.current,
+    chSendB: chSendB.current,
+    chSendAPre: chSendAPre,
+    chSendBPre: chSendBPre,
+    chMute: chMute,
+    retALevel: retALevel.current,
+    retBLevel: retBLevel.current,
+    mixLLevel: mixLLevel.current,
+    mixRLevel: mixRLevel.current,
+    mixSat: mixSat.current,
+    expo,
+    muteAffectsSends,
+  }))
+
   // Persistent state
-  const [chLevel, setChLevel] = useState<number[]>(
-    Array.from({ length: 6 }, () => 0.75),
+  const chLevel = useRef<number[]>(
+    initialParameters?.chLevel ?? Array.from({ length: 6 }, () => 0.75),
   )
-  const [chPan, setChPan] = useState<number[]>(
-    Array.from({ length: 6 }, () => 0),
+  const chPan = useRef<number[]>(
+    initialParameters?.chPan ?? Array.from({ length: 6 }, () => 0),
   )
-  const [chSendA, setChSendA] = useState<number[]>(
-    Array.from({ length: 6 }, () => 0),
+  const chSendA = useRef<number[]>(
+    initialParameters?.chSendA ?? Array.from({ length: 6 }, () => 0),
   )
-  const [chSendB, setChSendB] = useState<number[]>(
-    Array.from({ length: 6 }, () => 0),
+  const chSendB = useRef<number[]>(
+    initialParameters?.chSendB ?? Array.from({ length: 6 }, () => 0),
   )
   const [chSendAPre, setChSendAPre] = useState<boolean[]>(
-    Array.from({ length: 6 }, () => true),
+    initialParameters?.chSendAPre ?? Array.from({ length: 6 }, () => true),
   )
   const [chSendBPre, setChSendBPre] = useState<boolean[]>(
-    Array.from({ length: 6 }, () => true),
+    initialParameters?.chSendBPre ?? Array.from({ length: 6 }, () => true),
   )
   const [chMute, setChMute] = useState<boolean[]>(
-    Array.from({ length: 6 }, () => false),
+    initialParameters?.chMute ?? Array.from({ length: 6 }, () => false),
   )
-  const [retALevel, setRetALevel] = useState([0.75])
-  const [retBLevel, setRetBLevel] = useState([0.75])
-  const [mixLLevel, setMixLLevel] = useState([0.75])
-  const [mixRLevel, setMixRLevel] = useState([0.75])
-  const [mixSat, setMixSat] = useState([0])
+  const retALevel = useRef<number[]>(initialParameters?.retALevel ?? [0.75])
+  const retBLevel = useRef<number[]>(initialParameters?.retBLevel ?? [0.75])
+  const mixLLevel = useRef<number[]>(initialParameters?.mixLLevel ?? [0.75])
+  const mixRLevel = useRef<number[]>(initialParameters?.mixRLevel ?? [0.75])
+  const mixSat = useRef<number[]>(initialParameters?.mixSat ?? [0])
   const [expo, setExpo] = useState(false)
   const [muteAffectsSends, setMuteAffectsSends] = useState(true)
 
-  // Slider semantics: offset vs amount depending on CV connection
-  const [chOffset, setChOffset] = useState<number[]>(
-    Array.from({ length: 6 }, () => 1),
-  )
-  const [chAmount, setChAmount] = useState<number[]>(
-    Array.from({ length: 6 }, () => 0),
-  )
-
-  // Meters
-  const [chMeters, setChMeters] = useState<number[]>(
-    Array.from({ length: 6 }, () => 0),
-  )
-  const [mixMeters, setMixMeters] = useState<[number, number]>([0, 0])
   const meterRAF = useRef<number | null>(null)
   const meterSAB = useRef<Float32Array | null>(null)
   const chMeterRefs = useRef<Array<HTMLDivElement | null>>(
@@ -69,24 +74,6 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
   )
   const mixMeterLRef = useRef<HTMLDivElement | null>(null)
   const mixMeterRRef = useRef<HTMLDivElement | null>(null)
-
-  // Register with patch manager
-  useModulePatch(moduleId, () => ({
-    chLevel,
-    chPan,
-    chSendA,
-    chSendB,
-    chSendAPre,
-    chSendBPre,
-    chMute,
-    retALevel: retALevel[0],
-    retBLevel: retBLevel[0],
-    mixLLevel: mixLLevel[0],
-    mixRLevel: mixRLevel[0],
-    mixSat: mixSat[0],
-    expo,
-    muteAffectsSends,
-  }))
 
   const acRef = useRef<AudioContext | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
@@ -173,11 +160,11 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     // Build initial per-channel params so meters/levels match expectations at startup
     const channelParamData: Record<string, number> = {}
     for (let i = 0; i < 6; i++) {
-      channelParamData[`ch${i}Level`] = chLevel[i] ?? 0.75
-      channelParamData[`ch${i}Offset`] = chLevel[i] ?? 0.75 // no CV → slider as VCA offset
+      channelParamData[`ch${i}Level`] = chLevel.current[i] ?? 0.75
+      channelParamData[`ch${i}Offset`] = chLevel.current[i] ?? 0.75 // no CV → slider as VCA offset
       channelParamData[`ch${i}Amount`] = 0 // default CV attenuator off
-      channelParamData[`ch${i}SendA`] = chSendA[i] ?? 0
-      channelParamData[`ch${i}SendB`] = chSendB[i] ?? 0
+      channelParamData[`ch${i}SendA`] = chSendA.current[i] ?? 0
+      channelParamData[`ch${i}SendB`] = chSendB.current[i] ?? 0
       channelParamData[`ch${i}SendAPre`] = chSendAPre[i] ? 1 : 0
       channelParamData[`ch${i}SendBPre`] = chSendBPre[i] ? 1 : 0
       channelParamData[`ch${i}Mute`] = chMute[i] ? 1 : 0
@@ -194,14 +181,14 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
         dcCutHz: 5,
         slewMs: 1,
         hardGateDb: -90,
-        retALevel: retALevel[0],
-        retBLevel: retBLevel[0],
-        mixLLevel: mixLLevel[0],
-        mixRLevel: mixRLevel[0],
+        retALevel: retALevel.current[0],
+        retBLevel: retBLevel.current[0],
+        mixLLevel: mixLLevel.current[0],
+        mixRLevel: mixRLevel.current[0],
         mixOffset: 1,
         mixAmount: 1,
         muteAffectsSends: muteAffectsSends ? 1 : 0,
-        mixSat: mixSat[0],
+        mixSat: mixSat.current[0],
         ...channelParamData,
       },
     })
@@ -281,7 +268,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
         // switch: slider becomes CV amount, offset to 0
         node.parameters
           .get(`ch${i}Amount`)
-          ?.setValueAtTime(chLevel[i], ac.currentTime)
+          ?.setValueAtTime(chLevel.current[i], ac.currentTime)
         node.parameters.get(`ch${i}Offset`)?.setValueAtTime(0, ac.currentTime)
       } else if (!isConn && cvConn[i]) {
         try {
@@ -291,7 +278,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
         // switch: slider becomes offset, amount to 0
         node.parameters
           .get(`ch${i}Offset`)
-          ?.setValueAtTime(chLevel[i], ac.currentTime)
+          ?.setValueAtTime(chLevel.current[i], ac.currentTime)
         node.parameters.get(`ch${i}Amount`)?.setValueAtTime(0, ac.currentTime)
       }
     }
@@ -309,17 +296,19 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
       ?.setValueAtTime(muteAffectsSends ? 1 : 0, ac.currentTime)
     node.parameters
       .get('retALevel')
-      ?.setValueAtTime(retALevel[0], ac.currentTime)
+      ?.setValueAtTime(retALevel.current[0], ac.currentTime)
     node.parameters
       .get('retBLevel')
-      ?.setValueAtTime(retBLevel[0], ac.currentTime)
+      ?.setValueAtTime(retBLevel.current[0], ac.currentTime)
     node.parameters
       .get('mixLLevel')
-      ?.setValueAtTime(mixLLevel[0], ac.currentTime)
+      ?.setValueAtTime(mixLLevel.current[0], ac.currentTime)
     node.parameters
       .get('mixRLevel')
-      ?.setValueAtTime(mixRLevel[0], ac.currentTime)
-    node.parameters.get('mixSat')?.setValueAtTime(mixSat[0], ac.currentTime)
+      ?.setValueAtTime(mixRLevel.current[0], ac.currentTime)
+    node.parameters
+      .get('mixSat')
+      ?.setValueAtTime(mixSat.current[0], ac.currentTime)
   }, [
     expo,
     muteAffectsSends,
@@ -339,14 +328,16 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     for (let i = 0; i < 6; i++) {
       node.parameters
         .get(`ch${i}Level`)
-        ?.setValueAtTime(chLevel[i], ac.currentTime)
-      node.parameters.get(`ch${i}Pan`)?.setValueAtTime(chPan[i], ac.currentTime)
+        ?.setValueAtTime(chLevel.current[i], ac.currentTime)
+      node.parameters
+        .get(`ch${i}Pan`)
+        ?.setValueAtTime(chPan.current[i], ac.currentTime)
       node.parameters
         .get(`ch${i}SendA`)
-        ?.setValueAtTime(chSendA[i], ac.currentTime)
+        ?.setValueAtTime(chSendA.current[i], ac.currentTime)
       node.parameters
         .get(`ch${i}SendB`)
-        ?.setValueAtTime(chSendB[i], ac.currentTime)
+        ?.setValueAtTime(chSendB.current[i], ac.currentTime)
       node.parameters
         .get(`ch${i}SendAPre`)
         ?.setValueAtTime(chSendAPre[i] ? 1 : 0, ac.currentTime)
@@ -412,11 +403,12 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
 
   // Channel level slider change handler: flips offset/amount based on CV connection
   const onLevelChange = useCallback((idx: number, v: number[]) => {
-    setChLevel((prev) => {
-      const next = prev.slice()
-      next[idx] = v[0]
-      return next
-    })
+    console.log('onLevelChange', idx, v)
+    const prev = chLevel.current
+    const next = prev.slice()
+    next[idx] = v[0]
+    chLevel.current = next
+
     const node = nodeRef.current
     const ac = acRef.current
     if (node && ac) {
@@ -445,7 +437,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 <Slider
                   orientation="vertical"
                   size="sm"
-                  value={[chLevel[i]]}
+                  defaultValue={[chLevel.current[i]]}
                   min={0}
                   max={1}
                   step={0.01}
@@ -464,14 +456,12 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
 
                 <div className="flex gap-2">
                   <Knob
-                    value={[(chPan[i] + 1) / 2]}
-                    onValueChange={(v) =>
-                      setChPan((prev) => {
-                        const n = [...prev]
-                        n[i] = v[0] * 2 - 1 // map 0..1 knob to -1..1 pan
-                        return n
-                      })
-                    }
+                    value={[(chPan.current[i] + 1) / 2]}
+                    onValueChange={(v) => {
+                      const n = chPan.current.slice()
+                      n[i] = v[0] * 2 - 1 // map 0..1 knob to -1..1 pan
+                      chPan.current = n
+                    }}
                     size="xs"
                     label="Pan"
                   />
@@ -479,27 +469,23 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 <div className="flex gap-2">
                   <div className="flex flex-col items-center gap-1">
                     <Knob
-                      value={[chSendA[i]]}
-                      onValueChange={(v) =>
-                        setChSendA((prev) => {
-                          const n = [...prev]
-                          n[i] = v[0]
-                          return n
-                        })
-                      }
+                      defaultValue={chSendA.current}
+                      onValueChange={(v) => {
+                        const n = chSendA.current.slice()
+                        n[i] = v[0]
+                        chSendA.current = n
+                      }}
                       size="xs"
                       label="A"
                     />
                     <Toggle
                       size="xs"
                       pressed={chSendAPre[i]}
-                      onPressedChange={(t) =>
-                        setChSendAPre((prev) => {
-                          const n = [...prev]
-                          n[i] = !!t
-                          return n
-                        })
-                      }
+                      onPressedChange={(t) => {
+                        const n = chSendAPre.slice()
+                        n[i] = !!t
+                        setChSendAPre(n)
+                      }}
                       className="px-1 py-0.5 text-[10px]"
                     >
                       Pre
@@ -507,27 +493,23 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                   </div>
                   <div className="flex flex-col items-center gap-1">
                     <Knob
-                      value={[chSendB[i]]}
-                      onValueChange={(v) =>
-                        setChSendB((prev) => {
-                          const n = [...prev]
-                          n[i] = v[0]
-                          return n
-                        })
-                      }
+                      defaultValue={chSendB.current}
+                      onValueChange={(v) => {
+                        const n = chSendB.current.slice()
+                        n[i] = v[0]
+                        chSendB.current = n
+                      }}
                       size="xs"
                       label="B"
                     />
                     <Toggle
                       size="xs"
                       pressed={chSendBPre[i]}
-                      onPressedChange={(t) =>
-                        setChSendBPre((prev) => {
-                          const n = [...prev]
-                          n[i] = !!t
-                          return n
-                        })
-                      }
+                      onPressedChange={(t) => {
+                        const n = chSendBPre.slice()
+                        n[i] = !!t
+                        setChSendBPre(n)
+                      }}
                       className="px-1 py-0.5 text-[10px]"
                     >
                       Pre
@@ -537,13 +519,11 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 <Toggle
                   size="xs"
                   pressed={chMute[i]}
-                  onPressedChange={(t) =>
-                    setChMute((prev) => {
-                      const n = [...prev]
-                      n[i] = !!t
-                      return n
-                    })
-                  }
+                  onPressedChange={(t) => {
+                    const n = chMute.slice()
+                    n[i] = !!t
+                    setChMute(n)
+                  }}
                   className="px-2 py-0.5 text-[10px]"
                 >
                   Mute
@@ -579,8 +559,6 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
             )
           })}
         </div>
-
-        {/* Returns, Master, Sends */}
         <div className="grid grid-cols-2 gap-4">
           {/* Returns */}
           <div className="flex flex-col items-center gap-2">
@@ -588,8 +566,10 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
             <div className="flex flex-col gap-4">
               <div className="flex flex-col items-center gap-2">
                 <Knob
-                  value={retALevel}
-                  onValueChange={setRetALevel}
+                  defaultValue={retALevel.current}
+                  onValueChange={(v) => {
+                    retALevel.current = v
+                  }}
                   label="A"
                   size="sm"
                 />
@@ -628,8 +608,10 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
               </div>
               <div className="flex flex-col items-center gap-2">
                 <Knob
-                  value={retBLevel}
-                  onValueChange={setRetBLevel}
+                  defaultValue={retBLevel.current}
+                  onValueChange={(v) => {
+                    retBLevel.current = v
+                  }}
                   label="B"
                   size="sm"
                 />
@@ -652,14 +634,14 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
 
                 <PortGroup>
                   <Port
-                    id={`${moduleId}-sendB-l-out`}
+                    id={`$moduleId-sendB-l-out`}
                     type="output"
                     label="B L"
                     audioType="audio"
                     audioNode={sendBL.current ?? undefined}
                   />
                   <Port
-                    id={`${moduleId}-sendB-r-out`}
+                    id={`$moduleId-sendB-r-out`}
                     type="output"
                     label="B R"
                     audioType="audio"
@@ -677,8 +659,10 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
               <Slider
                 orientation="vertical"
                 size="md"
-                value={mixLLevel}
-                onValueChange={setMixLLevel}
+                defaultValue={mixLLevel.current}
+                onValueChange={(v) => {
+                  mixLLevel.current = v
+                }}
                 min={0}
                 max={1}
                 step={0.01}
@@ -686,15 +670,17 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
               <Slider
                 orientation="vertical"
                 size="md"
-                value={mixRLevel}
-                onValueChange={setMixRLevel}
+                defaultValue={mixRLevel.current}
+                onValueChange={(v) => {
+                  mixRLevel.current = v
+                }}
                 min={0}
                 max={1}
                 step={0.01}
               />
               <div className="flex flex-col items-center gap-2 ml-2">
                 <Port
-                  id={`${moduleId}-mix-cv-in`}
+                  id={`$moduleId-mix-cv-in`}
                   type="input"
                   label="Mix CV"
                   audioType="cv"
@@ -715,8 +701,10 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                   Mute→Sends
                 </Toggle>
                 <Knob
-                  value={mixSat}
-                  onValueChange={setMixSat}
+                  defaultValue={mixSat.current}
+                  onValueChange={(v) => {
+                    mixSat.current = v
+                  }}
                   size="xs"
                   label="Clip"
                 />
@@ -742,14 +730,14 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
 
             <PortGroup>
               <Port
-                id={`${moduleId}-mix-l-out`}
+                id={`$moduleId-mix-l-out`}
                 type="output"
                 label="L"
                 audioType="audio"
                 audioNode={mixOutL.current ?? undefined}
               />
               <Port
-                id={`${moduleId}-mix-r-out`}
+                id={`$moduleId-mix-r-out`}
                 type="output"
                 label="R"
                 audioType="audio"

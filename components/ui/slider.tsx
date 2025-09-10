@@ -186,8 +186,8 @@ const Slider = React.memo(
           const newVal = ratioToValue(ratio)
           const next = [...currentValues]
           next[index] = newVal
-          if (isControlled) onValueChange?.(next)
-          else
+          onValueChange?.(next)
+          if (!isControlled)
             setInternalValues((prev) => {
               const arr = [...prev]
               arr[index] = newVal
