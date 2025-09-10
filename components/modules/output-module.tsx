@@ -72,6 +72,7 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
   const f32R = useRef<Float32Array | null>(null)
   const rAF = useRef<number | null>(null)
   const lastMeterTs = useRef(0)
+  const outMeterSAB = useRef<Float32Array | null>(null)
 
   // shadow refs to avoid setState spam
   const rmsLRef = useRef(0),
@@ -149,18 +150,11 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
           channelCountMode: 'explicit',
           channelInterpretation: 'speakers',
         })
-        meter.port.onmessage = (e: MessageEvent) => {
-          const data = e.data as Float32Array
-          if (data && (data as any).length === 6) {
-            // Smoothed values and holds come from worklet
-            rmsLRef.current = data[0]
-            rmsRRef.current = data[1]
-            peakLRef.current = data[2]
-            peakRRef.current = data[3]
-            clipLActiveRef.current = data[4] >= 0.5
-            clipRActiveRef.current = data[5] >= 0.5
-          }
-        }
+        try {
+          const sab = new SharedArrayBuffer(6 * 4)
+          outMeterSAB.current = new Float32Array(sab)
+          meter.port.postMessage({ type: 'initMeters', sab })
+        } catch {}
         meterNodeRef.current = meter
         meterMerger.connect(meter)
       } catch {
@@ -321,10 +315,15 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
       // Use worklet-smoothed values when available; apply fallback smoothing otherwise
       const workletActive = meterNodeRef.current != null
       if (workletActive) {
-        dispRmsLRef.current = rmsLRef.current
-        dispRmsRRef.current = rmsRRef.current
-        holdLRef.current = peakLRef.current
-        holdRRef.current = peakRRef.current
+        const arr = outMeterSAB.current
+        if (arr && arr.length >= 6) {
+          dispRmsLRef.current = arr[0]
+          dispRmsRRef.current = arr[1]
+          holdLRef.current = arr[2]
+          holdRRef.current = arr[3]
+          clipLActiveRef.current = (arr[4] || 0) >= 0.5
+          clipRActiveRef.current = (arr[5] || 0) >= 0.5
+        }
       } else {
         const smooth = (prev: number, next: number, a = 0.15) =>
           prev + (next - prev) * a

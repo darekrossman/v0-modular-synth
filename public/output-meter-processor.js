@@ -25,6 +25,20 @@ class OutputMeterProcessor extends AudioWorkletProcessor {
     // Tunables
     this._alpha = 0.2 // RMS smoothing coefficient per UI frame (~30Hz)
     this._holdDecay = 0.015 // peak hold decay per UI frame
+
+    // SAB out buffer: Float32Array(6) [rmsL, rmsR, holdL, holdR, clipL, clipR]
+    this._sab = null
+    this._out = null
+
+    this.port.onmessage = (e) => {
+      const data = e.data
+      if (data && data.type === 'initMeters' && data.sab) {
+        try {
+          this._sab = data.sab
+          this._out = new Float32Array(this._sab)
+        } catch {}
+      }
+    }
   }
 
   process(inputs) {
@@ -84,15 +98,15 @@ class OutputMeterProcessor extends AudioWorkletProcessor {
       const clipLActive = now < this._clipLDeadline
       const clipRActive = now < this._clipRDeadline
 
-      // Send compact Float32Array [rmsL, rmsR, holdL, holdR, clipL, clipR]
-      const out = new Float32Array(6)
-      out[0] = this._dispRmsL
-      out[1] = this._dispRmsR
-      out[2] = this._holdL
-      out[3] = this._holdR
-      out[4] = clipLActive ? 1 : 0
-      out[5] = clipRActive ? 1 : 0
-      this.port.postMessage(out)
+      // Write into SAB if available (no allocations, no structured clone)
+      if (this._out && this._out.length >= 6) {
+        this._out[0] = this._dispRmsL
+        this._out[1] = this._dispRmsR
+        this._out[2] = this._holdL
+        this._out[3] = this._holdR
+        this._out[4] = clipLActive ? 1 : 0
+        this._out[5] = clipRActive ? 1 : 0
+      }
 
       // reset windows
       accL = 0
