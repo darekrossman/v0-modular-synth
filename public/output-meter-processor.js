@@ -13,6 +13,18 @@ class OutputMeterProcessor extends AudioWorkletProcessor {
     this._clipTh = 0.98
     this._clipL = false
     this._clipR = false
+
+    // Visual smoothing/hold state
+    this._dispRmsL = 0
+    this._dispRmsR = 0
+    this._holdL = 0
+    this._holdR = 0
+    this._clipLDeadline = 0
+    this._clipRDeadline = 0
+
+    // Tunables
+    this._alpha = 0.2 // RMS smoothing coefficient per UI frame (~30Hz)
+    this._holdDecay = 0.015 // peak hold decay per UI frame
   }
 
   process(inputs) {
@@ -54,17 +66,33 @@ class OutputMeterProcessor extends AudioWorkletProcessor {
     }
 
     const now = currentTime
-    if (now - this._lastPost > 1 / 30) {
-      const lRMS = Math.sqrt(accL / n)
-      const rRMS = Math.sqrt(accR / n)
-      this.port.postMessage({
-        lRMS,
-        rRMS,
-        lPeak: pL,
-        rPeak: pR,
-        lClip: clipL,
-        rClip: clipR,
-      })
+    if (now - this._lastPost > 1 / 60) {
+      const lInst = n > 0 ? Math.sqrt(accL / n) : 0
+      const rInst = n > 0 ? Math.sqrt(accR / n) : 0
+
+      // Smooth RMS
+      this._dispRmsL = this._dispRmsL + (lInst - this._dispRmsL) * this._alpha
+      this._dispRmsR = this._dispRmsR + (rInst - this._dispRmsR) * this._alpha
+
+      // Peak hold decay
+      this._holdL = Math.max(pL, this._holdL - this._holdDecay)
+      this._holdR = Math.max(pR, this._holdR - this._holdDecay)
+
+      // Clip latch
+      if (clipL || pL >= this._clipTh) this._clipLDeadline = now + 0.75
+      if (clipR || pR >= this._clipTh) this._clipRDeadline = now + 0.75
+      const clipLActive = now < this._clipLDeadline
+      const clipRActive = now < this._clipRDeadline
+
+      // Send compact Float32Array [rmsL, rmsR, holdL, holdR, clipL, clipR]
+      const out = new Float32Array(6)
+      out[0] = this._dispRmsL
+      out[1] = this._dispRmsR
+      out[2] = this._holdL
+      out[3] = this._holdR
+      out[4] = clipLActive ? 1 : 0
+      out[5] = clipRActive ? 1 : 0
+      this.port.postMessage(out)
 
       // reset windows
       accL = 0

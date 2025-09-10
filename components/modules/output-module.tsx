@@ -80,6 +80,8 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
     peakRRef = useRef(0)
   const clipLDeadline = useRef(0),
     clipRDeadline = useRef(0)
+  const clipLActiveRef = useRef(false)
+  const clipRActiveRef = useRef(false)
 
   // UI smoothing/hold values (visual only)
   const dispRmsLRef = useRef(0)
@@ -148,21 +150,16 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
           channelInterpretation: 'speakers',
         })
         meter.port.onmessage = (e: MessageEvent) => {
-          const { lRMS, rRMS, lPeak, rPeak, lClip, rClip } = e.data as {
-            lRMS: number
-            rRMS: number
-            lPeak: number
-            rPeak: number
-            lClip: boolean
-            rClip: boolean
+          const data = e.data as Float32Array
+          if (data && (data as any).length === 6) {
+            // Smoothed values and holds come from worklet
+            rmsLRef.current = data[0]
+            rmsRRef.current = data[1]
+            peakLRef.current = data[2]
+            peakRRef.current = data[3]
+            clipLActiveRef.current = data[4] >= 0.5
+            clipRActiveRef.current = data[5] >= 0.5
           }
-          rmsLRef.current = lRMS
-          rmsRRef.current = rRMS
-          peakLRef.current = lPeak
-          peakRRef.current = rPeak
-          const now = performance.now()
-          if (lClip) clipLDeadline.current = now + 750 // 750ms latch
-          if (rClip) clipRDeadline.current = now + 750
         }
         meterNodeRef.current = meter
         meterMerger.connect(meter)
@@ -321,23 +318,35 @@ export function OutputModule({ moduleId }: { moduleId: string }) {
         if (pR >= clipTh) clipRDeadline.current = now + 750
       }
 
-      // Smooth UI values and update DOM directly
-      const smooth = (prev: number, next: number, a = 0.15) =>
-        prev + (next - prev) * a
+      // Use worklet-smoothed values when available; apply fallback smoothing otherwise
+      const workletActive = meterNodeRef.current != null
+      if (workletActive) {
+        dispRmsLRef.current = rmsLRef.current
+        dispRmsRRef.current = rmsRRef.current
+        holdLRef.current = peakLRef.current
+        holdRRef.current = peakRRef.current
+      } else {
+        const smooth = (prev: number, next: number, a = 0.15) =>
+          prev + (next - prev) * a
 
-      dispRmsLRef.current = smooth(dispRmsLRef.current, rmsLRef.current)
-      dispRmsRRef.current = smooth(dispRmsRRef.current, rmsRRef.current)
+        dispRmsLRef.current = smooth(dispRmsLRef.current, rmsLRef.current)
+        dispRmsRRef.current = smooth(dispRmsRRef.current, rmsRRef.current)
 
-      const nextHoldL = Math.max(peakLRef.current, holdLRef.current - 0.015)
-      const nextHoldR = Math.max(peakRRef.current, holdRRef.current - 0.015)
-      if (Math.abs(nextHoldL - holdLRef.current) > 0.001)
-        holdLRef.current = nextHoldL
-      if (Math.abs(nextHoldR - holdRRef.current) > 0.001)
-        holdRRef.current = nextHoldR
+        const nextHoldL = Math.max(peakLRef.current, holdLRef.current - 0.015)
+        const nextHoldR = Math.max(peakRRef.current, holdRRef.current - 0.015)
+        if (Math.abs(nextHoldL - holdLRef.current) > 0.001)
+          holdLRef.current = nextHoldL
+        if (Math.abs(nextHoldR - holdRRef.current) > 0.001)
+          holdRRef.current = nextHoldR
+      }
 
       const now = performance.now()
-      const clipActiveL = now < clipLDeadline.current
-      const clipActiveR = now < clipRDeadline.current
+      const clipActiveL = workletActive
+        ? clipLActiveRef.current
+        : now < clipLDeadline.current
+      const clipActiveR = workletActive
+        ? clipRActiveRef.current
+        : now < clipRDeadline.current
 
       // Update left channel DOM
       const lBar = leftBarElRef.current

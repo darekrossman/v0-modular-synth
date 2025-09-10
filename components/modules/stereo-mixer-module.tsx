@@ -64,6 +64,11 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
   const [mixMeters, setMixMeters] = useState<[number, number]>([0, 0])
   const meterRAF = useRef<number | null>(null)
   const meterSAB = useRef<Float32Array | null>(null)
+  const chMeterRefs = useRef<Array<HTMLDivElement | null>>(
+    Array.from({ length: 6 }, () => null),
+  )
+  const mixMeterLRef = useRef<HTMLDivElement | null>(null)
+  const mixMeterRRef = useRef<HTMLDivElement | null>(null)
 
   // Register with patch manager
   useModulePatch(moduleId, () => ({
@@ -220,13 +225,16 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     const meterLoop = () => {
       const arr = meterSAB.current
       if (arr && arr.length >= 8) {
-        // Copy to React state with minimal overhead
-        setChMeters((prev) => {
-          const next = prev.slice()
-          for (let i = 0; i < 6; i++) next[i] = arr[i]
-          return next
-        })
-        setMixMeters([arr[6], arr[7]])
+        // Update DOM directly (no React state) for performance
+        const refs = chMeterRefs.current
+        for (let i = 0; i < 6; i++) {
+          const el = refs[i]
+          if (el) el.style.height = `${Math.min(100, (arr[i] || 0) * 120)}%`
+        }
+        if (mixMeterLRef.current)
+          mixMeterLRef.current.style.height = `${Math.min(100, (arr[6] || 0) * 120)}%`
+        if (mixMeterRRef.current)
+          mixMeterRRef.current.style.height = `${Math.min(100, (arr[7] || 0) * 120)}%`
       }
       meterRAF.current = requestAnimationFrame(meterLoop)
     }
@@ -234,6 +242,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
 
     setNodeReady(true)
   }, moduleId)
+
   useEffect(() => {
     return () => {
       if (meterRAF.current) cancelAnimationFrame(meterRAF.current)
@@ -545,8 +554,11 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 {/* Tiny meter */}
                 <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
                   <div
+                    ref={(el) => {
+                      chMeterRefs.current[i] = el
+                    }}
                     className="absolute left-0 right-0 bottom-0 bg-green-500"
-                    style={{ height: `${Math.min(100, chMeters[i] * 120)}%` }}
+                    style={{ height: '0%' }}
                   />
                 </div>
               </div>
@@ -700,14 +712,16 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
             <div className="flex gap-2 mt-2">
               <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
                 <div
+                  ref={mixMeterLRef}
                   className="absolute left-0 right-0 bottom-0 bg-green-500"
-                  style={{ height: `${Math.min(100, mixMeters[0] * 120)}%` }}
+                  style={{ height: '0%' }}
                 />
               </div>
               <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
                 <div
+                  ref={mixMeterRRef}
                   className="absolute left-0 right-0 bottom-0 bg-green-500"
-                  style={{ height: `${Math.min(100, mixMeters[1] * 120)}%` }}
+                  style={{ height: '0%' }}
                 />
               </div>
             </div>
