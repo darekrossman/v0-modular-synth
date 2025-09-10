@@ -170,6 +170,19 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     mixOutR.current = ac.createGain()
     ;(mixOutR.current as GainNode).gain.value = 1
 
+    // Build initial per-channel params so meters/levels match expectations at startup
+    const channelParamData: Record<string, number> = {}
+    for (let i = 0; i < 6; i++) {
+      channelParamData[`ch${i}Level`] = chLevel[i] ?? 0.75
+      channelParamData[`ch${i}Offset`] = chLevel[i] ?? 0.75 // no CV → slider as VCA offset
+      channelParamData[`ch${i}Amount`] = 0 // default CV attenuator off
+      channelParamData[`ch${i}SendA`] = chSendA[i] ?? 0
+      channelParamData[`ch${i}SendB`] = chSendB[i] ?? 0
+      channelParamData[`ch${i}SendAPre`] = chSendAPre[i] ? 1 : 0
+      channelParamData[`ch${i}SendBPre`] = chSendBPre[i] ? 1 : 0
+      channelParamData[`ch${i}Mute`] = chMute[i] ? 1 : 0
+    }
+
     const node = new AudioWorkletNode(ac, 'stereo-mixer-processor', {
       numberOfInputs: 23,
       numberOfOutputs: 6,
@@ -189,6 +202,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
         mixAmount: 1,
         muteAffectsSends: muteAffectsSends ? 1 : 0,
         mixSat: mixSat[0],
+        ...channelParamData,
       },
     })
     nodeRef.current = node

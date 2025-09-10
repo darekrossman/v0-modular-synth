@@ -462,12 +462,24 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
         if (nFrames > 0) {
           const meterArray = this._meterArray
           if (meterArray && meterArray.length >= 8) {
+            // Reference: 0 dB at unity with ±5 V input, centered pan.
+            // With equal-power pan and our averaging across L/R, that yields ~2.5 RMS.
+            const refRms = 2.5
+            const norm = (v) => {
+              const r = v / refRms // 1.0 at 0 dB
+              // Map +12 dB (×4) to 1.0 on the bar. Clamp 0..1
+              const n = r / 4
+              return n < 0 ? 0 : n > 1 ? 1 : n
+            }
             for (let c = 0; c < 6; c++) {
-              meterArray[c] = Math.sqrt(this._accCh[c] / (nFrames * 2))
+              const raw = Math.sqrt(this._accCh[c] / (nFrames * 2))
+              meterArray[c] = norm(raw)
               this._accCh[c] = 0
             }
-            meterArray[6] = Math.sqrt(this._accMixL / nFrames)
-            meterArray[7] = Math.sqrt(this._accMixR / nFrames)
+            const rawL = Math.sqrt(this._accMixL / nFrames)
+            const rawR = Math.sqrt(this._accMixR / nFrames)
+            meterArray[6] = norm(rawL)
+            meterArray[7] = norm(rawR)
           }
           this._accMixL = 0
           this._accMixR = 0
