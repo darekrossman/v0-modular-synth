@@ -183,6 +183,8 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
     super()
     // Smoothed per-channel VCA gains
     this._gCh = new Float32Array(6)
+    // Smoothed per-channel post-VCA faders (+12 dB law)
+    this._faderCh = new Float32Array(6)
     // Gating states
     this._gatedCh = Array.from({ length: 6 }, () => true)
     this._gMix = 0
@@ -332,8 +334,13 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
         this._panGL[ch] = gL
         this._panGR[ch] = gR
 
-        // Channel fader (+12 dB mapping). Equal-power pan (-3 dB at center).
-        const fader = this._map12dB(level)
+        // Channel fader (+12 dB mapping) with smoothing. Equal-power pan (-3 dB at center).
+        const faderTarget = this._map12dB(level)
+        const fader =
+          slewA === 0
+            ? faderTarget
+            : faderTarget + (this._faderCh[ch] - faderTarget) * slewA
+        this._faderCh[ch] = fader
 
         const postL = stL * gL * fader
         const postR = stR * gR * fader

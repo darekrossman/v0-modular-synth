@@ -56,6 +56,11 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     fbCvAmt: fbCvAmtN[0],
     clocked,
     stable,
+    crossfeed: crossfeedN[0],
+    crossInput: crossInputN[0],
+    width: widthN[0],
+    timeSpread: mapLinear(spreadN[0], -0.5, 0.5),
+    link,
   }))
 
   // Clock division index for tempo sync
@@ -92,6 +97,28 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
   const [mode, setMode] = useState<Mode>(initialParameters?.mode ?? 0)
   const [clocked, setClocked] = useState(initialParameters?.clocked ?? false)
   const [stable, setStable] = useState(initialParameters?.stable ?? false)
+
+  // Matrix topology params
+  const [crossfeedN, setCrossfeedN] = useState([
+    initialParameters?.crossfeed !== undefined
+      ? initialParameters.crossfeed
+      : 0,
+  ])
+  const [crossInputN, setCrossInputN] = useState([
+    initialParameters?.crossInput !== undefined
+      ? initialParameters.crossInput
+      : 0,
+  ])
+  const [widthN, setWidthN] = useState([
+    initialParameters?.width !== undefined ? initialParameters.width : 1,
+  ])
+  // spread normalized 0..1 → maps to -0.5..+0.5 in worklet
+  const [spreadN, setSpreadN] = useState([
+    initialParameters?.timeSpread !== undefined
+      ? (initialParameters.timeSpread + 0.5) / 1.0
+      : 0.5,
+  ])
+  const [link, setLink] = useState(initialParameters?.link ?? true)
 
   // Graph
   const acRef = useRef<AudioContext | null>(null)
@@ -189,6 +216,12 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     setParam('clocked', clocked ? 1 : 0, 0.0)
     setParam('clockDiv', clockDivIdx, 0.0)
     setParam('stable', stable ? 1 : 0, 0.0)
+    // Matrix params
+    setParam('crossfeed', Math.max(0, Math.min(1, crossfeedN[0])), 0.02)
+    setParam('crossInput', Math.max(0, Math.min(1, crossInputN[0])), 0.02)
+    setParam('width', Math.max(0, Math.min(1, widthN[0])), 0.02)
+    setParam('timeSpread', mapLinear(spreadN[0], -0.5, 0.5), 0.02)
+    setParam('link', link ? 1 : 0, 0.0)
     // Initial dryMono state based on current connections
     const inLId = `${moduleId}-in-l`
     const inRId = `${moduleId}-in-r`
@@ -196,6 +229,8 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     const hasR = connections.some((e) => e.to === inRId)
     const dryMono = (hasL && !hasR) || (!hasL && hasR)
     setParam('dryMono', dryMono ? 1 : 0, 0.0)
+    const wetMono = dryMono || mode === 0
+    setParam('wetMono', wetMono ? 1 : 0, 0.0)
   }, moduleId)
 
   // push param updates
@@ -222,6 +257,30 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
   useEffect(() => {
     setParam('mode', mode, 0.0)
   }, [mode])
+  // Map modes → presets for matrix topology
+  useEffect(() => {
+    // 0=Mono, 1=Stereo, 2=Ping
+    if (mode === 0) {
+      setCrossInputN([0])
+      setCrossfeedN([0])
+      setWidthN([0])
+      setSpreadN([0.5])
+      setLink(true)
+    } else if (mode === 1) {
+      setCrossInputN([0])
+      setCrossfeedN([0])
+      setWidthN([1])
+      setSpreadN([0.5])
+      setLink(true)
+    } else {
+      // Ping-pong
+      setCrossInputN([1])
+      setCrossfeedN([1])
+      setWidthN([1])
+      setSpreadN([0.5])
+      setLink(true)
+    }
+  }, [mode])
   useEffect(() => {
     setParam('timeCvAmt', Math.max(0, Math.min(1, timeCvAmtN[0])))
   }, [timeCvAmtN])
@@ -237,6 +296,22 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
   useEffect(() => {
     setParam('stable', stable ? 1 : 0, 0.0)
   }, [stable])
+  // Matrix params
+  useEffect(() => {
+    setParam('crossfeed', Math.max(0, Math.min(1, crossfeedN[0])))
+  }, [crossfeedN])
+  useEffect(() => {
+    setParam('crossInput', Math.max(0, Math.min(1, crossInputN[0])))
+  }, [crossInputN])
+  useEffect(() => {
+    setParam('width', Math.max(0, Math.min(1, widthN[0])))
+  }, [widthN])
+  useEffect(() => {
+    setParam('timeSpread', mapLinear(spreadN[0], -0.5, 0.5))
+  }, [spreadN])
+  useEffect(() => {
+    setParam('link', link ? 1 : 0, 0.0)
+  }, [link])
   // Balance dry path when exactly one input is connected
   useEffect(() => {
     if (!workletRef.current) return
@@ -246,6 +321,8 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
     const hasR = connections.some((e) => e.to === inRId)
     const dryMono = (hasL && !hasR) || (!hasL && hasR)
     setParam('dryMono', dryMono ? 1 : 0, 0.0)
+    const wetMono = dryMono || mode === 0
+    setParam('wetMono', wetMono ? 1 : 0, 0.0)
   }, [connections, moduleId])
 
   return (
@@ -275,19 +352,53 @@ export function DelayModule({ moduleId }: { moduleId: string }) {
             onValueChange={(v) =>
               setClockDivIdx(Math.round(v[0] * (NOTE_DIVISIONS.length - 1)))
             }
-            size="lg"
+            size="sm"
             label="Time"
             steps={NOTE_DIVISIONS.length}
             tickLabels={NOTE_DIVISIONS.map(() => '')}
           />
         ) : (
-          <Knob value={timeN} onValueChange={setTimeN} size="lg" label="Time" />
+          <Knob value={timeN} onValueChange={setTimeN} size="sm" label="Time" />
         )}
 
-        <div className="flex gap-6 mt-1">
+        <div className="flex gap-6">
           <Knob value={fbN} onValueChange={setFbN} size="sm" label="fbck" />
           <Knob value={toneN} onValueChange={setToneN} size="sm" label="Tone" />
           <Knob value={mixN} onValueChange={setMixN} size="sm" label="Mix" />
+        </div>
+
+        {/* Matrix controls */}
+        <div className="flex items-center gap-4">
+          <Knob
+            value={crossInputN}
+            onValueChange={setCrossInputN}
+            size="sm"
+            label="XIn"
+          />
+          <Knob
+            value={crossfeedN}
+            onValueChange={setCrossfeedN}
+            size="sm"
+            label="XFd"
+          />
+          <Knob
+            value={widthN}
+            onValueChange={setWidthN}
+            size="sm"
+            label="Width"
+          />
+          <Knob
+            value={spreadN}
+            onValueChange={setSpreadN}
+            size="sm"
+            label="Spread"
+          />
+          <ToggleSwitch
+            label="Unlk"
+            topLabel="Link"
+            value={link}
+            onValueChange={setLink}
+          />
         </div>
 
         <div className="flex justify-center items-center gap-5">

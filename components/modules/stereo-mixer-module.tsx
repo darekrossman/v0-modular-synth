@@ -1,6 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useConnections } from '@/components/connection-manager'
 import { ModuleContainer } from '@/components/module-container'
 import { useModulePatch } from '@/components/patch-manager'
@@ -414,47 +421,47 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     <ModuleContainer title="Stereo Mixer" moduleId={moduleId}>
       <div className="flex gap-4 flex-1">
         {/* Channels */}
-        <div className="flex  flex-1">
+        <div className="flex flex-1 gap-2">
           {Array.from({ length: 6 }, (_, i) => {
             return (
-              <div
-                key={`ch-${i}`}
-                className="flex flex-col items-center gap-2 flex-1"
-              >
-                {/* Tiny meter */}
+              <Fragment key={`ch-${i}`}>
+                <div className="flex flex-col items-center gap-2 flex-1">
+                  {/* Tiny meter */}
+                  <div className="relative w-4 h-12 bg-black/80 rounded-xs overflow-hidden">
+                    <div
+                      ref={(el) => {
+                        chMeterRefs.current[i] = el
+                      }}
+                      className="absolute left-0 right-0 bottom-0 bg-green-500"
+                      style={{ height: '0%' }}
+                    />
+                  </div>
 
-                <div className="relative w-4 h-12 bg-black/80 rounded-xs overflow-hidden">
-                  <div
-                    ref={(el) => {
-                      chMeterRefs.current[i] = el
-                    }}
-                    className="absolute left-0 right-0 bottom-0 bg-green-500"
-                    style={{ height: '0%' }}
-                  />
-                </div>
-
-                <div className="flex flex-col justify-center gap-3 flex-1">
-                  <Knob
-                    defaultValue={[(chPan.current[i] + 1) / 2]}
-                    onValueChange={(v) => {
-                      chPan.current[i] = v[0] * 2 - 1
-                      handleValueRefChange(`ch${i}Pan`, chPan.current[i])
-                    }}
-                    size="sm"
-                    label="Pan"
-                  />
-
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col justify-center gap-3 flex-1">
                     <Knob
-                      defaultValue={chSendA.current}
+                      defaultValue={[(chPan.current[i] + 1) / 2]}
                       onValueChange={(v) => {
-                        chSendA.current[i] = v[0]
-                        handleValueRefChange(`ch${i}SendA`, chSendA.current[i])
+                        chPan.current[i] = v[0] * 2 - 1
+                        handleValueRefChange(`ch${i}Pan`, chPan.current[i])
                       }}
                       size="sm"
-                      label="A"
+                      label="Pan"
                     />
-                    {/* <Toggle
+
+                    <div className="flex flex-col items-center gap-1">
+                      <Knob
+                        defaultValue={chSendA.current}
+                        onValueChange={(v) => {
+                          chSendA.current[i] = v[0]
+                          handleValueRefChange(
+                            `ch${i}SendA`,
+                            chSendA.current[i],
+                          )
+                        }}
+                        size="sm"
+                        label="A"
+                      />
+                      {/* <Toggle
                       size="xs"
                       pressed={chSendAPre.current[i]}
                       onPressedChange={(t) => {
@@ -468,18 +475,21 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                     >
                       Pre
                     </Toggle> */}
-                  </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <Knob
-                      defaultValue={chSendB.current}
-                      onValueChange={(v) => {
-                        chSendB.current[i] = v[0]
-                        handleValueRefChange(`ch${i}SendB`, chSendB.current[i])
-                      }}
-                      size="sm"
-                      label="B"
-                    />
-                    {/* <Toggle
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <Knob
+                        defaultValue={chSendB.current}
+                        onValueChange={(v) => {
+                          chSendB.current[i] = v[0]
+                          handleValueRefChange(
+                            `ch${i}SendB`,
+                            chSendB.current[i],
+                          )
+                        }}
+                        size="sm"
+                        label="B"
+                      />
+                      {/* <Toggle
                       size="xs"
                       pressed={chSendBPre.current[i]}
                       onPressedChange={(t) => {
@@ -493,10 +503,10 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                     >
                       Pre
                     </Toggle> */}
+                    </div>
                   </div>
-                </div>
 
-                {/* <Slider
+                  {/* <Slider
                   orientation="vertical"
                   size="sm"
                   defaultValue={[chLevel.current[i]]}
@@ -508,53 +518,55 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 <TextLabel variant="control" className="text-[10px] mb-2">
                   CH{i + 1}
                 </TextLabel> */}
-                <Port
-                  id={`${moduleId}-ch${i + 1}-cv-in`}
-                  type="input"
-                  audioType="cv"
-                  audioNode={chCvIn.current[i] ?? undefined}
-                />
-                <VLine className="mb-0.5" />
-                <Knob
-                  defaultValue={chLevel.current}
-                  onValueChange={(v) => onLevelChange(i, v as number[])}
-                  size="md"
-                  label="Level"
-                />
-
-                <Toggle
-                  variant="push"
-                  size="xs"
-                  pressed={chMute.current[i]}
-                  onPressedChange={(t) => {
-                    chMute.current[i] = t
-                    handleValueRefChange(
-                      `ch${i}Mute`,
-                      chMute.current[i] ? 1 : 0,
-                      true,
-                    )
-                  }}
-                  className="mt-1"
-                />
-
-                {/* Ports */}
-                <div className="flex items-center">
                   <Port
-                    id={`${moduleId}-ch${i + 1}-l-in`}
+                    id={`${moduleId}-ch${i + 1}-cv-in`}
                     type="input"
-                    label="L"
-                    audioType="audio"
-                    audioNode={chInL.current[i] ?? undefined}
+                    audioType="cv"
+                    audioNode={chCvIn.current[i] ?? undefined}
                   />
-                  <Port
-                    id={`${moduleId}-ch${i + 1}-r-in`}
-                    type="input"
-                    label="R"
-                    audioType="audio"
-                    audioNode={chInR.current[i] ?? undefined}
+                  <VLine className="mb-0.5" />
+                  <Knob
+                    defaultValue={chLevel.current}
+                    onValueChange={(v) => onLevelChange(i, v as number[])}
+                    size="md"
+                    label="Level"
                   />
+
+                  <Toggle
+                    variant="push"
+                    size="xs"
+                    pressed={chMute.current[i]}
+                    onPressedChange={(t) => {
+                      chMute.current[i] = t
+                      handleValueRefChange(
+                        `ch${i}Mute`,
+                        chMute.current[i] ? 1 : 0,
+                        true,
+                      )
+                    }}
+                    className="mt-1"
+                  />
+
+                  {/* Ports */}
+                  <div className="flex items-center">
+                    <Port
+                      id={`${moduleId}-ch${i + 1}-l-in`}
+                      type="input"
+                      label="L"
+                      audioType="audio"
+                      audioNode={chInL.current[i] ?? undefined}
+                    />
+                    <Port
+                      id={`${moduleId}-ch${i + 1}-r-in`}
+                      type="input"
+                      label="R"
+                      audioType="audio"
+                      audioNode={chInR.current[i] ?? undefined}
+                    />
+                  </div>
                 </div>
-              </div>
+                <div className="h-full border-r border-module-subdued/50 border-dashed" />
+              </Fragment>
             )
           })}
         </div>

@@ -1,5 +1,5 @@
 // /public/delay-processor.js
-// Stereo/Mono/Ping-Pong delay with k-rate params and audio-rate CV for Time & Feedback.
+// Matrix-topology stereo delay with k-rate params and audio-rate CV for Time & Feedback.
 // Inputs:
 //   in[0]: 2ch audio (L,R)
 //   in[1]: 1ch time CV  (-1..+1)
@@ -44,12 +44,48 @@ class DelayProcessor extends AudioWorkletProcessor {
         maxValue: 16000,
         automationRate: 'k-rate',
       }, // LPF in feedback
-      // 0 = MONO, 1 = STEREO, 2 = PING_PONG
+      // 0 = MONO, 1 = STEREO, 2 = PING_PONG (kept for UI mapping; not used directly in DSP)
       {
         name: 'mode',
         defaultValue: 0,
         minValue: 0,
         maxValue: 2,
+        automationRate: 'k-rate',
+      },
+      // Matrix controls
+      {
+        name: 'crossfeed', // 0..1: portion of feedback that crosses L<->R
+        defaultValue: 0.0,
+        minValue: 0.0,
+        maxValue: 1.0,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'crossInput', // 0..1: portion of input written to the opposite channel's line
+        defaultValue: 0.0,
+        minValue: 0.0,
+        maxValue: 1.0,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'width', // 0..1: width applied to wet signal (0 mono → 1 full)
+        defaultValue: 1.0,
+        minValue: 0.0,
+        maxValue: 1.0,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'timeSpread', // -0.5..+0.5: spread around base time (sym or R-only depending on link)
+        defaultValue: 0.0,
+        minValue: -0.5,
+        maxValue: 0.5,
+        automationRate: 'k-rate',
+      },
+      {
+        name: 'link', // >=0.5 → symmetric spread around base time; <0.5 → spread applies to R only
+        defaultValue: 1.0,
+        minValue: 0.0,
+        maxValue: 1.0,
         automationRate: 'k-rate',
       },
       // CV depths (0..1). CV signals are expected in [-1..+1].
@@ -90,6 +126,14 @@ class DelayProcessor extends AudioWorkletProcessor {
         maxValue: 1.0,
         automationRate: 'k-rate',
       },
+      // Wet mono input handling: when enabled, wet input uses mono sum
+      {
+        name: 'wetMono',
+        defaultValue: 0.0,
+        minValue: 0.0,
+        maxValue: 1.0,
+        automationRate: 'k-rate',
+      },
       // Stable mode: when enabled, time changes don't affect playing delays
       {
         name: 'stable',
@@ -116,7 +160,8 @@ class DelayProcessor extends AudioWorkletProcessor {
         bufL: new Float32Array(this.cap),
         bufR: new Float32Array(this.cap),
         w: 0,
-        delaySamples: 0.25 * this.sr,
+        delaySamplesL: 0.25 * this.sr,
+        delaySamplesR: 0.25 * this.sr,
         active: false,
         fadeOut: 0,
         fadeIn: 0, // Fade-in envelope for smooth activation
@@ -138,7 +183,8 @@ class DelayProcessor extends AudioWorkletProcessor {
     this.primaryBuffer.fadeIn = 1.0 // Start fully faded in
 
     // Smoothed params (for zipper-free behavior even if host jumps)
-    this.tZ = 0.25 // seconds
+    this.tZL = 0.25 // seconds (left)
+    this.tZR = 0.25 // seconds (right)
     this.fbZ = 0.3 // 0..FB_MAX
     this.mixZ = 0.5 // 0..1
     this.aParam = 1 - Math.exp(-1 / (this.sr * 0.02)) // ~20ms
@@ -146,7 +192,8 @@ class DelayProcessor extends AudioWorkletProcessor {
     // Stable mode state
     this.stableMode = false
     this.currentWriteBuffer = 0 // Index of buffer currently receiving input
-    this.lastDelayTime = 0.25
+    this.lastDelayTimeL = 0.25
+    this.lastDelayTimeR = 0.25
     this.lastTimeChangeGlobal = 0 // Global sample index of last time change
     this.debounceThreshold = this.sr * 0.05 // 50ms debounce for creating new buffers
 
@@ -203,14 +250,15 @@ class DelayProcessor extends AudioWorkletProcessor {
     return s0 + (s1 - s0) * frac
   }
 
-  // Find or create a buffer for the new delay time
-  _getOrCreateBuffer(delaySamples) {
-    // First check if we already have a buffer with this delay time
+  // Find or create a buffer for the new per-channel delay times
+  _getOrCreateBuffer(delaySamplesL, delaySamplesR) {
+    // First check if we already have a buffer with these delay times
     for (let i = 0; i < MAX_BUFFERS; i++) {
       if (
         this.buffers[i].active &&
         this.buffers[i].isWriteBuffer &&
-        Math.abs(this.buffers[i].delaySamples - delaySamples) < 1
+        Math.abs(this.buffers[i].delaySamplesL - delaySamplesL) < 1 &&
+        Math.abs(this.buffers[i].delaySamplesR - delaySamplesR) < 1
       ) {
         return i
       }
@@ -222,7 +270,8 @@ class DelayProcessor extends AudioWorkletProcessor {
       if (!this.buffers[i].active) {
         const buf = this.buffers[i]
         buf.active = true
-        buf.delaySamples = delaySamples
+        buf.delaySamplesL = delaySamplesL
+        buf.delaySamplesR = delaySamplesR
         buf.fadeOut = 0
         buf.fadeIn = 0 // Start fade-in from 0
         // Clear the buffer to prevent old audio from playing
@@ -283,13 +332,18 @@ class DelayProcessor extends AudioWorkletProcessor {
     const baseFb = params.feedback[0]
     const baseMix = params.mix[0]
     const toneHz = params.toneHz[0]
-    const mode = (params.mode[0] | 0) % 3
     const timeCvAmt = params.timeCvAmt[0] // 0..1
     const fbCvAmt = params.fbCvAmt[0] // 0..1
     const clocked = params.clocked[0] >= 0.5
     const clockDivIdx = Math.round(params.clockDiv[0])
     const dryMono = params.dryMono[0] >= 0.5
+    const wetMono = params.wetMono ? params.wetMono[0] >= 0.5 : false
     const stable = params.stable[0] >= 0.5
+    const crossfeed = params.crossfeed ? params.crossfeed[0] : 0.0
+    const crossInput = params.crossInput ? params.crossInput[0] : 0.0
+    const width = params.width ? params.width[0] : 1.0
+    const timeSpread = params.timeSpread ? params.timeSpread[0] : 0.0
+    const link = params.link ? params.link[0] >= 0.5 : true
 
     // Update tone LPF coefficient once per block
     this.toneAlpha =
@@ -320,15 +374,22 @@ class DelayProcessor extends AudioWorkletProcessor {
 
     // We'll use equal-power mix (per-sample mixZ for accuracy when modulated)
     for (let i = 0; i < N; i++) {
-      const xL = inL ? inL[i] : 0
-      const xR = inR ? inR[i] : 0
+      let xL = inL ? inL[i] : 0
+      let xR = inR ? inR[i] : 0
 
       // audio-rate CV samples (expected -1..+1)
       const tCv = inTimeCv ? inTimeCv[i] : 0
       const fCv = inFbCv ? inFbCv[i] : 0
       const cIn = inClock ? inClock[i] : 0
 
-      // effective targets with CV & hard clamp
+      // Mono-wet input handling (if enabled)
+      if (wetMono) {
+        const xM = 0.5 * (xL + xR)
+        xL = xM
+        xR = xM
+      }
+
+      // effective targets with CV & hard clamp (base time)
       let tEff
       if (clockTimeSec != null) {
         // In sync mode, CV modulates the clock-derived time
@@ -340,6 +401,23 @@ class DelayProcessor extends AudioWorkletProcessor {
       if (tEff < TIME_MIN) tEff = TIME_MIN
       if (tEff > TIME_MAX) tEff = TIME_MAX
 
+      // derive per-channel effective times using spread and link
+      let tEffL, tEffR
+      if (link) {
+        // symmetric around base
+        const s = timeSpread
+        tEffL = tEff * (1 - s)
+        tEffR = tEff * (1 + s)
+      } else {
+        // spread applies to R only
+        tEffL = tEff
+        tEffR = tEff * (1 + timeSpread)
+      }
+      if (tEffL < TIME_MIN) tEffL = TIME_MIN
+      if (tEffL > TIME_MAX) tEffL = TIME_MAX
+      if (tEffR < TIME_MIN) tEffR = TIME_MIN
+      if (tEffR > TIME_MAX) tEffR = TIME_MAX
+
       let fbEff = baseFb + fCv * fbCvAmt * fbSpan
       if (fbEff < 0) fbEff = 0
       if (fbEff > FB_MAX) fbEff = FB_MAX
@@ -347,7 +425,10 @@ class DelayProcessor extends AudioWorkletProcessor {
       // Handle delay time changes
       if (stable) {
         // Stable mode: check if we need to create a new buffer
-        const timeDiff = Math.abs(tEff - this.lastDelayTime)
+        const timeDiff = Math.max(
+          Math.abs(tEffL - this.lastDelayTimeL),
+          Math.abs(tEffR - this.lastDelayTimeR),
+        )
         const samplesSinceLastChange =
           this.globalSampleIndex + i - this.lastTimeChangeGlobal
 
@@ -357,8 +438,12 @@ class DelayProcessor extends AudioWorkletProcessor {
           !this.bufferTransition
         ) {
           // Significant time change after debounce period
-          const newDelaySamples = tEff * this.sr
-          const newBufferIdx = this._getOrCreateBuffer(newDelaySamples)
+          const newDelaySamplesL = tEffL * this.sr
+          const newDelaySamplesR = tEffR * this.sr
+          const newBufferIdx = this._getOrCreateBuffer(
+            newDelaySamplesL,
+            newDelaySamplesR,
+          )
 
           if (newBufferIdx >= 0) {
             // Start windowed transition to new buffer
@@ -366,17 +451,22 @@ class DelayProcessor extends AudioWorkletProcessor {
             this.transitionBuffer = newBufferIdx
             this.transitionProgress = 0
             this.inputGateTarget = 0 // Start gating input
-            this.lastDelayTime = tEff
+            this.lastDelayTimeL = tEffL
+            this.lastDelayTimeR = tEffR
             this.lastTimeChangeGlobal = this.globalSampleIndex + i
           }
         }
-        this.tZ = tEff // Keep tZ updated for display purposes
+        // Keep smoothed times updated for display purposes
+        this.tZL = tEffL
+        this.tZR = tEffR
       } else {
         // Classic mode - use primary buffer with smoothing
-        this.tZ += aP * (tEff - this.tZ)
+        this.tZL += aP * (tEffL - this.tZL)
+        this.tZR += aP * (tEffR - this.tZR)
         this.currentWriteBuffer = 0
         this.primaryBuffer.active = true // Ensure primary buffer is active
-        this.primaryBuffer.delaySamples = this.tZ * this.sr
+        this.primaryBuffer.delaySamplesL = this.tZL * this.sr
+        this.primaryBuffer.delaySamplesR = this.tZR * this.sr
         this.primaryBuffer.isWriteBuffer = true
         this.primaryBuffer.fadeIn = 1.0 // No fade-in needed for primary buffer
         // Reset transition state in classic mode
@@ -409,8 +499,8 @@ class DelayProcessor extends AudioWorkletProcessor {
         if (!buf.active) continue
 
         // Read delayed signal from this buffer
-        let yL_delayed = this._read(buf.bufL, buf.w, buf.delaySamples)
-        let yR_delayed = this._read(buf.bufR, buf.w, buf.delaySamples)
+        let yL_delayed = this._read(buf.bufL, buf.w, buf.delaySamplesL)
+        let yR_delayed = this._read(buf.bufR, buf.w, buf.delaySamplesR)
 
         // Apply DC blocker (high-pass filter to remove DC offset)
         // y[n] = x[n] - x[n-1] + coeff * y[n-1]
@@ -454,52 +544,28 @@ class DelayProcessor extends AudioWorkletProcessor {
         // Determine if this buffer should receive input
         const shouldReceiveInput = inputMix > 0
 
-        switch (mode) {
-          case 0: {
-            // MONO
-            buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL)
-            const fbSig = buf.lpfL * this.fbZ
-            if (shouldReceiveInput) {
-              // Write buffer: input + feedback
-              const xM = 0.5 * (xL + xR) * this.inputGate * inputMix
-              feedL = xM + fbSig
-            } else {
-              // Read-only buffer: feedback only
-              feedL = fbSig
-            }
-            feedR = feedL // Same for R in mono
-            break
-          }
-          case 1: {
-            // STEREO
-            buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL)
-            buf.lpfR += this.toneAlpha * (yR_delayed - buf.lpfR)
-            if (shouldReceiveInput) {
-              // Write buffer: input + feedback
-              feedL = xL * this.inputGate * inputMix + buf.lpfL * this.fbZ
-              feedR = xR * this.inputGate * inputMix + buf.lpfR * this.fbZ
-            } else {
-              // Read-only buffer: feedback only
-              feedL = buf.lpfL * this.fbZ
-              feedR = buf.lpfR * this.fbZ
-            }
-            break
-          }
-          default: {
-            // PING_PONG
-            buf.lpfL += this.toneAlpha * (yR_delayed - buf.lpfL)
-            buf.lpfR += this.toneAlpha * (yL_delayed - buf.lpfR)
-            if (shouldReceiveInput) {
-              // Write buffer: input + feedback
-              feedL = xL * this.inputGate * inputMix + buf.lpfL * this.fbZ
-              feedR = xR * this.inputGate * inputMix + buf.lpfR * this.fbZ
-            } else {
-              // Read-only buffer: feedback only
-              feedL = buf.lpfL * this.fbZ
-              feedR = buf.lpfR * this.fbZ
-            }
-            break
-          }
+        // Update LPFs from delayed taps first (per channel)
+        buf.lpfL += this.toneAlpha * (yL_delayed - buf.lpfL)
+        buf.lpfR += this.toneAlpha * (yR_delayed - buf.lpfR)
+
+        // Compute input cross-mix
+        const xinL = (1.0 - crossInput) * xL + crossInput * xR
+        const xinR = crossInput * xL + (1.0 - crossInput) * xR
+
+        // Feedback matrix: [[a, b], [b, a]] where
+        // a = fb * (1 - crossfeed), b = fb * crossfeed
+        const aFb = this.fbZ * (1.0 - crossfeed)
+        const bFb = this.fbZ * crossfeed
+        const fbL = aFb * buf.lpfL + bFb * buf.lpfR
+        const fbR = aFb * buf.lpfR + bFb * buf.lpfL
+
+        if (shouldReceiveInput) {
+          const ingate = this.inputGate * inputMix
+          feedL = xinL * ingate + fbL
+          feedR = xinR * ingate + fbR
+        } else {
+          feedL = fbL
+          feedR = fbR
         }
 
         // Write the feedback back into the buffer
@@ -564,9 +630,16 @@ class DelayProcessor extends AudioWorkletProcessor {
         yR_total *= norm
       }
 
-      // Use the mixed output from all buffers
-      const yL = yL_total
-      const yR = yR_total
+      // Use the mixed output from all buffers and apply wet width in M/S domain
+      let yL = yL_total
+      let yR = yR_total
+      if (width < 1.0 || width > 0.0) {
+        const mid = 0.5 * (yL + yR)
+        let side = 0.5 * (yL - yR)
+        side *= Math.max(0, Math.min(1, width))
+        yL = mid + side
+        yR = mid - side
+      }
 
       // Equal-power mix
       const dry = Math.cos(this.mixZ * Math.PI * 0.5)
