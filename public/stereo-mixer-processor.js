@@ -187,6 +187,9 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
     this._gatedCh = Array.from({ length: 6 }, () => true)
     this._gMix = 0
     this._gatedMix = true
+    // Smoothed equal-power pan gains per channel
+    this._panGL = new Float32Array(6)
+    this._panGR = new Float32Array(6)
     // DC-block states for 6 mono outputs
     this._prevX = new Float32Array(6)
     this._prevY = new Float32Array(6)
@@ -314,19 +317,26 @@ class StereoMixerProcessor extends AudioWorkletProcessor {
 
         // Equal-power pan
         const panClamped = pan < -1 ? -1 : pan > 1 ? 1 : pan
-        const gL = Math.sqrt(0.5 * (1 - panClamped))
-        const gR = Math.sqrt(0.5 * (1 + panClamped))
+        // Equal-power pan (cos/sin) is numerically stable; equivalent to sqrt form
+        const theta = (panClamped + 1) * (Math.PI / 4)
+        const gLtarget = Math.cos(theta)
+        const gRtarget = Math.sin(theta)
+        const gL =
+          slewA === 0
+            ? gLtarget
+            : gLtarget + (this._panGL[ch] - gLtarget) * slewA
+        const gR =
+          slewA === 0
+            ? gRtarget
+            : gRtarget + (this._panGR[ch] - gRtarget) * slewA
+        this._panGL[ch] = gL
+        this._panGR[ch] = gR
 
-        // Channel fader (+12 dB mapping)
+        // Channel fader (+12 dB mapping). Equal-power pan (-3 dB at center).
         const fader = this._map12dB(level)
 
-        // If source is effectively mono (only one side was connected),
-        // compensate pan law so center doesn't sound quieter.
-        const isMonoSource = (hasLChan && !hasRChan) || (hasRChan && !hasLChan)
-        const panComp = isMonoSource ? 1 / Math.max(gL, gR) : 1
-
-        const postL = stL * gL * fader * panComp
-        const postR = stR * gR * fader * panComp
+        const postL = stL * gL * fader
+        const postR = stR * gR * fader
 
         // Sends
         const preMuteScalar = 1

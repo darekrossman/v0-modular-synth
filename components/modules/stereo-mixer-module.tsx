@@ -25,9 +25,9 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     chPan: chPan.current,
     chSendA: chSendA.current,
     chSendB: chSendB.current,
-    chSendAPre: chSendAPre,
-    chSendBPre: chSendBPre,
-    chMute: chMute,
+    chSendAPre: chSendAPre.current,
+    chSendBPre: chSendBPre.current,
+    chMute: chMute.current,
     retALevel: retALevel.current,
     retBLevel: retBLevel.current,
     mixLLevel: mixLLevel.current,
@@ -50,13 +50,13 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
   const chSendB = useRef<number[]>(
     initialParameters?.chSendB ?? Array.from({ length: 6 }, () => 0),
   )
-  const [chSendAPre, setChSendAPre] = useState<boolean[]>(
+  const chSendAPre = useRef<boolean[]>(
     initialParameters?.chSendAPre ?? Array.from({ length: 6 }, () => true),
   )
-  const [chSendBPre, setChSendBPre] = useState<boolean[]>(
+  const chSendBPre = useRef<boolean[]>(
     initialParameters?.chSendBPre ?? Array.from({ length: 6 }, () => true),
   )
-  const [chMute, setChMute] = useState<boolean[]>(
+  const chMute = useRef<boolean[]>(
     initialParameters?.chMute ?? Array.from({ length: 6 }, () => false),
   )
   const retALevel = useRef<number[]>(initialParameters?.retALevel ?? [0.75])
@@ -166,9 +166,9 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
       channelParamData[`ch${i}Amount`] = 0 // default CV attenuator off
       channelParamData[`ch${i}SendA`] = chSendA.current[i] ?? 0
       channelParamData[`ch${i}SendB`] = chSendB.current[i] ?? 0
-      channelParamData[`ch${i}SendAPre`] = chSendAPre[i] ? 1 : 0
-      channelParamData[`ch${i}SendBPre`] = chSendBPre[i] ? 1 : 0
-      channelParamData[`ch${i}Mute`] = chMute[i] ? 1 : 0
+      channelParamData[`ch${i}SendAPre`] = chSendAPre.current[i] ? 1 : 0
+      channelParamData[`ch${i}SendBPre`] = chSendBPre.current[i] ? 1 : 0
+      channelParamData[`ch${i}Mute`] = chMute.current[i] ? 1 : 0
     }
 
     const node = new AudioWorkletNode(ac, 'stereo-mixer-processor', {
@@ -318,38 +318,6 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     mixSat,
   ])
 
-  // Update per-channel params when knobs/sliders change
-  useEffect(() => {
-    console.log('param updates')
-    if (!nodeRef.current) return
-    const ac = acRef.current as AudioContext
-    const node = nodeRef.current
-    for (let i = 0; i < 6; i++) {
-      node.parameters
-        .get(`ch${i}Level`)
-        ?.setValueAtTime(chLevel.current[i], ac.currentTime)
-      node.parameters
-        .get(`ch${i}Pan`)
-        ?.setValueAtTime(chPan.current[i], ac.currentTime)
-      node.parameters
-        .get(`ch${i}SendA`)
-        ?.setValueAtTime(chSendA.current[i], ac.currentTime)
-      node.parameters
-        .get(`ch${i}SendB`)
-        ?.setValueAtTime(chSendB.current[i], ac.currentTime)
-      node.parameters
-        .get(`ch${i}SendAPre`)
-        ?.setValueAtTime(chSendAPre[i] ? 1 : 0, ac.currentTime)
-      node.parameters
-        .get(`ch${i}SendBPre`)
-        ?.setValueAtTime(chSendBPre[i] ? 1 : 0, ac.currentTime)
-      node.parameters
-        .get(`ch${i}Mute`)
-        ?.setValueAtTime(chMute[i] ? 1 : 0, ac.currentTime)
-      // Offset/Amount values depend on CV connection (handled in connection effect and on slider change)
-    }
-  }, [chLevel, chPan, chSendA, chSendB, chSendAPre, chSendBPre, chMute])
-
   // Mix CV connect/disconnect
   useEffect(() => {
     console.log('mix cv connect/disconnect')
@@ -425,7 +393,13 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     }
   }, [])
 
-  console.log('mixer')
+  const handleValueRefChange = (paramName: string, value: number) => {
+    const node = nodeRef.current
+    const ac = acRef.current
+    if (node && ac) {
+      node.parameters.get(paramName)?.setValueAtTime(value, ac.currentTime)
+    }
+  }
 
   return (
     <ModuleContainer title="Stereo Mixer" moduleId={moduleId}>
@@ -457,11 +431,10 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
 
                 <div className="flex gap-2">
                   <Knob
-                    value={[(chPan.current[i] + 1) / 2]}
+                    defaultValue={[(chPan.current[i] + 1) / 2]}
                     onValueChange={(v) => {
-                      const n = chPan.current.slice()
-                      n[i] = v[0] * 2 - 1 // map 0..1 knob to -1..1 pan
-                      chPan.current = n
+                      chPan.current[i] = v[0] * 2 - 1
+                      handleValueRefChange(`ch${i}Pan`, chPan.current[i])
                     }}
                     size="xs"
                     label="Pan"
@@ -472,20 +445,21 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                     <Knob
                       defaultValue={chSendA.current}
                       onValueChange={(v) => {
-                        const n = chSendA.current.slice()
-                        n[i] = v[0]
-                        chSendA.current = n
+                        chSendA.current[i] = v[0]
+                        handleValueRefChange(`ch${i}SendA`, chSendA.current[i])
                       }}
                       size="xs"
                       label="A"
                     />
                     <Toggle
                       size="xs"
-                      pressed={chSendAPre[i]}
+                      pressed={chSendAPre.current[i]}
                       onPressedChange={(t) => {
-                        const n = chSendAPre.slice()
-                        n[i] = !!t
-                        setChSendAPre(n)
+                        chSendAPre.current[i] = t
+                        handleValueRefChange(
+                          `ch${i}SendAPre`,
+                          chSendAPre.current[i] ? 1 : 0,
+                        )
                       }}
                       className="px-1 py-0.5 text-[10px]"
                     >
@@ -496,20 +470,21 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                     <Knob
                       defaultValue={chSendB.current}
                       onValueChange={(v) => {
-                        const n = chSendB.current.slice()
-                        n[i] = v[0]
-                        chSendB.current = n
+                        chSendB.current[i] = v[0]
+                        handleValueRefChange(`ch${i}SendB`, chSendB.current[i])
                       }}
                       size="xs"
                       label="B"
                     />
                     <Toggle
                       size="xs"
-                      pressed={chSendBPre[i]}
+                      pressed={chSendBPre.current[i]}
                       onPressedChange={(t) => {
-                        const n = chSendBPre.slice()
-                        n[i] = !!t
-                        setChSendBPre(n)
+                        chSendBPre.current[i] = t
+                        handleValueRefChange(
+                          `ch${i}SendBPre`,
+                          chSendBPre.current[i] ? 1 : 0,
+                        )
                       }}
                       className="px-1 py-0.5 text-[10px]"
                     >
@@ -519,11 +494,13 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 </div>
                 <Toggle
                   size="xs"
-                  pressed={chMute[i]}
+                  pressed={chMute.current[i]}
                   onPressedChange={(t) => {
-                    const n = chMute.slice()
-                    n[i] = !!t
-                    setChMute(n)
+                    chMute.current[i] = t
+                    handleValueRefChange(
+                      `ch${i}Mute`,
+                      chMute.current[i] ? 1 : 0,
+                    )
                   }}
                   className="px-2 py-0.5 text-[10px]"
                 >
@@ -570,6 +547,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                   defaultValue={retALevel.current}
                   onValueChange={(v) => {
                     retALevel.current = v
+                    handleValueRefChange(`retALevel`, v[0])
                   }}
                   label="A"
                   size="sm"
@@ -612,6 +590,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                   defaultValue={retBLevel.current}
                   onValueChange={(v) => {
                     retBLevel.current = v
+                    handleValueRefChange(`retBLevel`, v[0])
                   }}
                   label="B"
                   size="sm"
@@ -663,6 +642,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 defaultValue={mixLLevel.current}
                 onValueChange={(v) => {
                   mixLLevel.current = v
+                  handleValueRefChange(`mixLLevel`, v[0])
                 }}
                 min={0}
                 max={1}
@@ -674,6 +654,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 defaultValue={mixRLevel.current}
                 onValueChange={(v) => {
                   mixRLevel.current = v
+                  handleValueRefChange(`mixRLevel`, v[0])
                 }}
                 min={0}
                 max={1}
