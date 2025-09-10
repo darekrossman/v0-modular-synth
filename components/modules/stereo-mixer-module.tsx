@@ -161,7 +161,8 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     const channelParamData: Record<string, number> = {}
     for (let i = 0; i < 6; i++) {
       channelParamData[`ch${i}Level`] = chLevel.current[i] ?? 0.75
-      channelParamData[`ch${i}Offset`] = chLevel.current[i] ?? 0.75 // no CV → slider as VCA offset
+      // Default: VCA fully open when no CV connected
+      channelParamData[`ch${i}Offset`] = 1
       channelParamData[`ch${i}Amount`] = 0 // default CV attenuator off
       channelParamData[`ch${i}SendA`] = chSendA.current[i] ?? 0
       channelParamData[`ch${i}SendB`] = chSendB.current[i] ?? 0
@@ -276,9 +277,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
         } catch {}
         cvConn[i] = false
         // switch: slider becomes offset, amount to 0
-        node.parameters
-          .get(`ch${i}Offset`)
-          ?.setValueAtTime(chLevel.current[i], ac.currentTime)
+        node.parameters.get(`ch${i}Offset`)?.setValueAtTime(1, ac.currentTime)
         node.parameters.get(`ch${i}Amount`)?.setValueAtTime(0, ac.currentTime)
       }
     }
@@ -412,14 +411,16 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     const node = nodeRef.current
     const ac = acRef.current
     if (node && ac) {
+      // Always update post-VCA fader immediately
+      node.parameters.get(`ch${idx}Level`)?.setValueAtTime(v[0], ac.currentTime)
+
       if (chCvConnected.current[idx]) {
         node.parameters
           .get(`ch${idx}Amount`)
           ?.setValueAtTime(v[0], ac.currentTime)
       } else {
-        node.parameters
-          .get(`ch${idx}Offset`)
-          ?.setValueAtTime(v[0], ac.currentTime)
+        // Keep VCA fully open in no-CV case
+        node.parameters.get(`ch${idx}Offset`)?.setValueAtTime(1, ac.currentTime)
       }
     }
   }, [])
@@ -440,7 +441,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                   defaultValue={[chLevel.current[i]]}
                   min={0}
                   max={1}
-                  step={0.01}
+                  step={0.001}
                   onValueChange={(v) => onLevelChange(i, v as number[])}
                 />
                 <TextLabel variant="control" className="text-[10px] mb-2">
