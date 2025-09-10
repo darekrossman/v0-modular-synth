@@ -37,6 +37,8 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     muteAffectsSends,
   }))
 
+  const [_, forceUpdate] = useState(0)
+
   // Persistent state
   const chLevel = useRef<number[]>(
     initialParameters?.chLevel ?? Array.from({ length: 6 }, () => 0.75),
@@ -245,13 +247,13 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     setNodeReady(true)
   }, moduleId)
 
-  useEffect(() => {
-    return () => {
-      if (meterRAF.current) cancelAnimationFrame(meterRAF.current)
-      meterRAF.current = null
-      meterSAB.current = null
-    }
-  }, [])
+  // useEffect(() => {
+  //   return () => {
+  //     if (meterRAF.current) cancelAnimationFrame(meterRAF.current)
+  //     meterRAF.current = null
+  //     meterSAB.current = null
+  //   }
+  // }, [])
 
   // Connect/disconnect CV based on cables, and flip offset/amount semantics
   const { current: cvConn } = chCvConnected
@@ -393,7 +395,14 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     }
   }, [])
 
-  const handleValueRefChange = (paramName: string, value: number) => {
+  const handleValueRefChange = (
+    paramName: string,
+    value: number,
+    shouldForceUpdate: boolean = false,
+  ) => {
+    if (shouldForceUpdate) {
+      forceUpdate((prev) => prev + 1)
+    }
     const node = nodeRef.current
     const ac = acRef.current
     if (node && ac) {
@@ -405,42 +414,36 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
     <ModuleContainer title="Stereo Mixer" moduleId={moduleId}>
       <div className="flex gap-4 flex-1">
         {/* Channels */}
-        <div className="grid grid-cols-6 gap-4 items-start">
+        <div className="flex  flex-1">
           {Array.from({ length: 6 }, (_, i) => {
             return (
-              <div key={`ch-${i}`} className="flex flex-col items-center gap-2">
-                <Slider
-                  orientation="vertical"
-                  size="sm"
-                  defaultValue={[chLevel.current[i]]}
-                  min={0}
-                  max={1}
-                  step={0.001}
-                  onValueChange={(v) => onLevelChange(i, v as number[])}
-                />
-                <TextLabel variant="control" className="text-[10px] mb-2">
-                  CH{i + 1}
-                </TextLabel>
-                <VLine />
-                <Port
-                  id={`${moduleId}-ch${i + 1}-cv-in`}
-                  type="input"
-                  audioType="cv"
-                  audioNode={chCvIn.current[i] ?? undefined}
-                />
+              <div
+                key={`ch-${i}`}
+                className="flex flex-col items-center gap-2 flex-1"
+              >
+                {/* Tiny meter */}
 
-                <div className="flex gap-2">
+                <div className="relative w-4 h-12 bg-black/80 rounded-xs overflow-hidden">
+                  <div
+                    ref={(el) => {
+                      chMeterRefs.current[i] = el
+                    }}
+                    className="absolute left-0 right-0 bottom-0 bg-green-500"
+                    style={{ height: '0%' }}
+                  />
+                </div>
+
+                <div className="flex flex-col justify-center gap-3 flex-1">
                   <Knob
                     defaultValue={[(chPan.current[i] + 1) / 2]}
                     onValueChange={(v) => {
                       chPan.current[i] = v[0] * 2 - 1
                       handleValueRefChange(`ch${i}Pan`, chPan.current[i])
                     }}
-                    size="xs"
+                    size="sm"
                     label="Pan"
                   />
-                </div>
-                <div className="flex gap-2">
+
                   <div className="flex flex-col items-center gap-1">
                     <Knob
                       defaultValue={chSendA.current}
@@ -448,10 +451,10 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                         chSendA.current[i] = v[0]
                         handleValueRefChange(`ch${i}SendA`, chSendA.current[i])
                       }}
-                      size="xs"
+                      size="sm"
                       label="A"
                     />
-                    <Toggle
+                    {/* <Toggle
                       size="xs"
                       pressed={chSendAPre.current[i]}
                       onPressedChange={(t) => {
@@ -464,7 +467,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                       className="px-1 py-0.5 text-[10px]"
                     >
                       Pre
-                    </Toggle>
+                    </Toggle> */}
                   </div>
                   <div className="flex flex-col items-center gap-1">
                     <Knob
@@ -473,10 +476,10 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                         chSendB.current[i] = v[0]
                         handleValueRefChange(`ch${i}SendB`, chSendB.current[i])
                       }}
-                      size="xs"
+                      size="sm"
                       label="B"
                     />
-                    <Toggle
+                    {/* <Toggle
                       size="xs"
                       pressed={chSendBPre.current[i]}
                       onPressedChange={(t) => {
@@ -489,10 +492,38 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                       className="px-1 py-0.5 text-[10px]"
                     >
                       Pre
-                    </Toggle>
+                    </Toggle> */}
                   </div>
                 </div>
+
+                {/* <Slider
+                  orientation="vertical"
+                  size="sm"
+                  defaultValue={[chLevel.current[i]]}
+                  min={0}
+                  max={1}
+                  step={0.001}
+                  onValueChange={(v) => onLevelChange(i, v as number[])}
+                />
+                <TextLabel variant="control" className="text-[10px] mb-2">
+                  CH{i + 1}
+                </TextLabel> */}
+                <Port
+                  id={`${moduleId}-ch${i + 1}-cv-in`}
+                  type="input"
+                  audioType="cv"
+                  audioNode={chCvIn.current[i] ?? undefined}
+                />
+                <VLine className="mb-0.5" />
+                <Knob
+                  defaultValue={chLevel.current}
+                  onValueChange={(v) => onLevelChange(i, v as number[])}
+                  size="md"
+                  label="Level"
+                />
+
                 <Toggle
+                  variant="push"
                   size="xs"
                   pressed={chMute.current[i]}
                   onPressedChange={(t) => {
@@ -500,14 +531,14 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                     handleValueRefChange(
                       `ch${i}Mute`,
                       chMute.current[i] ? 1 : 0,
+                      true,
                     )
                   }}
-                  className="px-2 py-0.5 text-[10px]"
-                >
-                  Mute
-                </Toggle>
+                  className="mt-1"
+                />
+
                 {/* Ports */}
-                <div className="flex items-center mt-2">
+                <div className="flex items-center">
                   <Port
                     id={`${moduleId}-ch${i + 1}-l-in`}
                     type="input"
@@ -523,20 +554,11 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                     audioNode={chInR.current[i] ?? undefined}
                   />
                 </div>
-                {/* Tiny meter */}
-                <div className="relative w-4 h-16 bg-black/80 rounded-xs overflow-hidden">
-                  <div
-                    ref={(el) => {
-                      chMeterRefs.current[i] = el
-                    }}
-                    className="absolute left-0 right-0 bottom-0 bg-green-500"
-                    style={{ height: '0%' }}
-                  />
-                </div>
               </div>
             )
           })}
         </div>
+
         <div className="grid grid-cols-2 gap-4">
           {/* Returns */}
           <div className="flex flex-col items-center gap-2">
