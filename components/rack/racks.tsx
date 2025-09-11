@@ -57,12 +57,13 @@ export function Racks({
     mouseX: 0,
   })
 
-  const rack1Ref = useRef<HTMLDivElement>(null)
-  const rack2Ref = useRef<HTMLDivElement>(null)
-  const rack3Ref = useRef<HTMLDivElement>(null)
+  const rackRefs = useRef<(HTMLDivElement | null)[]>([])
 
   // Viewport/world for transform-based panning
-  const WORLD_SIZE = 10000
+  const WORLD_WIDTH = 10000
+  const ROW_HEIGHT_PX = 520
+  const NUM_ROWS = 16
+  const WORLD_HEIGHT = NUM_ROWS * ROW_HEIGHT_PX + 16
   const viewportRef = useRef<HTMLDivElement>(null)
   const worldRef = useRef<HTMLDivElement>(null)
   // Camera stored in ref; DOM transform is updated imperatively for perf
@@ -89,14 +90,29 @@ export function Racks({
     rafRef.current = requestAnimationFrame(applyTransform)
   }, [applyTransform])
 
+  const clampCameraToBounds = useCallback(
+    (xWanted: number, yWanted: number) => {
+      const viewportEl = viewportRef.current
+      const viewportWidth = viewportEl?.clientWidth ?? 0
+      const viewportHeight = viewportEl?.clientHeight ?? 0
+      const minX = Math.min(0, viewportWidth - WORLD_WIDTH)
+      const minY = Math.min(0, viewportHeight - WORLD_HEIGHT)
+      const clampedX = Math.max(minX, Math.min(0, xWanted))
+      const clampedY = Math.max(minY, Math.min(0, yWanted))
+      return { x: clampedX, y: clampedY }
+    },
+    [WORLD_WIDTH, WORLD_HEIGHT],
+  )
+
   const panBy = useCallback(
     (dx: number, dy: number) => {
-      const nx = Math.min(0, cameraRef.current.x + dx)
-      const ny = Math.min(0, cameraRef.current.y + dy)
-      cameraRef.current = { x: nx, y: ny }
+      const wantedX = cameraRef.current.x + dx
+      const wantedY = cameraRef.current.y + dy
+      const { x, y } = clampCameraToBounds(wantedX, wantedY)
+      cameraRef.current = { x, y }
       scheduleApply()
     },
-    [scheduleApply],
+    [scheduleApply, clampCameraToBounds],
   )
 
   // Load the example patch once on initial mount
@@ -204,33 +220,27 @@ export function Racks({
     [addModule],
   )
 
-  const rack1Modules = useMemo(
-    () =>
-      modules.filter(
-        (m: ModuleInstance) =>
-          m.rack === 1 ||
-          (!m.rack &&
-            m.type !== 'sequencer' &&
-            m.type !== 'quantizer' &&
-            m.type !== 'euclid'),
-      ),
-    [modules],
-  )
-  const rack2Modules = useMemo(
-    () => modules.filter((m: ModuleInstance) => m.rack === 2),
-    [modules],
-  )
-  const rack3Modules = useMemo(
-    () =>
-      modules.filter(
-        (m: ModuleInstance) =>
-          m.rack === 3 ||
-          m.type === 'sequencer' ||
-          m.type === 'quantizer' ||
-          m.type === 'euclid',
-      ),
-    [modules],
-  )
+  const modulesByRack = useMemo(() => {
+    const byRack: ModuleInstance[][] = Array.from(
+      { length: NUM_ROWS },
+      () => [],
+    )
+    const getEffectiveRackNumber = (m: ModuleInstance) => {
+      if (m.rack && m.rack >= 1 && m.rack <= NUM_ROWS) return m.rack
+      if (
+        m.type === 'sequencer' ||
+        m.type === 'quantizer' ||
+        m.type === 'euclid'
+      )
+        return 3
+      return 1
+    }
+    for (const m of modules) {
+      const rackIndex = getEffectiveRackNumber(m)
+      byRack[rackIndex - 1].push(m)
+    }
+    return byRack
+  }, [modules])
 
   const handleDragStart = useCallback(
     (e: React.DragEvent, module: ModuleInstance, fromRack: number) => {
@@ -252,15 +262,8 @@ export function Racks({
       e.preventDefault()
       e.dataTransfer.dropEffect = 'move'
       if (!dragState.isDragging || !dragState.draggedModule) return
-      const rackEl =
-        rack === 1
-          ? rack1Ref.current
-          : rack === 2
-            ? rack2Ref.current
-            : rack3Ref.current
+      const rackEl = rackRefs.current[rack - 1]
       if (!rackEl) return
-      const rackModules =
-        rack === 1 ? rack1Modules : rack === 2 ? rack2Modules : rack3Modules
       const rackRect = rackEl.getBoundingClientRect()
       const relativeX = e.clientX - rackRect.left
       let dropIdx = 0
@@ -280,7 +283,7 @@ export function Racks({
         mouseX: e.clientX,
       }))
     },
-    [dragState, rack1Modules, rack2Modules, rack3Modules],
+    [dragState],
   )
 
   const handleDrop = useCallback(
@@ -294,9 +297,29 @@ export function Racks({
         return
       const draggedModule = dragState.draggedModule
       let dropIndex = dragState.dropIndex
+
+      // Group modules by rack (including dragged) to compute original index
+      const allByRack: ModuleInstance[][] = Array.from(
+        { length: NUM_ROWS },
+        () => [],
+      )
+      const getEffectiveRackNumber = (m: ModuleInstance) => {
+        if (m.rack && m.rack >= 1 && m.rack <= NUM_ROWS) return m.rack
+        if (
+          m.type === 'sequencer' ||
+          m.type === 'quantizer' ||
+          m.type === 'euclid'
+        )
+          return 3
+        return 1
+      }
+      for (const m of modules) {
+        const r = getEffectiveRackNumber(m)
+        allByRack[r - 1].push(m)
+      }
+
       if (rack === dragState.draggedFromRack) {
-        const sourceRackModules =
-          rack === 1 ? rack1Modules : rack === 2 ? rack2Modules : rack3Modules
+        const sourceRackModules = allByRack[rack - 1]
         const draggedIndex = sourceRackModules.findIndex(
           (m) => m.id === draggedModule.id,
         )
@@ -304,35 +327,26 @@ export function Racks({
           dropIndex--
         }
       }
-      const modulesWithoutDragged = modules.filter(
-        (m) => m.id !== draggedModule.id,
+
+      // Group modules by rack (without dragged) for reconstruction
+      const withoutDragged = modules.filter((m) => m.id !== draggedModule.id)
+      const byRackWithout: ModuleInstance[][] = Array.from(
+        { length: NUM_ROWS },
+        () => [],
       )
-      const rack1Filtered = modulesWithoutDragged.filter(
-        (m) =>
-          m.rack === 1 ||
-          (!m.rack &&
-            m.type !== 'sequencer' &&
-            m.type !== 'quantizer' &&
-            m.type !== 'euclid'),
-      )
-      const rack2Filtered = modulesWithoutDragged.filter((m) => m.rack === 2)
-      const rack3Filtered = modulesWithoutDragged.filter(
-        (m) =>
-          m.rack === 3 ||
-          m.type === 'sequencer' ||
-          m.type === 'quantizer' ||
-          m.type === 'euclid',
-      )
-      if (rack === 1) {
-        rack1Filtered.splice(dropIndex, 0, { ...draggedModule, rack: 1 })
-        setModules([...rack1Filtered, ...rack2Filtered, ...rack3Filtered])
-      } else if (rack === 2) {
-        rack2Filtered.splice(dropIndex, 0, { ...draggedModule, rack: 2 })
-        setModules([...rack1Filtered, ...rack2Filtered, ...rack3Filtered])
-      } else {
-        rack3Filtered.splice(dropIndex, 0, { ...draggedModule, rack: 3 })
-        setModules([...rack1Filtered, ...rack2Filtered, ...rack3Filtered])
+      for (const m of withoutDragged) {
+        const r = getEffectiveRackNumber(m)
+        byRackWithout[r - 1].push(m)
       }
+
+      byRackWithout[rack - 1].splice(dropIndex, 0, {
+        ...draggedModule,
+        rack,
+      })
+
+      const newModules = byRackWithout.flat()
+      setModules(newModules)
+
       setDragState({
         isDragging: false,
         draggedModule: null,
@@ -345,7 +359,7 @@ export function Racks({
         window.dispatchEvent(new Event('resize'))
       }, 50)
     },
-    [dragState, rack1Modules, rack2Modules, rack3Modules, modules, setModules],
+    [dragState, modules, setModules],
   )
 
   const handleDragEnd = useCallback(() => {
@@ -390,9 +404,10 @@ export function Racks({
               const dx = e.clientX - panStartRef.current.x
               const dy = e.clientY - panStartRef.current.y
               // drag-to-pan: move world with the cursor
-              const nx = Math.min(0, cameraStartRef.current.x + dx)
-              const ny = Math.min(0, cameraStartRef.current.y + dy)
-              cameraRef.current = { x: nx, y: ny }
+              const wantedX = cameraStartRef.current.x + dx
+              const wantedY = cameraStartRef.current.y + dy
+              const { x, y } = clampCameraToBounds(wantedX, wantedY)
+              cameraRef.current = { x, y }
               scheduleApply()
             }}
             onPointerUp={(e) => {
@@ -419,125 +434,58 @@ export function Racks({
           ref={worldRef}
           className="absolute top-0 left-0"
           style={{
-            width: WORLD_SIZE,
-            height: WORLD_SIZE,
+            width: WORLD_WIDTH,
+            height: WORLD_HEIGHT,
             willChange: 'transform',
           }}
         >
           {/* WireCanvas now moves with the world */}
           <WireCanvas />
 
-          <RackRow>
-            <div
-              ref={rack1Ref}
-              className="flex relative items-stretch h-full z-1"
-              onDragOver={(e) => handleDragOver(e, 1)}
-              onDrop={(e) => handleDrop(e, 1)}
-              onDragEnd={handleDragEnd}
-            >
-              {/* Left spacer removed; world has fixed size */}
-              {rack1Modules.map((module: ModuleInstance, index: number) => (
-                <React.Fragment key={module.id}>
-                  {dragState.isDragging &&
-                    dragState.dropRack === 1 &&
-                    dragState.dropIndex === index && <DragIndicator />}
-                  <DraggableModuleItem
-                    module={module}
-                    index={index}
-                    rackModules={rack1Modules}
-                    onDelete={handleDeleteModule}
-                    onDragStart={(e: React.DragEvent) =>
-                      handleDragStart(e, module, 1)
-                    }
-                    isDragging={dragState.isDragging}
-                    draggedId={dragState.draggedModule?.id}
-                  />
-                </React.Fragment>
-              ))}
-              {dragState.isDragging &&
-                dragState.dropRack === 1 &&
-                dragState.dropIndex === rack1Modules.length && (
-                  <DragIndicator />
-                )}
-              {/* Right spacer removed; world has fixed size */}
-            </div>
-          </RackRow>
-
-          <RackDivider />
-
-          <RackRow size="1U">
-            <div
-              ref={rack3Ref}
-              className="flex relative items-stretch h-full z-1"
-              onDragOver={(e) => handleDragOver(e, 3)}
-              onDrop={(e) => handleDrop(e, 3)}
-              onDragEnd={handleDragEnd}
-            >
-              {/* Left spacer removed */}
-              {rack3Modules.map((module: ModuleInstance, index: number) => (
-                <React.Fragment key={module.id}>
-                  {dragState.isDragging &&
-                    dragState.dropRack === 3 &&
-                    dragState.dropIndex === index && <DragIndicator />}
-                  <DraggableModuleItem
-                    module={module}
-                    index={index}
-                    rackModules={rack3Modules}
-                    onDelete={handleDeleteModule}
-                    onDragStart={(e: React.DragEvent) =>
-                      handleDragStart(e, module, 3)
-                    }
-                    isDragging={dragState.isDragging}
-                    draggedId={dragState.draggedModule?.id}
-                  />
-                </React.Fragment>
-              ))}
-              {dragState.isDragging &&
-                dragState.dropRack === 3 &&
-                dragState.dropIndex === rack3Modules.length && (
-                  <DragIndicator />
-                )}
-              {/* Right spacer removed */}
-            </div>
-          </RackRow>
-
-          <RackDivider />
-
-          <RackRow>
-            <div
-              ref={rack2Ref}
-              className="flex relative items-stretch h-full z-1"
-              onDragOver={(e) => handleDragOver(e, 2)}
-              onDrop={(e) => handleDrop(e, 2)}
-              onDragEnd={handleDragEnd}
-            >
-              {/* Left spacer removed */}
-              {rack2Modules.map((module: ModuleInstance, index: number) => (
-                <React.Fragment key={module.id}>
-                  {dragState.isDragging &&
-                    dragState.dropRack === 2 &&
-                    dragState.dropIndex === index && <DragIndicator />}
-                  <DraggableModuleItem
-                    module={module}
-                    index={index}
-                    rackModules={rack2Modules}
-                    onDelete={handleDeleteModule}
-                    onDragStart={(e: React.DragEvent) =>
-                      handleDragStart(e, module, 2)
-                    }
-                    isDragging={dragState.isDragging}
-                    draggedId={dragState.draggedModule?.id}
-                  />
-                </React.Fragment>
-              ))}
-              {dragState.isDragging &&
-                dragState.dropRack === 2 &&
-                dragState.dropIndex === rack2Modules.length && (
-                  <DragIndicator />
-                )}
-              {/* Right spacer removed */}
-            </div>
-          </RackRow>
+          {Array.from({ length: NUM_ROWS }, (_, idx) => {
+            const rackNum = idx + 1
+            const rowModules = modulesByRack[idx] || []
+            return (
+              <React.Fragment key={`rack-row-${rackNum}`}>
+                <RackRow>
+                  <div
+                    ref={(el) => {
+                      rackRefs.current[idx] = el
+                    }}
+                    className="flex relative items-stretch h-full z-1"
+                    onDragOver={(e) => handleDragOver(e, rackNum)}
+                    onDrop={(e) => handleDrop(e, rackNum)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    {rowModules.map((module: ModuleInstance, index: number) => (
+                      <React.Fragment key={module.id}>
+                        {dragState.isDragging &&
+                          dragState.dropRack === rackNum &&
+                          dragState.dropIndex === index && <DragIndicator />}
+                        <DraggableModuleItem
+                          module={module}
+                          index={index}
+                          rackModules={rowModules}
+                          onDelete={handleDeleteModule}
+                          onDragStart={(e: React.DragEvent) =>
+                            handleDragStart(e, module, rackNum)
+                          }
+                          isDragging={dragState.isDragging}
+                          draggedId={dragState.draggedModule?.id}
+                        />
+                      </React.Fragment>
+                    ))}
+                    {dragState.isDragging &&
+                      dragState.dropRack === rackNum &&
+                      dragState.dropIndex === rowModules.length && (
+                        <DragIndicator />
+                      )}
+                  </div>
+                </RackRow>
+                {rackNum < NUM_ROWS && <RackDivider />}
+              </React.Fragment>
+            )
+          })}
         </div>
       </div>
 
@@ -573,21 +521,12 @@ export function Racks({
   )
 }
 
-const RackRow = ({
-  size = '3U',
-  children,
-}: {
-  size?: '3U' | '1U'
-  children: React.ReactNode
-}) => {
+const RackRow = ({ children }: { children: React.ReactNode }) => {
   return (
     <div
       className={cn(
         'relative w-full bg-gradient-to-b from-rack-background/80 to-rack-background/85',
-        {
-          'h-[520px]': size === '3U',
-          'h-[200px]': size === '1U',
-        },
+        'h-[520px]',
       )}
     >
       <Rail position="top" />
