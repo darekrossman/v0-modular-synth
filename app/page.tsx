@@ -16,7 +16,7 @@ export default function RacksContainer() {
     const newId = `${type}-${existingCount + 1}`
     const rack =
       type === 'sequencer' || type === 'quantizer' || type === 'euclid' ? 3 : 1
-    setModules((prev) => [...prev, { id: newId, type, rack }])
+    setModules((prev) => [...prev, { id: newId, type, rack, x: 0 }])
   }
 
   const removeModule = (moduleId: string) => {
@@ -42,7 +42,7 @@ export default function RacksContainer() {
         <PatchProvider
           modules={modules}
           onModulesChange={(
-            m: Array<{ id: string; type: string; rack?: number }>,
+            m: Array<{ id: string; type: string; rack?: number; x?: number }>,
           ) =>
             setModules(
               m.map((x) => ({
@@ -56,6 +56,7 @@ export default function RacksContainer() {
                         x.type === 'euclid'
                       ? 3
                       : 1,
+                ...(x.x !== undefined && { x: x.x }),
               })),
             )
           }

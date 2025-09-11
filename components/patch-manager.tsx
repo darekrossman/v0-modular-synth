@@ -20,6 +20,7 @@ export interface PatchModule {
     y: number
   }
   rack?: number
+  x?: number
 }
 
 export interface PatchConnection {
@@ -281,9 +282,9 @@ const createDefaultPatch = (): Patch => ({
 
 interface PatchProviderProps {
   children: ReactNode
-  modules: Array<{ id: string; type: string; rack?: number }>
+  modules: Array<{ id: string; type: string; rack?: number; x?: number }>
   onModulesChange: (
-    modules: Array<{ id: string; type: string; rack?: number }>,
+    modules: Array<{ id: string; type: string; rack?: number; x?: number }>,
   ) => void
   onParameterChange: (moduleId: string, parameter: string, value: any) => void
 }
@@ -329,6 +330,7 @@ const normalizePatch = (p: any): Patch | null => {
       ...(m.x !== undefined &&
         m.y !== undefined && { position: { x: m.x, y: m.y } }),
       ...(m.rack !== undefined && { rack: m.rack }),
+      ...(m.x !== undefined && { x: m.x }),
     })),
     connections: normalizeConnections(p.connections),
     metadata: p.metadata || {},
@@ -421,6 +423,7 @@ export function PatchProvider({
         parameters,
         ...(position && { position }),
         ...(m.rack && { rack: m.rack }),
+        ...(m.x !== undefined && { x: m.x }),
       }
     })
 
@@ -534,6 +537,11 @@ export function PatchProvider({
         id: m.id,
         type: m.type as any,
         ...(m.rack && { rack: m.rack }),
+        ...(m.x !== undefined
+          ? { x: m.x }
+          : m.position?.x !== undefined
+            ? { x: m.position.x }
+            : {}),
       }))
       onModulesChange(moduleInstances)
 

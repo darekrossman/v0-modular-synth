@@ -49,6 +49,7 @@ export interface ModuleInstance {
   type: ModuleType
   rack?: number
   order?: number
+  x?: number
 }
 
 export type ModuleComponent = ComponentType<{ moduleId: string }>

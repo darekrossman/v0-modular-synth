@@ -119,6 +119,9 @@ interface Ctx {
     ) => void,
   ) => void
   getPortCenter: (portId: string) => { x: number; y: number }
+  // Geometry refresh while dragging modules (keeps wires responsive)
+  beginGeometryRefresh: () => void
+  endGeometryRefresh: () => void
 
   // Patch-load barrier: apply edges once all ports are ready
   beginPatchLoad: (edges: ConnectionEdge[]) => Promise<void>
@@ -775,6 +778,14 @@ export function ConnectionProvider({
       },
       registerTempWireUpdater,
       getPortCenter,
+      beginGeometryRefresh: () => {
+        needsMeasure.current = true
+        setGeometryVersion((v) => v + 1)
+      },
+      endGeometryRefresh: () => {
+        needsMeasure.current = true
+        setGeometryVersion((v) => v + 1)
+      },
       beginPatchLoad,
 
       exportPatch,

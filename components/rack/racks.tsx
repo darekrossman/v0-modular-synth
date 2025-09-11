@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { WireCanvas } from '@/components/wire-canvas'
 import { useToast } from '@/hooks/use-toast'
+import { RackLayoutController } from '@/lib/layout-controller'
 import {
   availableModules,
   type ModuleInstance,
@@ -58,6 +59,16 @@ export function Racks({
   })
 
   const rackRefs = useRef<(HTMLDivElement | null)[]>([])
+  const moduleRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const controllersRef = useRef<Map<number, RackLayoutController>>(new Map())
+  const dragCtxRef = useRef<null | {
+    moduleId: string
+    fromRack: number
+    pointerOffsetXRack: number
+    moduleWidth: number
+    startClientX: number
+    startClientY: number
+  }>(null)
 
   // Viewport/world for transform-based panning
   const WORLD_WIDTH = 10000
@@ -172,6 +183,112 @@ export function Racks({
     },
     [scheduleApply, clampCameraToBounds],
   )
+
+  // ---- Layout controllers setup ----
+  const ensureController = useCallback(
+    (rackNum: number): RackLayoutController => {
+      let ctrl = controllersRef.current.get(rackNum)
+      if (!ctrl) {
+        ctrl = new RackLayoutController(
+          () => scaleRef.current,
+          () => viewportRef.current?.getBoundingClientRect() ?? null,
+          (idx: number) =>
+            rackRefs.current[idx - 1]?.getBoundingClientRect() ?? null,
+          () => {
+            // keep wires fresh during drag
+            try {
+              // lightweight refresh via resize event (already wired for wires)
+              window.dispatchEvent(new Event('resize'))
+            } catch {}
+          },
+        )
+        controllersRef.current.set(rackNum, ctrl)
+      }
+      return ctrl
+    },
+    [],
+  )
+
+  const getRackRect = (rackNum: number) =>
+    rackRefs.current[rackNum - 1]?.getBoundingClientRect() ?? null
+
+  const getNearestRackByClientY = (clientY: number): number => {
+    // Pick the rack whose vertical center is closest
+    let bestRack = 1
+    let bestDist = Infinity
+    for (let i = 1; i <= NUM_ROWS; i++) {
+      const r = getRackRect(i)
+      if (!r) continue
+      const cy = r.top + r.height / 2
+      const dist = Math.abs(clientY - cy)
+      if (dist < bestDist) {
+        bestDist = dist
+        bestRack = i
+      }
+    }
+    return bestRack
+  }
+
+  // Packing helpers (world/rack-local coordinates)
+  const packWithVirtual = (
+    existing: Array<{ id: string; x: number; w: number }>,
+    insert: { x: number; w: number },
+    rowWidth: number,
+  ) => {
+    const GAP = 8
+    const clampedX = Math.max(
+      0,
+      Math.min(Math.max(0, rowWidth - insert.w), insert.x),
+    )
+    const all = [
+      ...existing.map((m) => ({ ...m })),
+      { id: '__virtual__', x: clampedX, w: insert.w },
+    ]
+    all.sort((a, b) => a.x - b.x)
+    // Sweep right
+    for (let i = 0; i < all.length - 1; i++) {
+      const a = all[i]
+      const b = all[i + 1]
+      const minB = a.x + a.w + GAP
+      if (b.x < minB) b.x = minB
+    }
+    // Sweep left
+    for (let i = all.length - 1; i > 0; i--) {
+      const b = all[i]
+      const a = all[i - 1]
+      const maxA = b.x - a.w - GAP
+      if (a.x > maxA) a.x = maxA
+    }
+    const updates = existing.map((m) => {
+      const after = all.find((x) => x.id === m.id)
+      return { id: m.id, x: after ? after.x : m.x }
+    })
+    const draggedAfter = all.find((x) => x.id === '__virtual__')
+    return { updates, draggedX: draggedAfter ? draggedAfter.x : clampedX }
+  }
+
+  const packWithout = (
+    existing: Array<{ id: string; x: number; w: number }>,
+    rowWidth: number,
+  ) => {
+    // Simple left-to-right pack preserving order and gaps
+    const GAP = 8
+    const sorted = existing.slice().sort((a, b) => a.x - b.x)
+    const updates: Array<{ id: string; x: number }> = []
+    let cursor = 0
+    for (let i = 0; i < sorted.length; i++) {
+      const nx = Math.max(
+        0,
+        Math.min(
+          Math.max(0, rowWidth - sorted[i].w),
+          Math.max(cursor, sorted[i].x),
+        ),
+      )
+      if (nx !== sorted[i].x) updates.push({ id: sorted[i].id, x: nx })
+      cursor = nx + sorted[i].w + GAP
+    }
+    return updates
+  }
 
   // Load the example patch once on initial mount
   useEffect(() => {
@@ -527,22 +644,185 @@ export function Racks({
                     onDragEnd={handleDragEnd}
                   >
                     {rowModules.map((module: ModuleInstance, index: number) => (
-                      <React.Fragment key={module.id}>
-                        {dragState.isDragging &&
-                          dragState.dropRack === rackNum &&
-                          dragState.dropIndex === index && <DragIndicator />}
+                      <div
+                        key={module.id}
+                        ref={(el) => {
+                          if (el) moduleRefs.current.set(module.id, el)
+                          else moduleRefs.current.delete(module.id)
+                          // Register with controller
+                          const ctrl = ensureController(rackNum)
+                          if (el)
+                            ctrl.registerModule(
+                              rackNum,
+                              module.id,
+                              el,
+                              module.x ?? index * 240,
+                            )
+                        }}
+                        data-module-id={module.id}
+                        className="absolute top-0 h-full"
+                        style={{ left: module.x ?? index * 240 }}
+                        onPointerDown={(e) => {
+                          e.preventDefault()
+                          const header = (e.target as HTMLElement).closest(
+                            '.module-header',
+                          )
+                          if (!header) return
+                          const targetEl = e.currentTarget as HTMLElement
+                          try {
+                            targetEl.setPointerCapture(e.pointerId)
+                          } catch {}
+                          const ctrl = ensureController(rackNum)
+                          ctrl.startDrag(
+                            module.id,
+                            rackNum,
+                            e.clientX,
+                            e.clientY,
+                          )
+                          const rackRect = getRackRect(rackNum)
+                          const scale = scaleRef.current
+                          const modEl = moduleRefs.current.get(module.id)
+                          const modWidth =
+                            (modEl?.getBoundingClientRect().width || 240) /
+                            scale
+                          const pointerXRack = rackRect
+                            ? (e.clientX - rackRect.left) / scale
+                            : 0
+                          const pointerOffsetXRack =
+                            pointerXRack - (module.x ?? 0)
+                          dragCtxRef.current = {
+                            moduleId: module.id,
+                            fromRack: rackNum,
+                            pointerOffsetXRack,
+                            moduleWidth: modWidth,
+                            startClientX: e.clientX,
+                            startClientY: e.clientY,
+                          }
+                          const onMove = (ev: PointerEvent) => {
+                            const ctx = dragCtxRef.current
+                            if (!ctx) return
+                            // Live horizontal packing in original rack only (cross-rack preview skipped for perf)
+                            ctrl.updateDrag(ev.clientX, ev.clientY)
+                          }
+                          const onUp = (ev: PointerEvent) => {
+                            try {
+                              targetEl.releasePointerCapture(e.pointerId)
+                            } catch {}
+                            targetEl.removeEventListener('pointermove', onMove)
+                            targetEl.removeEventListener('pointerup', onUp)
+                            const dropRack = getNearestRackByClientY(ev.clientY)
+                            const worldScale = scaleRef.current
+                            if (dropRack === rackNum) {
+                              const result = ctrl.endDrag()
+                              if (result) {
+                                setModules((prev) =>
+                                  prev.map((m) =>
+                                    m.id === result.id
+                                      ? { ...m, rack: result.rack, x: result.x }
+                                      : (() => {
+                                          const u = result.updates.find(
+                                            (uu) => uu.id === m.id,
+                                          )
+                                          return u ? { ...m, x: u.x } : m
+                                        })(),
+                                  ),
+                                )
+                              }
+                            } else {
+                              // Move to another rack: compute pack for source and target racks
+                              const rackRectFrom = getRackRect(rackNum)
+                              const rackRectTo = getRackRect(dropRack)
+                              if (
+                                !rackRectFrom ||
+                                !rackRectTo ||
+                                !dragCtxRef.current
+                              ) {
+                                ctrl.endDrag()
+                                dragCtxRef.current = null
+                                return
+                              }
+                              // Source rack: pack remaining modules without dragged
+                              const fromModules = (
+                                modulesByRack[rackNum - 1] || []
+                              ).filter((m) => m.id !== module.id)
+                              const fromExisting = fromModules.map((m) => {
+                                const el = moduleRefs.current.get(m.id)
+                                const w =
+                                  (el?.getBoundingClientRect().width || 240) /
+                                  worldScale
+                                return { id: m.id, x: m.x ?? 0, w }
+                              })
+                              const fromRowWidth =
+                                rackRectFrom.width / worldScale
+                              const fromUpdates = packWithout(
+                                fromExisting,
+                                fromRowWidth,
+                              )
+
+                              // Target rack: pack with virtual dragged at desiredX
+                              const toModules = (
+                                modulesByRack[dropRack - 1] || []
+                              ).filter((m) => m.id !== module.id)
+                              const toExisting = toModules.map((m) => {
+                                const el = moduleRefs.current.get(m.id)
+                                const w =
+                                  (el?.getBoundingClientRect().width || 240) /
+                                  worldScale
+                                return { id: m.id, x: m.x ?? 0, w }
+                              })
+                              const xInRackTo =
+                                (ev.clientX - rackRectTo.left) / worldScale
+                              const desiredXTo =
+                                xInRackTo -
+                                dragCtxRef.current.pointerOffsetXRack
+                              const toRowWidth = rackRectTo.width / worldScale
+                              const { updates: toUpdates, draggedX } =
+                                packWithVirtual(
+                                  toExisting,
+                                  {
+                                    x: desiredXTo,
+                                    w: dragCtxRef.current.moduleWidth,
+                                  },
+                                  toRowWidth,
+                                )
+
+                              // Commit state updates
+                              setModules((prev) =>
+                                prev.map((m) => {
+                                  if (m.id === module.id) {
+                                    return { ...m, rack: dropRack, x: draggedX }
+                                  }
+                                  const uFrom = fromUpdates.find(
+                                    (u) => u.id === m.id,
+                                  )
+                                  if (uFrom) return { ...m, x: uFrom.x }
+                                  const uTo = toUpdates.find(
+                                    (u) => u.id === m.id,
+                                  )
+                                  if (uTo) return { ...m, x: uTo.x }
+                                  return m
+                                }),
+                              )
+
+                              // Ensure controller clears transforms
+                              ctrl.endDrag()
+                            }
+                            dragCtxRef.current = null
+                          }
+                          targetEl.addEventListener('pointermove', onMove)
+                          targetEl.addEventListener('pointerup', onUp)
+                        }}
+                      >
                         <DraggableModuleItem
                           module={module}
                           index={index}
                           rackModules={rowModules}
                           onDelete={handleDeleteModule}
-                          onDragStart={(e: React.DragEvent) =>
-                            handleDragStart(e, module, rackNum)
-                          }
-                          isDragging={dragState.isDragging}
-                          draggedId={dragState.draggedModule?.id}
+                          onDragStart={() => {}}
+                          isDragging={false}
+                          draggedId={undefined}
                         />
-                      </React.Fragment>
+                      </div>
                     ))}
                     {dragState.isDragging &&
                       dragState.dropRack === rackNum &&
