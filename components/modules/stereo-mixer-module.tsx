@@ -571,12 +571,11 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
           })}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {/* Returns */}
+        <div className="">
+          {/* Master */}
           <div className="flex flex-col items-center gap-2">
-            <TextLabel>Returns</TextLabel>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center">
+              <div className="flex items-center gap-2">
                 <Knob
                   defaultValue={retALevel.current}
                   onValueChange={(v) => {
@@ -586,40 +585,50 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                   label="A"
                   size="sm"
                 />
-                <div className="flex items-center gap-1">
-                  <Port
-                    id={`${moduleId}-retA-l-in`}
-                    type="input"
-                    label="L"
-                    audioType="audio"
-                    audioNode={retAL.current ?? undefined}
-                  />
-                  <Port
-                    id={`${moduleId}-retA-r-in`}
-                    type="input"
-                    label="R"
-                    audioType="audio"
-                    audioNode={retAR.current ?? undefined}
-                  />
+                <div className="flex flex-col items-center gap-2">
+                  <TextLabel>return A</TextLabel>
+                  <div className="flex items-center">
+                    <Port
+                      id={`${moduleId}-retA-l-in`}
+                      type="input"
+                      label="Left"
+                      audioType="audio"
+                      audioNode={retAL.current ?? undefined}
+                    />
+                    <Port
+                      id={`${moduleId}-retA-r-in`}
+                      type="input"
+                      label="Right"
+                      audioType="audio"
+                      audioNode={retAR.current ?? undefined}
+                    />
+                  </div>
                 </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-2">
+                <TextLabel>Send A</TextLabel>
                 <PortGroup>
                   <Port
                     id={`${moduleId}-sendA-l-out`}
                     type="output"
-                    label="A L"
+                    label="Left"
                     audioType="audio"
                     audioNode={sendAL.current ?? undefined}
                   />
                   <Port
                     id={`${moduleId}-sendA-r-out`}
                     type="output"
-                    label="A R"
+                    label="Right"
                     audioType="audio"
                     audioNode={sendAR.current ?? undefined}
                   />
                 </PortGroup>
               </div>
-              <div className="flex flex-col items-center gap-2">
+            </div>
+
+            <div className="flex items-center">
+              <div className="flex items-center gap-2">
                 <Knob
                   defaultValue={retBLevel.current}
                   onValueChange={(v) => {
@@ -629,46 +638,47 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                   label="B"
                   size="sm"
                 />
-                <div className="flex items-center">
-                  <Port
-                    id={`${moduleId}-retB-l-in`}
-                    type="input"
-                    label="L"
-                    audioType="audio"
-                    audioNode={retBL.current ?? undefined}
-                  />
-                  <Port
-                    id={`${moduleId}-retB-r-in`}
-                    type="input"
-                    label="R"
-                    audioType="audio"
-                    audioNode={retBR.current ?? undefined}
-                  />
+                <div className="flex flex-col items-center gap-2">
+                  <TextLabel>return B</TextLabel>
+                  <div className="flex items-center">
+                    <Port
+                      id={`${moduleId}-retB-l-in`}
+                      type="input"
+                      label="L"
+                      audioType="audio"
+                      audioNode={retBL.current ?? undefined}
+                    />
+                    <Port
+                      id={`${moduleId}-retB-r-in`}
+                      type="input"
+                      label="R"
+                      audioType="audio"
+                      audioNode={retBR.current ?? undefined}
+                    />
+                  </div>
                 </div>
-
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <TextLabel>Send B</TextLabel>
                 <PortGroup>
                   <Port
                     id={`$moduleId-sendB-l-out`}
                     type="output"
-                    label="B L"
+                    label="Left"
                     audioType="audio"
                     audioNode={sendBL.current ?? undefined}
                   />
                   <Port
                     id={`$moduleId-sendB-r-out`}
                     type="output"
-                    label="B R"
+                    label="Right"
                     audioType="audio"
                     audioNode={sendBR.current ?? undefined}
                   />
                 </PortGroup>
               </div>
             </div>
-          </div>
 
-          {/* Master */}
-          <div className="flex flex-col items-center gap-2">
-            <TextLabel>Master</TextLabel>
             <div className="flex items-end gap-4">
               <Slider
                 orientation="vertical"
@@ -694,7 +704,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                 max={1}
                 step={0.01}
               />
-              <div className="flex flex-col items-center gap-2 ml-2">
+              {/* <div className="flex flex-col items-center gap-2 ml-2">
                 <Port
                   id={`$moduleId-mix-cv-in`}
                   type="input"
@@ -724,7 +734,7 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
                   size="xs"
                   label="Clip"
                 />
-              </div>
+              </div> */}
             </div>
             {/* Master tiny meters */}
             <div className="flex gap-2 mt-2">
@@ -748,14 +758,14 @@ export function StereoMixerModule({ moduleId }: { moduleId: string }) {
               <Port
                 id={`$moduleId-mix-l-out`}
                 type="output"
-                label="L"
+                label="Left"
                 audioType="audio"
                 audioNode={mixOutL.current ?? undefined}
               />
               <Port
                 id={`$moduleId-mix-r-out`}
                 type="output"
-                label="R"
+                label="Right"
                 audioType="audio"
                 audioNode={mixOutR.current ?? undefined}
               />
