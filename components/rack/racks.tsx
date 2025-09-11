@@ -75,13 +75,23 @@ export function Racks({
   const [isPanning, setIsPanning] = useState(false)
   const panStartRef = useRef<{ x: number; y: number } | null>(null)
   const cameraStartRef = useRef<{ x: number; y: number } | null>(null)
+  // Zoom state
+  const scaleRef = useRef<number>(1)
+  const [scale, _setScale] = useState<number>(1)
 
   const applyTransform = useCallback(() => {
     pendingApplyRef.current = false
     const el = worldRef.current
     if (!el) return
     const { x, y } = cameraRef.current
-    el.style.transform = `translate3d(${x}px, ${y}px, 0)`
+    const s = scaleRef.current
+    const viewportEl = viewportRef.current
+    const viewportWidth = viewportEl?.clientWidth ?? 0
+    const viewportHeight = viewportEl?.clientHeight ?? 0
+    const originX = viewportWidth / 2 - x
+    const originY = viewportHeight / 2 - y
+    el.style.transformOrigin = `${originX}px ${originY}px`
+    el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${s})`
   }, [])
 
   const scheduleApply = useCallback(() => {
@@ -91,17 +101,65 @@ export function Racks({
   }, [applyTransform])
 
   const clampCameraToBounds = useCallback(
-    (xWanted: number, yWanted: number) => {
+    (xWanted: number, yWanted: number, scaleOverride?: number) => {
       const viewportEl = viewportRef.current
       const viewportWidth = viewportEl?.clientWidth ?? 0
       const viewportHeight = viewportEl?.clientHeight ?? 0
-      const minX = Math.min(0, viewportWidth - WORLD_WIDTH)
-      const minY = Math.min(0, viewportHeight - WORLD_HEIGHT)
-      const clampedX = Math.max(minX, Math.min(0, xWanted))
-      const clampedY = Math.max(minY, Math.min(0, yWanted))
-      return { x: clampedX, y: clampedY }
+      const s = scaleOverride ?? scaleRef.current
+      if (!viewportWidth || !viewportHeight || s <= 0) {
+        return { x: xWanted, y: yWanted }
+      }
+      // Bounds with transform-origin anchored to viewport center.
+      // transform is: translate(x,y) scale(s), applied right-to-left => scale then translate.
+      // With origin O = (viewportWidth/2 - x, viewportHeight/2 - y), the edge constraints yield:
+      // x ∈ [ (viewportWidth - s*WORLD_WIDTH - (1 - s)*viewportWidth/2) / s, -((1 - s)/s) * viewportWidth/2 ]
+      // y ∈ [ (viewportHeight - s*WORLD_HEIGHT - (1 - s)*viewportHeight/2) / s, -((1 - s)/s) * viewportHeight/2 ]
+      const oneMinusOverS = (1 - s) / s
+      const minX =
+        (viewportWidth - s * WORLD_WIDTH - (1 - s) * (viewportWidth / 2)) / s
+      const maxX = -oneMinusOverS * (viewportWidth / 2)
+      const minY =
+        (viewportHeight - s * WORLD_HEIGHT - (1 - s) * (viewportHeight / 2)) / s
+      const maxY = -oneMinusOverS * (viewportHeight / 2)
+
+      let x = xWanted
+      let y = yWanted
+      if (minX > maxX) {
+        x = (minX + maxX) / 2
+      } else {
+        x = Math.max(minX, Math.min(maxX, xWanted))
+      }
+      if (minY > maxY) {
+        y = (minY + maxY) / 2
+      } else {
+        y = Math.max(minY, Math.min(maxY, yWanted))
+      }
+      return { x, y }
     },
     [WORLD_WIDTH, WORLD_HEIGHT],
+  )
+
+  const setScale = useCallback(
+    (next: number) => {
+      const minScale = 0.2
+      const maxScale = 3
+      const clamped = Math.min(
+        maxScale,
+        Math.max(minScale, Number.parseFloat(next.toFixed(3)) ?? 1),
+      )
+      if (clamped === scaleRef.current) return
+      scaleRef.current = clamped
+      _setScale(clamped)
+      // Re-clamp camera under new scale
+      const { x, y } = clampCameraToBounds(
+        cameraRef.current.x,
+        cameraRef.current.y,
+        clamped,
+      )
+      cameraRef.current = { x, y }
+      scheduleApply()
+    },
+    [clampCameraToBounds, scheduleApply],
   )
 
   const panBy = useCallback(
@@ -134,6 +192,17 @@ export function Racks({
           setIsSpaceHeld(true)
         }
         event.preventDefault()
+        return
+      }
+      // Zoom controls
+      if (event.key === '[') {
+        event.preventDefault()
+        setScale(scaleRef.current - 0.1)
+        return
+      }
+      if (event.key === ']') {
+        event.preventDefault()
+        setScale(scaleRef.current + 0.1)
         return
       }
       if (event.key.toLowerCase() === 's' && (event.ctrlKey || event.metaKey)) {
