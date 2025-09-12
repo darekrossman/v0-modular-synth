@@ -84,6 +84,8 @@ export class RackLayoutController {
 
     m.el.style.willChange = 'transform'
     m.el.style.zIndex = '50'
+    // Visual affordance for dragged module
+    m.el.style.filter = 'drop-shadow(2px 4px 6px black)'
     this.schedule()
   }
 
@@ -149,6 +151,8 @@ export class RackLayoutController {
         : 0
       // Use the unclamped desired center for swap checks so we can cross the left-most neighbor
       const desiredCenter = desiredLeftRaw + dragW / 2
+      // Tunable threshold so swaps happen slightly before exact center-crossing
+      const SWAP_THRESHOLD_PX = 8 // ~0.4 HP at 20px/HP
       // Special-case left-most insertion: if left neighbor sits at x=0 and our unclamped desired left is <= 0,
       // force a swap so we can become the new left-most entry.
       if (leftId) {
@@ -160,14 +164,14 @@ export class RackLayoutController {
       }
       if (rightId) {
         const rightCenter = (this.currentX.get(rightId) ?? 0) + rightW / 2
-        if (desiredCenter >= rightCenter) {
+        if (desiredCenter >= rightCenter - SWAP_THRESHOLD_PX) {
           idx = this.swapWithNeighbor(idx, +1)
           swapped = true
         }
       }
       if (leftId) {
         const leftCenter = (this.currentX.get(leftId) ?? 0) + leftW / 2
-        if (desiredCenter <= leftCenter) {
+        if (desiredCenter <= leftCenter + SWAP_THRESHOLD_PX) {
           idx = this.swapWithNeighbor(idx, -1)
           swapped = true
         }
@@ -276,6 +280,10 @@ export class RackLayoutController {
       m.el.style.transform = ''
       m.el.style.willChange = ''
       m.el.style.zIndex = ''
+      // Clear any custom drag affordances
+      m.el.style.outline = ''
+      m.el.style.outlineOffset = ''
+      m.el.style.filter = ''
     }
 
     // Ensure dragged present in updates

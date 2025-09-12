@@ -161,7 +161,7 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'Scope',
     description: 'Single-channel oscilloscope',
     component: ScopeModule,
-    hp: 16,
+    hp: 15,
   },
   {
     type: 'sequencer' as ModuleType,

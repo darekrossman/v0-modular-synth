@@ -40,7 +40,7 @@ export function ModuleContainer({
             {title}
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col p-3 pt-0">
+        <CardContent className="flex-1 flex flex-col py-3 px-[10px] pt-0">
           {children}
         </CardContent>
       </Card>

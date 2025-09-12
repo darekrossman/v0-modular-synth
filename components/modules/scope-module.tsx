@@ -384,7 +384,7 @@ export function ScopeModule({ moduleId }: { moduleId: string }) {
   return (
     <ModuleContainer moduleId={moduleId} title="Scope">
       <div className="flex flex-col gap-3 h-full">
-        <div className="bg-black relative w-[300px] h-[300px] overflow-hidden ml-[-16px] mr-[-16px] border-b border-module-subdued/70">
+        <div className="bg-black relative w-[300px] h-[300px] overflow-hidden ml-[-10px] mr-[-10px] border-b border-module-subdued/70">
           <canvas ref={canvasRef} className="w-full h-full" />
         </div>
 
