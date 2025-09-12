@@ -192,8 +192,12 @@ function makeSagPath(
 }
 
 export function WireCanvas() {
-  const { connections, registerTempWireUpdater, geometryVersion } =
-    useConnections()
+  const {
+    connections,
+    registerTempWireUpdater,
+    geometryVersion,
+    getPortCenter,
+  } = useConnections()
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const staticRingLayerRef = useRef<SVGGElement | null>(null)
@@ -257,12 +261,17 @@ export function WireCanvas() {
   }
 
   const getScreenCenter = (portId: string) => {
+    // During active drags, DOM layout is authoritative; otherwise use cached geometry
     const el = document.querySelector<HTMLElement>(
       `[data-port-id="${cssEscape(portId)}"]`,
     )
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    if (el) {
+      const r = el.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    }
+    const cached = getPortCenter(portId)
+    if (cached) return cached
+    return null
   }
 
   // Use the color stored in the edge
@@ -573,6 +582,30 @@ export function WireCanvas() {
     }
   }
 
+  // Allow external, non-React-driven refresh without causing rerenders
+  useEffect(() => {
+    const onRefresh = () => {
+      settleUntil.current = performance.now() + 50
+      if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
+    }
+    window.addEventListener('wires:refresh', onRefresh as EventListener)
+    // Also respond to resize/scroll to keep wires glued while dragging
+    const onResizeOrScroll = () => {
+      settleUntil.current = performance.now() + 50
+      if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
+    }
+    window.addEventListener('resize', onResizeOrScroll, { passive: true })
+    window.addEventListener('scroll', onResizeOrScroll, {
+      capture: true,
+      passive: true,
+    })
+    return () => {
+      window.removeEventListener('wires:refresh', onRefresh as EventListener)
+      window.removeEventListener('resize', onResizeOrScroll as any)
+      window.removeEventListener('scroll', onResizeOrScroll as any, true)
+    }
+  }, [])
+
   // Build DOM for edges when list changes; start settle window
   useEffect(() => {
     const present = new Set<string>()
@@ -717,11 +750,7 @@ export function WireCanvas() {
       <g ref={staticWireLayerRef} />
 
       {/* Hidden keyed list keeps React aware of edges */}
-      <g style={{ display: 'none' }}>
-        {items.map((e) => (
-          <g key={e.id} />
-        ))}
-      </g>
+      {/* Hidden keyed list was causing re-render churn during drag; remove to keep DOM stable */}
     </svg>
   )
 }

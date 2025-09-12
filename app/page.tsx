@@ -16,7 +16,26 @@ export default function RacksContainer() {
     const newId = `${type}-${existingCount + 1}`
     const rack =
       type === 'sequencer' || type === 'quantizer' || type === 'euclid' ? 3 : 1
-    setModules((prev) => [...prev, { id: newId, type, rack, x: 0 }])
+    // Place new module at the first free HP slot in the target rack
+    const HP_PX = 20
+    const getModuleHp = (t: ModuleType) => 9
+    const rackModules = modules
+      .filter((m) => (m.rack ?? 1) === rack)
+      .map((m) => ({
+        xHp: m.xHp ?? Math.round((m.x ?? 0) / HP_PX),
+        hp: m.hp ?? getModuleHp(m.type as ModuleType),
+      }))
+      .sort((a, b) => (a.xHp ?? 0) - (b.xHp ?? 0))
+    const widthHp = getModuleHp(type)
+    let cursor = 0
+    for (const { xHp, hp } of rackModules) {
+      if (cursor + widthHp <= (xHp ?? 0)) break
+      cursor = Math.max(cursor, (xHp ?? 0) + (hp ?? 0))
+    }
+    setModules((prev) => [
+      ...prev,
+      { id: newId, type, rack, xHp: cursor, hp: widthHp },
+    ])
   }
 
   const removeModule = (moduleId: string) => {
@@ -42,7 +61,14 @@ export default function RacksContainer() {
         <PatchProvider
           modules={modules}
           onModulesChange={(
-            m: Array<{ id: string; type: string; rack?: number; x?: number }>,
+            m: Array<{
+              id: string
+              type: string
+              rack?: number
+              x?: number
+              xHp?: number
+              hp?: number
+            }>,
           ) =>
             setModules(
               m.map((x) => ({
@@ -57,6 +83,8 @@ export default function RacksContainer() {
                       ? 3
                       : 1,
                 ...(x.x !== undefined && { x: x.x }),
+                ...(x.xHp !== undefined && { xHp: x.xHp }),
+                ...(x.hp !== undefined && { hp: x.hp }),
               })),
             )
           }

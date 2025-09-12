@@ -3,11 +3,12 @@ export type LayoutModuleEntry = {
   el: HTMLElement
   x: number
   w: number
+  xHp?: number
+  hp?: number
 }
 
 export class RackLayoutController {
   private modules: LayoutModuleEntry[] = []
-  private rafId: number | null = null
   private pendingWrite = false
 
   private dragging: {
@@ -27,7 +28,6 @@ export class RackLayoutController {
 
   constructor(
     private getScale: () => number,
-    private getViewportRect: () => DOMRect | null,
     private getRackRect: (rackIndex: number) => DOMRect | null,
     private onScheduleGeometryRefresh?: () => void,
   ) {}
@@ -118,7 +118,13 @@ export class RackLayoutController {
     let desiredLeft = xInRack - pointerOffsetX
     if (!Number.isFinite(desiredLeft)) desiredLeft = 0
 
-    // Position constrained by immediate neighbors
+    // Clamp within rack width first
+    const rowWidth = rackRect.width / scale
+    const minX = 0
+    const maxX = Math.max(0, rowWidth - dragW)
+    desiredLeft = Math.max(minX, Math.min(maxX, desiredLeft))
+
+    // Ensure we have order and index
     let idx = this.findIndex(dragId)
     if (idx === -1) {
       this.order = this.modules
@@ -128,35 +134,100 @@ export class RackLayoutController {
       idx = this.findIndex(dragId)
       if (idx === -1) return
     }
-    const leftId = this.order[idx - 1]
-    const rightId = this.order[idx + 1]
-    const GAP = 8
-    const leftW = leftId
-      ? (this.modules.find((m) => m.id === leftId)?.w ?? 0)
-      : 0
-    const rightW = rightId
-      ? (this.modules.find((m) => m.id === rightId)?.w ?? 0)
-      : 0
-    const leftBound = leftId
-      ? (this.currentX.get(leftId) ?? 0) + leftW + GAP
-      : 0
-    const rightBound = rightId
-      ? (this.currentX.get(rightId) ?? 0) - dragW - GAP
-      : Number.POSITIVE_INFINITY
-    const clampedLeft = Math.max(leftBound, Math.min(rightBound, desiredLeft))
 
-    // Bubble-swap when crossing neighbor centers
-    const dragCenter = clampedLeft + dragW / 2
-    if (rightId) {
-      const rightCenter = (this.currentX.get(rightId) ?? 0) + rightW / 2
-      if (dragCenter > rightCenter) idx = this.swapWithNeighbor(idx, +1)
+    // Allow swapping by comparing desired center vs neighbor centers BEFORE clamping to neighbor bounds
+    const trySwapAcrossNeighbors = () => {
+      let swapped = false
+      const leftId = this.order[idx - 1]
+      const rightId = this.order[idx + 1]
+      const leftW = leftId
+        ? (this.modules.find((m) => m.id === leftId)?.w ?? 0)
+        : 0
+      const rightW = rightId
+        ? (this.modules.find((m) => m.id === rightId)?.w ?? 0)
+        : 0
+      const desiredCenter = desiredLeft + dragW / 2
+      if (rightId) {
+        const rightCenter = (this.currentX.get(rightId) ?? 0) + rightW / 2
+        if (desiredCenter > rightCenter) {
+          idx = this.swapWithNeighbor(idx, +1)
+          swapped = true
+        }
+      }
+      if (leftId) {
+        const leftCenter = (this.currentX.get(leftId) ?? 0) + leftW / 2
+        if (desiredCenter < leftCenter) {
+          idx = this.swapWithNeighbor(idx, -1)
+          swapped = true
+        }
+      }
+      return swapped
     }
-    if (leftId) {
-      const leftCenter = (this.currentX.get(leftId) ?? 0) + leftW / 2
-      if (dragCenter < leftCenter) idx = this.swapWithNeighbor(idx, -1)
+    while (trySwapAcrossNeighbors()) {}
+
+    // After swaps, clamp against immediate neighbor bounds
+    {
+      const leftId2 = this.order[idx - 1]
+      const rightId2 = this.order[idx + 1]
+      const GAP = 0
+      const leftW2 = leftId2
+        ? (this.modules.find((m) => m.id === leftId2)?.w ?? 0)
+        : 0
+      const leftBound2 = leftId2
+        ? (this.currentX.get(leftId2) ?? 0) + leftW2 + GAP
+        : minX
+      const rightBound2 = rightId2
+        ? (this.currentX.get(rightId2) ?? 0) - dragW - GAP
+        : maxX
+      // Snap to 1HP grid (20px) while staying within neighbor bounds
+      const STEP = 20
+      // First clamp to neighbor range, then quantize inside it
+      const clamped = Math.max(leftBound2, Math.min(rightBound2, desiredLeft))
+      // Quantize to nearest step
+      let q = Math.round(clamped / STEP) * STEP
+      // Ensure quantized value still within bounds by nudging toward range
+      if (q < leftBound2) q = Math.ceil(leftBound2 / STEP) * STEP
+      if (q > rightBound2) q = Math.floor(rightBound2 / STEP) * STEP
+      // Final guard
+      desiredLeft = Math.max(leftBound2, Math.min(rightBound2, q))
     }
 
-    this.currentX.set(dragId, clampedLeft)
+    this.currentX.set(dragId, desiredLeft)
+
+    // Resolve overlaps to the right
+    {
+      const GAP = 0
+      for (let i = idx + 1; i < this.order.length; i++) {
+        const prevId = this.order[i - 1]
+        const curId = this.order[i]
+        const prevW = this.modules.find((m) => m.id === prevId)?.w ?? 0
+        const curW = this.modules.find((m) => m.id === curId)?.w ?? 0
+        const needed = (this.currentX.get(prevId) ?? 0) + prevW + GAP
+        let curX = this.currentX.get(curId) ?? 0
+        if (curX < needed) {
+          curX = needed
+          const curMax = Math.max(0, rackRect.width / scale - curW)
+          if (curX > curMax) curX = curMax
+          this.currentX.set(curId, curX)
+        }
+      }
+    }
+    // Resolve overlaps to the left
+    {
+      const GAP = 0
+      for (let i = idx - 1; i >= 0; i--) {
+        const nextId = this.order[i + 1]
+        const curId = this.order[i]
+        const curW = this.modules.find((m) => m.id === curId)?.w ?? 0
+        const needed = (this.currentX.get(nextId) ?? 0) - curW - GAP
+        let curX = this.currentX.get(curId) ?? 0
+        if (curX > needed) {
+          curX = needed
+          if (curX < 0) curX = 0
+          this.currentX.set(curId, curX)
+        }
+      }
+    }
 
     const disp = new Map<string, number>()
     for (const mm of this.modules) {
@@ -209,7 +280,7 @@ export class RackLayoutController {
   private schedule() {
     if (this.pendingWrite) return
     this.pendingWrite = true
-    this.rafId = requestAnimationFrame(() => this.apply())
+    requestAnimationFrame(() => this.apply())
   }
 
   private apply() {
@@ -229,5 +300,9 @@ export class RackLayoutController {
       const dragged = this.modules.find((m) => m.id === this.dragging?.id)
       if (dragged) dragged.el.style.transform = `translate3d(${dx}px, 0, 0)`
     }
+    // Ask wires to refresh without React state churn
+    try {
+      window.dispatchEvent(new Event('wires:refresh'))
+    } catch {}
   }
 }

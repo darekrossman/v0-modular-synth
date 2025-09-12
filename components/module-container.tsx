@@ -19,7 +19,7 @@ export function ModuleContainer({
   console.log('module container', title)
   return (
     <div
-      className="h-full bg-gradient-to-b from-module-background-gradient to-module-background overflow-hidden text-module-foreground"
+      className="h-full bg-gradient-to-b from-module-background-gradient to-module-background overflow-hidden text-module-foreground shadow-[inset_-0.5px_0_0_0_rgba(255,255,255,0.1),inset_0.5px_0_0_0_rgba(255,255,255,0.1)]"
       data-module-id={moduleId}
     >
       <Card

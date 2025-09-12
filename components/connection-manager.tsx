@@ -243,10 +243,15 @@ export function ConnectionProvider({
       passive: true,
     })
     window.addEventListener('resize', onResize, { passive: true })
+    const onRefresh = () => {
+      needsMeasure.current = true
+    }
+    window.addEventListener('wires:refresh', onRefresh as EventListener)
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll as any, true)
       window.removeEventListener('resize', onResize as any)
+      window.removeEventListener('wires:refresh', onRefresh as EventListener)
     }
   }, [measureOnce])
 
