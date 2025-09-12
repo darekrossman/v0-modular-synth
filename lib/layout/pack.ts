@@ -2,7 +2,7 @@
 // Keep grid constants centralized
 
 export const HP_PX = 20 // 20px increments per spec
-export const GAP_PX = 8 // horizontal gap between modules when packing
+export const GAP_PX = 0 // no horizontal gap between modules when packing
 
 export const toPx = (hp: number): number => hp * HP_PX
 export const toHp = (px: number): number => Math.max(0, Math.round(px / HP_PX))
