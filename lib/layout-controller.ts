@@ -210,36 +210,6 @@ export class RackLayoutController {
 
     this.currentX.set(dragId, desiredLeft)
 
-    // Tighten immediate neighbors to sit flush with the dragged module (no unnecessary gaps)
-    {
-      const GAP = 0
-      // Right neighbor flush to dragged's right edge
-      const rightImmediateId = this.order[idx + 1]
-      if (rightImmediateId) {
-        const curW = this.modules.find((m) => m.id === rightImmediateId)?.w ?? 0
-        const needed = desiredLeft + dragW + GAP
-        let curX = this.currentX.get(rightImmediateId) ?? 0
-        if (curX < needed) {
-          const curMax = Math.max(0, rackRect.width / scale - curW)
-          if (needed > curMax) curX = curMax
-          else curX = needed
-          this.currentX.set(rightImmediateId, curX)
-        }
-      }
-      // Left neighbor flush to dragged's left edge
-      const leftImmediateId = this.order[idx - 1]
-      if (leftImmediateId) {
-        const leftW3 =
-          this.modules.find((m) => m.id === leftImmediateId)?.w ?? 0
-        const neededLeft = Math.max(0, desiredLeft - leftW3 - GAP)
-        let lx = this.currentX.get(leftImmediateId) ?? 0
-        if (lx < neededLeft) {
-          lx = neededLeft
-          this.currentX.set(leftImmediateId, lx)
-        }
-      }
-    }
-
     // Resolve overlaps to the right
     {
       const GAP = 0

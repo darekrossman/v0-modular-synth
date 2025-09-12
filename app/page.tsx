@@ -13,6 +13,7 @@ export default function RacksContainer() {
   const [modules, setModules] = useState<ModuleInstance[]>([])
 
   const addModule = (type: ModuleType) => {
+    console.log('addModule', type)
     const existingCount = modules.filter((m) => m.type === type).length
     const newId = `${type}-${existingCount + 1}`
     const rack = 1
@@ -56,6 +57,8 @@ export default function RacksContainer() {
     }
   }
 
+  console.log('page', modules)
+
   return (
     <SettingsProvider>
       <ConnectionProvider>
@@ -70,25 +73,19 @@ export default function RacksContainer() {
               xHp?: number
               hp?: number
             }>,
-          ) =>
+          ) => {
+            console.log('modules changed', m)
             setModules(
               m.map((x) => ({
                 id: x.id,
                 type: x.type as ModuleType,
-                rack:
-                  x.rack !== undefined
-                    ? x.rack
-                    : x.type === 'sequencer' ||
-                        x.type === 'quantizer' ||
-                        x.type === 'euclid'
-                      ? 3
-                      : 1,
+                rack: x.rack !== undefined ? x.rack : 1,
                 ...(x.x !== undefined && { x: x.x }),
                 ...(x.xHp !== undefined && { xHp: x.xHp }),
                 ...(x.hp !== undefined && { hp: x.hp }),
               })),
             )
-          }
+          }}
           onParameterChange={handleParameterChange}
         >
           <Racks

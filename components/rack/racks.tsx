@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConnections } from '@/components/connection-manager'
 import { Header } from '@/components/layout/header'
 import { usePatchManager } from '@/components/patch-manager'
-import { useSettings } from '@/components/settings-context'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -43,25 +42,8 @@ export function Racks({
     beginGeometryRefresh,
     endGeometryRefresh,
   } = useConnections()
-  const { open } = useSettings()
   const { toast } = useToast()
   const [isModuleDialogOpen, setIsModuleDialogOpen] = useState(false)
-
-  const [dragState, setDragState] = useState<{
-    isDragging: boolean
-    draggedModule: ModuleInstance | null
-    draggedFromRack: number
-    dropIndex: number | null
-    dropRack: number | null
-    mouseX: number
-  }>({
-    isDragging: false,
-    draggedModule: null,
-    draggedFromRack: 1,
-    dropIndex: null,
-    dropRack: null,
-    mouseX: 0,
-  })
 
   const rackRefs = useRef<(HTMLDivElement | null)[]>([])
   const moduleRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -73,7 +55,28 @@ export function Racks({
     moduleWidth: number
     startClientX: number
     startClientY: number
+    pointerId: number
+    captureEl?: HTMLElement
   }>(null)
+  const lastHandoffTsRef = useRef<number>(0)
+  const lastHandoffRackRef = useRef<number | null>(null)
+
+  const getCurrentXFromEl = useCallback((el: HTMLElement): number => {
+    const left = Number.parseFloat(el.style.left || '0') || 0
+    const cs = getComputedStyle(el)
+    const t = cs.transform || (cs as any).webkitTransform || ''
+    let tx = 0
+    if (t && t !== 'none') {
+      const m = t.match(/matrix(3d)?\(([^)]+)\)/)
+      if (m) {
+        const parts = m[2]
+          .split(',')
+          .map((s: string) => Number.parseFloat(s.trim()))
+        tx = m[1] === '3d' ? parts[12] || 0 : parts[4] || 0
+      }
+    }
+    return left + tx
+  }, [])
 
   // Viewport/world for transform-based panning
   const WORLD_WIDTH = 10000
@@ -214,23 +217,6 @@ export function Racks({
 
   const getRackRect = (rackNum: number) =>
     rackRefs.current[rackNum - 1]?.getBoundingClientRect() ?? null
-
-  const getNearestRackByClientY = (clientY: number): number => {
-    // Pick the rack whose vertical center is closest
-    let bestRack = 1
-    let bestDist = Infinity
-    for (let i = 1; i <= NUM_ROWS; i++) {
-      const r = getRackRect(i)
-      if (!r) continue
-      const cy = r.top + r.height / 2
-      const dist = Math.abs(clientY - cy)
-      if (dist < bestDist) {
-        bestDist = dist
-        bestRack = i
-      }
-    }
-    return bestRack
-  }
 
   // Discrete HP grid helpers
   const HP_PX = 20
@@ -434,136 +420,7 @@ export function Racks({
     return byRack
   }, [modules])
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent, module: ModuleInstance, fromRack: number) => {
-      e.dataTransfer.effectAllowed = 'move'
-      setDragState({
-        isDragging: true,
-        draggedModule: module,
-        draggedFromRack: fromRack,
-        dropIndex: null,
-        dropRack: null,
-        mouseX: e.clientX,
-      })
-    },
-    [],
-  )
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent, rack: number) => {
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-      if (!dragState.isDragging || !dragState.draggedModule) return
-      const rackEl = rackRefs.current[rack - 1]
-      if (!rackEl) return
-      const rackRect = rackEl.getBoundingClientRect()
-      const relativeX = e.clientX - rackRect.left
-      let dropIdx = 0
-      const moduleElements = rackEl.querySelectorAll('[draggable]')
-      for (let i = 0; i < moduleElements.length; i++) {
-        const moduleRect = moduleElements[i].getBoundingClientRect()
-        const moduleMidpoint =
-          moduleRect.left + moduleRect.width / 2 - rackRect.left
-        if (relativeX > moduleMidpoint) {
-          dropIdx = i + 1
-        }
-      }
-      setDragState((prev) => ({
-        ...prev,
-        dropIndex: dropIdx,
-        dropRack: rack,
-        mouseX: e.clientX,
-      }))
-    },
-    [dragState],
-  )
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent, rack: number) => {
-      e.preventDefault()
-      if (
-        !dragState.isDragging ||
-        !dragState.draggedModule ||
-        dragState.dropIndex === null
-      )
-        return
-      const draggedModule = dragState.draggedModule
-      let dropIndex = dragState.dropIndex
-
-      // Group modules by rack (including dragged) to compute original index
-      const allByRack: ModuleInstance[][] = Array.from(
-        { length: NUM_ROWS },
-        () => [],
-      )
-      const getEffectiveRackNumber = (m: ModuleInstance) => {
-        if (m.rack && m.rack >= 1 && m.rack <= NUM_ROWS) return m.rack
-        if (
-          m.type === 'sequencer' ||
-          m.type === 'quantizer' ||
-          m.type === 'euclid'
-        )
-          return 3
-        return 1
-      }
-      for (const m of modules) {
-        const r = getEffectiveRackNumber(m)
-        allByRack[r - 1].push(m)
-      }
-
-      if (rack === dragState.draggedFromRack) {
-        const sourceRackModules = allByRack[rack - 1]
-        const draggedIndex = sourceRackModules.findIndex(
-          (m) => m.id === draggedModule.id,
-        )
-        if (draggedIndex !== -1 && dropIndex > draggedIndex) {
-          dropIndex--
-        }
-      }
-
-      // Group modules by rack (without dragged) for reconstruction
-      const withoutDragged = modules.filter((m) => m.id !== draggedModule.id)
-      const byRackWithout: ModuleInstance[][] = Array.from(
-        { length: NUM_ROWS },
-        () => [],
-      )
-      for (const m of withoutDragged) {
-        const r = getEffectiveRackNumber(m)
-        byRackWithout[r - 1].push(m)
-      }
-
-      byRackWithout[rack - 1].splice(dropIndex, 0, {
-        ...draggedModule,
-        rack,
-      })
-
-      const newModules = byRackWithout.flat()
-      setModules(newModules)
-
-      setDragState({
-        isDragging: false,
-        draggedModule: null,
-        draggedFromRack: 1,
-        dropIndex: null,
-        dropRack: null,
-        mouseX: 0,
-      })
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'))
-      }, 50)
-    },
-    [dragState, modules, setModules],
-  )
-
-  const handleDragEnd = useCallback(() => {
-    setDragState({
-      isDragging: false,
-      draggedModule: null,
-      draggedFromRack: 1,
-      dropIndex: null,
-      dropRack: null,
-      mouseX: 0,
-    })
-  }, [])
+  console.log('rack')
 
   return (
     <main className="h-screen bg-background flex flex-col relative">
@@ -692,10 +549,7 @@ export function Racks({
                           const pointerXRack = rackRect
                             ? (e.clientX - rackRect.left) / scale
                             : 0
-                          const startHp =
-                            module.xHp !== undefined
-                              ? module.xHp
-                              : toHp(module.x ?? 0)
+
                           const pointerOffsetHp =
                             (pointerXRack -
                               (module.xHp !== undefined
@@ -711,6 +565,8 @@ export function Racks({
                             ),
                             startClientX: e.clientX,
                             startClientY: e.clientY,
+                            pointerId: e.pointerId,
+                            captureEl: targetEl,
                           }
                           // Start controller-driven drag
                           const ctrl = ensureController(rackNum)
@@ -722,18 +578,103 @@ export function Racks({
                           )
                           beginGeometryRefresh()
                           const onMove = (ev: PointerEvent) => {
-                            // Controller manages snapping, neighbor displacement, and wires refresh
-                            const ctrl = ensureController(rackNum)
+                            const ctxNow = dragCtxRef.current
+                            if (!ctxNow || ev.pointerId !== ctxNow.pointerId)
+                              return
+                            const activeCtx = dragCtxRef.current
+                            if (!activeCtx) return
+                            let activeRack = activeCtx.fromRack
+
+                            // Immediate vertical rack snapping by threshold
+                            const SNAP_Y = 80 // px vertical threshold to handoff to adjacent rack
+                            const activeRect = getRackRect(activeRack)
+                            if (activeRect) {
+                              const above = ev.clientY < activeRect.top - SNAP_Y
+                              const below =
+                                ev.clientY > activeRect.bottom + SNAP_Y
+                              let targetRack = activeRack
+                              if (above && activeRack > 1)
+                                targetRack = activeRack - 1
+                              if (below && activeRack < NUM_ROWS)
+                                targetRack = activeRack + 1
+
+                              if (targetRack !== activeRack) {
+                                // Hysteresis to avoid rapid ping-pong handoffs
+                                const now = performance.now()
+                                if (
+                                  lastHandoffRackRef.current === targetRack &&
+                                  now - lastHandoffTsRef.current < 120
+                                ) {
+                                  // Skip too-soon repeat handoff
+                                } else {
+                                  // Handoff drag to target rack without React state updates
+                                  const prevCtrl = ensureController(activeRack)
+                                  const el = moduleRefs.current.get(module.id)
+                                  const currentXpx = el
+                                    ? getCurrentXFromEl(el)
+                                    : 0
+                                  // End previous drag and unregister
+                                  prevCtrl.endDrag()
+                                  prevCtrl.unregisterModule(module.id)
+
+                                  // Move DOM node
+                                  const targetRackEl =
+                                    rackRefs.current[targetRack - 1]
+                                  if (el && targetRackEl) {
+                                    try {
+                                      targetRackEl.appendChild(el)
+                                    } catch {}
+                                    el.style.left = `${currentXpx}px`
+                                    el.style.transform = ''
+                                  }
+
+                                  // Register and start drag in new controller
+                                  const nextCtrl = ensureController(targetRack)
+                                  if (el)
+                                    nextCtrl.registerModule(
+                                      targetRack,
+                                      module.id,
+                                      el,
+                                      currentXpx,
+                                    )
+                                  nextCtrl.startDrag(
+                                    module.id,
+                                    targetRack,
+                                    ev.clientX,
+                                    ev.clientY,
+                                  )
+
+                                  // Update active rack in drag context
+                                  dragCtxRef.current = {
+                                    ...activeCtx,
+                                    fromRack: targetRack,
+                                  }
+                                  activeRack = targetRack
+                                  lastHandoffRackRef.current = targetRack
+                                  lastHandoffTsRef.current = now
+                                }
+                              }
+                            }
+
+                            // Continue drag within the active rack controller
+                            const ctrl = ensureController(activeRack)
                             ctrl.updateDrag(ev.clientX, ev.clientY)
                           }
                           const onUp = (ev: PointerEvent) => {
+                            const ctxNow = dragCtxRef.current
+                            // Ensure we only handle our pointer
+                            if (!ctxNow || ev.pointerId !== ctxNow.pointerId)
+                              return
                             try {
-                              targetEl.releasePointerCapture(e.pointerId)
+                              ctxNow.captureEl?.releasePointerCapture(
+                                ctxNow.pointerId,
+                              )
                             } catch {}
-                            targetEl.removeEventListener('pointermove', onMove)
-                            targetEl.removeEventListener('pointerup', onUp)
-                            const rackNow = getNearestRackByClientY(ev.clientY)
-                            const ctrl = ensureController(rackNum)
+                            window.removeEventListener('pointermove', onMove)
+                            window.removeEventListener('pointerup', onUp)
+                            const finalRack =
+                              dragCtxRef.current?.fromRack ?? rackNum
+                            const ctrl = ensureController(finalRack)
                             const result = ctrl.endDrag()
                             // Commit positions on HP grid with minimal React updates
                             setModules((prev) => {
@@ -744,7 +685,7 @@ export function Racks({
 
                               if (!result) return prev
                               const draggedId = result.id
-                              const sameRack = rackNow === result.rack
+                              const sameRack = finalRack === result.rack
 
                               if (sameRack) {
                                 // Apply controller's resolved positions directly for this rack
@@ -769,7 +710,7 @@ export function Racks({
 
                               // Cross-rack drop: remove from source rack and pack both racks
                               const sourceRack = result.rack
-                              const targetRack = rackNow
+                              const targetRack = finalRack
                               const dragged = prev.find(
                                 (m) => m.id === draggedId,
                               )
@@ -872,8 +813,9 @@ export function Racks({
                             dragCtxRef.current = null
                             endGeometryRefresh()
                           }
-                          targetEl.addEventListener('pointermove', onMove)
-                          targetEl.addEventListener('pointerup', onUp)
+                          // Use window-level listeners to avoid losing events during DOM reparenting
+                          window.addEventListener('pointermove', onMove)
+                          window.addEventListener('pointerup', onUp)
                         }}
                       >
                         <DraggableModuleItem
