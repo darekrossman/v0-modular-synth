@@ -236,7 +236,6 @@ export class RackLayoutController {
       disp.set(mm.id, x1 - x0)
     }
     this.displaced = disp
-    this.onScheduleGeometryRefresh?.()
     this.schedule()
   }
 
@@ -298,9 +297,16 @@ export class RackLayoutController {
     if (this.dragging) {
       const dx = this.displaced.get(this.dragging.id) ?? 0
       const dragged = this.modules.find((m) => m.id === this.dragging?.id)
-      if (dragged) dragged.el.style.transform = `translate3d(${dx}px, 0, 0)`
+      if (dragged) {
+        if (dx !== 0) {
+          dragged.el.style.transform = `translate3d(${dx}px, 0, 0)`
+        } else {
+          // Avoid setting a zero-translate that can cause subpixel shifts
+          dragged.el.style.transform = ''
+        }
+      }
     }
-    // Ask wires to refresh without React state churn
+    // Ask wires to refresh and ensure centers are measured this frame
     try {
       window.dispatchEvent(new Event('wires:refresh'))
     } catch {}

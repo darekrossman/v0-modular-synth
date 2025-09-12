@@ -71,7 +71,6 @@ type Geometry = { x: number; y: number }
 // ---- Context API
 interface Ctx {
   connections: ConnectionEdge[]
-  geometryVersion: number // <- bump whenever port centers change
 
   // Drag
   beginDrag: (fromPortId: string, clientX: number, clientY: number) => void
@@ -220,7 +219,12 @@ export function ConnectionProvider({
         changed = true
       }
     })
-    if (changed) setGeometryVersion((v) => v + 1)
+    // Do not update React state here to avoid re-rendering the app during drags.
+    if (changed) {
+      try {
+        window.dispatchEvent(new Event('wires:refresh'))
+      } catch {}
+    }
   }, [])
 
   useEffect(() => {
@@ -785,11 +789,15 @@ export function ConnectionProvider({
       getPortCenter,
       beginGeometryRefresh: () => {
         needsMeasure.current = true
-        setGeometryVersion((v) => v + 1)
+        try {
+          window.dispatchEvent(new Event('wires:refresh'))
+        } catch {}
       },
       endGeometryRefresh: () => {
         needsMeasure.current = true
-        setGeometryVersion((v) => v + 1)
+        try {
+          window.dispatchEvent(new Event('wires:refresh'))
+        } catch {}
       },
       beginPatchLoad,
 

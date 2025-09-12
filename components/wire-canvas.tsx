@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSettings } from '@/components/settings-context'
 import type { ConnectionEdge } from '@/lib/connection-types'
 import { useConnections } from './connection-manager'
@@ -192,12 +192,9 @@ function makeSagPath(
 }
 
 export function WireCanvas() {
-  const {
-    connections,
-    registerTempWireUpdater,
-    geometryVersion,
-    getPortCenter,
-  } = useConnections()
+  const { connections, registerTempWireUpdater, getPortCenter } =
+    useConnections()
+  const [, forceRender] = useState(0)
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const staticRingLayerRef = useRef<SVGGElement | null>(null)
@@ -244,6 +241,7 @@ export function WireCanvas() {
 
   const groupMap = useRef(new Map<string, SVGGElement>())
   const pathMap = useRef(new Map<string, SVGPathElement>())
+  const connectionsRef = useRef<ConnectionEdge[]>([])
 
   const rafId = useRef<number | null>(null)
   const settleUntil = useRef<number>(0)
@@ -574,7 +572,8 @@ export function WireCanvas() {
 
   const tick = () => {
     const now = performance.now()
-    for (const edge of connections) drawEdge(edge)
+    const edges = connectionsRef.current
+    for (let i = 0; i < edges.length; i++) drawEdge(edges[i])
     if (now < settleUntil.current) {
       rafId.current = requestAnimationFrame(tick)
     } else {
@@ -587,12 +586,14 @@ export function WireCanvas() {
     const onRefresh = () => {
       settleUntil.current = performance.now() + 50
       if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
+      forceRender((n: number) => (n + 1) & 0xffff)
     }
     window.addEventListener('wires:refresh', onRefresh as EventListener)
     // Also respond to resize/scroll to keep wires glued while dragging
     const onResizeOrScroll = () => {
       settleUntil.current = performance.now() + 50
       if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
+      forceRender((n: number) => (n + 1) & 0xffff)
     }
     window.addEventListener('resize', onResizeOrScroll, { passive: true })
     window.addEventListener('scroll', onResizeOrScroll, {
@@ -606,8 +607,9 @@ export function WireCanvas() {
     }
   }, [])
 
-  // Build DOM for edges when list changes; start settle window
+  // Build DOM for edges when list changes; update ref and start settle window
   useEffect(() => {
+    connectionsRef.current = connections
     const present = new Set<string>()
     for (const edge of connections) {
       present.add(edge.id)
@@ -619,17 +621,12 @@ export function WireCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connections])
 
-  // Also refresh on geometry/tension changes
+  // Also refresh on settings changes
   useEffect(() => {
     settleUntil.current = performance.now() + 10
     if (rafId.current == null) rafId.current = requestAnimationFrame(tick)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    geometryVersion,
-    settings.wireTension,
-    settings.wireOpacity,
-    settings.wireThickness,
-  ])
+  }, [settings.wireTension, settings.wireOpacity, settings.wireThickness])
 
   useEffect(() => {
     return () => {
