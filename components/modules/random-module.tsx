@@ -150,32 +150,28 @@ export function RandomModule({ moduleId }: { moduleId: string }) {
       <div className="flex flex-col flex-1 justify-between mt-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="contents">
-            {i !== 0 && (
-              <div className="w-full mt-[-12px] border-t border-neutral-400/50" />
-            )}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between">
               <Port
                 id={`${moduleId}-trigger-in-${i + 1}`}
                 type="input"
-                label="Trig"
+                label={i === 0 ? 'Trig' : ''}
                 audioType="cv"
                 audioNode={trigIn[i].current ?? undefined}
-                className="mt-[-12px]"
               />
-              <Knob
+              {/* <Knob
                 defaultValue={atten[i]}
                 onValueChange={setAttenIdx(i)}
                 label="lvl"
-                size="sm"
+                size="xs"
                 className="mt-[-16px] mr-1 ml-[-6px]"
-              />
-              <Knob
+              /> */}
+              {/* <Knob
                 defaultValue={offset[i]}
                 onValueChange={setOffsetIdx(i)}
                 label="oset"
-                size="sm"
+                size="xs"
                 className="mt-[-16px]"
-              />
+              /> */}
               <PortGroup>
                 <Port
                   id={`${moduleId}-cv-out-${i + 1}`}

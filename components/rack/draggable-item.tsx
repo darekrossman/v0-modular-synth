@@ -57,11 +57,10 @@ export const DraggableModuleItem = memo(
         style={{
           opacity,
         }}
-        draggable={isDraggable}
+        draggable={false}
         onDragStart={(e) => {
-          if (isDraggable) {
-            onDragStart(e, module, index)
-          }
+          e.preventDefault()
+          e.stopPropagation()
         }}
         onMouseDown={(e) => {
           const target = e.target as HTMLElement

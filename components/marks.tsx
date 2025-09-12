@@ -4,7 +4,7 @@ export const VLine = ({ className }: { className?: string }) => {
   return (
     <div
       className={cn(
-        'h-3 border-l border-neutral-500 mb-[-14px] mt-[-10px]',
+        'h-3 border-l border-module-subdued mb-[-14px] mt-[-10px]',
         className,
       )}
     />
@@ -12,5 +12,5 @@ export const VLine = ({ className }: { className?: string }) => {
 }
 
 export const HLine = ({ className }: { className?: string }) => {
-  return <div className={cn('w-3 border-t border-neutral-500', className)} />
+  return <div className={cn('w-3 border-t border-module-subdued', className)} />
 }

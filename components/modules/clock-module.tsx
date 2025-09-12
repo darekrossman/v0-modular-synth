@@ -245,13 +245,13 @@ export function ClockModule({ moduleId }: { moduleId: string }) {
                 />
               </div>
               <div className="flex items-center">
-                <HLine className="w-3" />
-                <div className="w-8 py-1 rounded-sm bg-module-foreground text-yellow-500 dark:text-module-background">
-                  <TextLabel variant="control">
+                <HLine className="w-1.5" />
+                <div className="w-7.5 py-1 rounded-sm border border-module-subdued">
+                  <TextLabel variant="control" className="text-[8px]">
                     {getDivisionLabel(d.value)}
                   </TextLabel>
                 </div>
-                <HLine className="w-3" />
+                <HLine className="w-1.5" />
               </div>
               <PortGroup>
                 <Port

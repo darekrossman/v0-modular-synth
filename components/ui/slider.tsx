@@ -55,7 +55,7 @@ const thumbVariants = cva(
   {
     variants: {
       variant: {
-        default: 'w-4 h-6',
+        default: 'w-3.5 h-6',
         module: 'size-3', // Smaller for module controls
         fine: 'size-5', // Larger for precise control
         coarse: 'size-3', // Smaller for simple controls
