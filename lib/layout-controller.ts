@@ -115,7 +115,8 @@ export class RackLayoutController {
     const rackRect = this.getRackRect(rack)
     if (!rackRect) return
     const xInRack = (clientX - rackRect.left) / scale
-    let desiredLeft = xInRack - pointerOffsetX
+    const desiredLeftRaw = xInRack - pointerOffsetX
+    let desiredLeft = desiredLeftRaw
     if (!Number.isFinite(desiredLeft)) desiredLeft = 0
 
     // Clamp within rack width first
@@ -146,17 +147,27 @@ export class RackLayoutController {
       const rightW = rightId
         ? (this.modules.find((m) => m.id === rightId)?.w ?? 0)
         : 0
-      const desiredCenter = desiredLeft + dragW / 2
+      // Use the unclamped desired center for swap checks so we can cross the left-most neighbor
+      const desiredCenter = desiredLeftRaw + dragW / 2
+      // Special-case left-most insertion: if left neighbor sits at x=0 and our unclamped desired left is <= 0,
+      // force a swap so we can become the new left-most entry.
+      if (leftId) {
+        const leftX = this.currentX.get(leftId) ?? 0
+        if (leftX <= 0 && desiredLeftRaw <= 0) {
+          idx = this.swapWithNeighbor(idx, -1)
+          swapped = true
+        }
+      }
       if (rightId) {
         const rightCenter = (this.currentX.get(rightId) ?? 0) + rightW / 2
-        if (desiredCenter > rightCenter) {
+        if (desiredCenter >= rightCenter) {
           idx = this.swapWithNeighbor(idx, +1)
           swapped = true
         }
       }
       if (leftId) {
         const leftCenter = (this.currentX.get(leftId) ?? 0) + leftW / 2
-        if (desiredCenter < leftCenter) {
+        if (desiredCenter <= leftCenter) {
           idx = this.swapWithNeighbor(idx, -1)
           swapped = true
         }
@@ -165,7 +176,7 @@ export class RackLayoutController {
     }
     while (trySwapAcrossNeighbors()) {}
 
-    // After swaps, clamp against immediate neighbor bounds
+    // After swaps, clamp against immediate neighbor bounds (permit hitting 0)
     {
       const leftId2 = this.order[idx - 1]
       const rightId2 = this.order[idx + 1]
@@ -173,9 +184,10 @@ export class RackLayoutController {
       const leftW2 = leftId2
         ? (this.modules.find((m) => m.id === leftId2)?.w ?? 0)
         : 0
+      // If there is no left neighbor, permit the dragged module to reach 0
       const leftBound2 = leftId2
         ? (this.currentX.get(leftId2) ?? 0) + leftW2 + GAP
-        : minX
+        : 0
       const rightBound2 = rightId2
         ? (this.currentX.get(rightId2) ?? 0) - dragW - GAP
         : maxX
@@ -183,8 +195,8 @@ export class RackLayoutController {
       const STEP = 20
       // First clamp to neighbor range, then quantize inside it
       const clamped = Math.max(leftBound2, Math.min(rightBound2, desiredLeft))
-      // Quantize to nearest step
-      let q = Math.round(clamped / STEP) * STEP
+      // Quantize to nearest step (bias toward lower bound so we can reach x=0)
+      let q = Math.floor((clamped + STEP / 2) / STEP) * STEP
       // Ensure quantized value still within bounds by nudging toward range
       if (q < leftBound2) q = Math.ceil(leftBound2 / STEP) * STEP
       if (q > rightBound2) q = Math.floor(rightBound2 / STEP) * STEP
@@ -212,7 +224,7 @@ export class RackLayoutController {
         }
       }
     }
-    // Resolve overlaps to the left
+    // Resolve overlaps to the left (allow left-most at exactly 0)
     {
       const GAP = 0
       for (let i = idx - 1; i >= 0; i--) {

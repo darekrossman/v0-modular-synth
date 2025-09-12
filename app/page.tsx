@@ -7,6 +7,7 @@ import { Racks } from '@/components/rack/racks'
 import { SettingsProvider } from '@/components/settings-context'
 import { SettingsDialog } from '@/components/settings-dialog'
 import type { ModuleInstance, ModuleType } from '@/lib/module-registry'
+import { availableModules } from '@/lib/module-registry'
 
 export default function RacksContainer() {
   const [modules, setModules] = useState<ModuleInstance[]>([])
@@ -14,11 +15,11 @@ export default function RacksContainer() {
   const addModule = (type: ModuleType) => {
     const existingCount = modules.filter((m) => m.type === type).length
     const newId = `${type}-${existingCount + 1}`
-    const rack =
-      type === 'sequencer' || type === 'quantizer' || type === 'euclid' ? 3 : 1
+    const rack = 1
     // Place new module at the first free HP slot in the target rack
     const HP_PX = 20
-    const getModuleHp = (t: ModuleType) => 9
+    const getModuleHp = (t: ModuleType) =>
+      availableModules.find((m) => m.type === t)?.hp ?? 9
     const rackModules = modules
       .filter((m) => (m.rack ?? 1) === rack)
       .map((m) => ({

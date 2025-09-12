@@ -425,12 +425,6 @@ export function Racks({
     )
     const getEffectiveRackNumber = (m: ModuleInstance) => {
       if (m.rack && m.rack >= 1 && m.rack <= NUM_ROWS) return m.rack
-      if (
-        m.type === 'sequencer' ||
-        m.type === 'quantizer' ||
-        m.type === 'euclid'
-      )
-        return 3
       return 1
     }
     for (const m of modules) {
