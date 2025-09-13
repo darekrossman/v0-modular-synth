@@ -1,12 +1,12 @@
 // random-processor.js
-// 6-channel random CV generator with normalled triggers.
+// 8-channel random CV generator with normalled triggers.
 //
-// Inputs (6): trigger signals (expecting ~0V low, ~5V high)
-// Outputs (6): DC CV (held) per channel
+// Inputs (8): trigger signals (expecting ~0V low, ~5V high)
+// Outputs (8): DC CV (held) per channel
 //
 // Params (k-rate):
-//  - atten1..atten6: 0..1 (scales random span; 1.0 → ±5 V max before offset)
-//  - offset1..offset6: -5..+5 V (added after attenuation)
+//  - atten1..atten8: 0..1 (scales random span; 1.0 → ±5 V max before offset)
+//  - offset1..offset8: -5..+5 V (added after attenuation)
 // Port messages:
 //  - { type: 'reset' } : re-seed each channel with a new random value
 
@@ -39,6 +39,10 @@ class RandomProcessor extends AudioWorkletProcessor {
       offset('offset5'),
       atten('atten6'),
       offset('offset6'),
+      atten('atten7'),
+      offset('offset7'),
+      atten('atten8'),
+      offset('offset8'),
     ]
   }
 
@@ -47,15 +51,15 @@ class RandomProcessor extends AudioWorkletProcessor {
     this.THRESH = 2.5 // volts – rising edge threshold (matches your 5V gates)
 
     // last input samples (effective, after normalled logic)
-    this._lastIn = new Float32Array(6)
+    this._lastIn = new Float32Array(8)
 
     // held random values in volts (–5..+5)
-    this._held = new Float32Array(6)
-    for (let i = 0; i < 6; i++) this._held[i] = this._rnd()
+    this._held = new Float32Array(8)
+    for (let i = 0; i < 8; i++) this._held[i] = this._rnd()
 
     this.port.onmessage = (e) => {
       if (e?.data?.type === 'reset') {
-        for (let i = 0; i < 6; i++) this._held[i] = this._rnd()
+        for (let i = 0; i < 8; i++) this._held[i] = this._rnd()
       }
     }
   }
@@ -84,6 +88,10 @@ class RandomProcessor extends AudioWorkletProcessor {
       parameters.offset5[0],
       parameters.atten6[0],
       parameters.offset6[0],
+      parameters.atten7[0],
+      parameters.offset7[0],
+      parameters.atten8[0],
+      parameters.offset8[0],
     ]
 
     // Sample frames per quantum
@@ -93,7 +101,7 @@ class RandomProcessor extends AudioWorkletProcessor {
       // Read input1 sample (used for normalled logic)
       const s1 = inputs[0]?.[0] ? inputs[0][0][i] : 0
 
-      for (let ch = 0; ch < 6; ch++) {
+      for (let ch = 0; ch < 8; ch++) {
         // source sample from this input
         let s = inputs[ch]?.[0] ? inputs[ch][0][i] : 0
 

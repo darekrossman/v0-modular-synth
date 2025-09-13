@@ -213,7 +213,7 @@ export function Port({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-1 relative',
+        'flex flex-col items-center justify-center relative',
         {
           'size-10': !label,
           'w-10 h-12': label,
@@ -221,7 +221,7 @@ export function Port({
         className,
       )}
     >
-      {label && <TextLabel>{label}</TextLabel>}
+      {label && <TextLabel className="-mt-[3px] mb-[3px]">{label}</TextLabel>}
       <div
         ref={setNodeRef}
         data-port-id={id}

@@ -106,6 +106,23 @@ export class LayoutEngine {
     if (this.cfg.onScheduleWireRefresh) this.cfg.onScheduleWireRefresh()
   }
 
+  private swapWithNeighbor(dragIndex: number, dir: 1 | -1) {
+    const neighborIndex = dragIndex + dir
+    if (neighborIndex < 0 || neighborIndex >= this.order.length)
+      return dragIndex
+    const dragId = this.order[dragIndex]
+    const neighId = this.order[neighborIndex]
+    const dragX = this.currentX.get(dragId) ?? 0
+    const neighX = this.currentX.get(neighId) ?? 0
+    this.currentX.set(dragId, neighX)
+    this.currentX.set(neighId, dragX)
+    ;[this.order[dragIndex], this.order[neighborIndex]] = [
+      this.order[neighborIndex],
+      this.order[dragIndex],
+    ]
+    return neighborIndex
+  }
+
   beginDrag(
     moduleId: string,
     pointerId: number,
@@ -181,9 +198,80 @@ export class LayoutEngine {
     // Snap to HP grid
     desiredLeft = Math.floor((desiredLeft + HP_PX / 2) / HP_PX) * HP_PX
 
-    // Build packing sets
     const draggedId = d.id
     const sourceRack = this.modules.get(draggedId)?.rack ?? d.startRack
+
+    // Same-rack: reorder by center crossing, do not push neighbors
+    if (targetRack === sourceRack) {
+      // Ensure order and index
+      let idx = this.order.findIndex((x) => x === draggedId)
+      if (idx === -1) {
+        this.order = (this.byRack.get(sourceRack) ?? [])
+          .slice()
+          .sort(
+            (a, b) =>
+              (this.modules.get(a)?.x ?? 0) - (this.modules.get(b)?.x ?? 0),
+          )
+        idx = this.order.findIndex((x) => x === draggedId)
+        if (idx === -1) return
+      }
+
+      const trySwap = () => {
+        let swapped = false
+        const leftId = this.order[idx - 1]
+        const rightId = this.order[idx + 1]
+        const leftW = leftId ? (this.modules.get(leftId)?.size.w ?? 0) : 0
+        const rightW = rightId ? (this.modules.get(rightId)?.size.w ?? 0) : 0
+        const desiredCenter = desiredLeftRaw + d.w / 2
+        if (rightId) {
+          const rightCenter =
+            (this.currentX.get(rightId) ?? this.modules.get(rightId)?.x ?? 0) +
+            rightW / 2
+          if (desiredCenter >= rightCenter) {
+            idx = this.swapWithNeighbor(idx, +1)
+            swapped = true
+          }
+        }
+        if (leftId) {
+          const leftCenter =
+            (this.currentX.get(leftId) ?? this.modules.get(leftId)?.x ?? 0) +
+            leftW / 2
+          if (desiredCenter <= leftCenter) {
+            idx = this.swapWithNeighbor(idx, -1)
+            swapped = true
+          }
+        }
+        return swapped
+      }
+      while (trySwap()) {}
+
+      // Clamp dragged between immediate neighbors (no gap)
+      const leftId2 = this.order[idx - 1]
+      const rightId2 = this.order[idx + 1]
+      const leftW2 = leftId2 ? (this.modules.get(leftId2)?.size.w ?? 0) : 0
+      const leftBound = leftId2
+        ? (this.currentX.get(leftId2) ?? this.modules.get(leftId2)?.x ?? 0) +
+          leftW2
+        : 0
+      const rightBound = rightId2
+        ? (this.currentX.get(rightId2) ?? this.modules.get(rightId2)?.x ?? 0) -
+          d.w
+        : maxX
+      const clamped = Math.max(leftBound, Math.min(rightBound, desiredLeft))
+      let q = Math.floor((clamped + HP_PX / 2) / HP_PX) * HP_PX
+      if (q < leftBound) q = Math.ceil(leftBound / HP_PX) * HP_PX
+      if (q > rightBound) q = Math.floor(rightBound / HP_PX) * HP_PX
+      this.currentX.set(draggedId, q)
+
+      // Only drag the dragged module; neighbors remain visually in place
+      this.displaced.clear()
+      const m = this.modules.get(draggedId)
+      if (m) this.displaced.set(draggedId, { dx: q - m.x, dy: 0 })
+      this.schedule()
+      return
+    }
+
+    // Cross-rack: use packing for source/target racks
     const targetExisting: PackItem[] = (this.byRack.get(targetRack) ?? [])
       .filter((id) => id !== draggedId)
       .map((id) => {
@@ -197,7 +285,6 @@ export class LayoutEngine {
         return { id, x: mm ? mm.x : 0, w: mm ? mm.size.w : 0 }
       })
 
-    // Apply packing: remove from source, insert virtual in target
     const sourceWidthRect = this.cfg.getRackRect(sourceRack)
     const sourceRowWidth = sourceWidthRect
       ? sourceWidthRect.width / scale
@@ -209,15 +296,12 @@ export class LayoutEngine {
       rowWidth,
     )
 
-    // Update displacement map for paint
     this.displaced.clear()
-    // Source updates
     for (const u of sourceUpdates) {
       const m = this.modules.get(u.id)
       if (!m) continue
       this.displaced.set(u.id, { dx: u.x - m.x, dy: 0 })
     }
-    // Target updates
     for (const u of targetUpdates) {
       const m = this.modules.get(u.id)
       if (!m) continue
@@ -226,7 +310,6 @@ export class LayoutEngine {
         dy: (targetRack - m.rack) * rowHeight,
       })
     }
-    // Dragged displacement
     {
       const m = this.modules.get(draggedId)
       if (m) {

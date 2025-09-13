@@ -150,7 +150,7 @@ export function AttenuverterModule({ moduleId }: { moduleId: string }) {
               <HLine className="ml-[-4px] mr-[6px]" />
               <div className="flex flex-col items-center gap-1 py-1">
                 <Knob
-                  size="sm"
+                  size="xs"
                   defaultValue={[gains[i] / 2 + 0.5]}
                   onValueChange={setGainAtIndex(i)}
                 />

@@ -238,7 +238,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 max={1}
                 step={0.0001}
                 orientation="vertical"
-                className="h-32"
+                size="md"
                 data-param="attack"
               />
             </div>
@@ -256,7 +256,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 max={1}
                 step={0.001}
                 orientation="vertical"
-                className="h-32"
+                size="md"
                 data-param="decay"
               />
             </div>
@@ -274,7 +274,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 max={1}
                 step={0.001}
                 orientation="vertical"
-                className="h-32"
+                size="md"
                 data-param="sustain"
               />
             </div>
@@ -292,6 +292,7 @@ export function ADSRModule({ moduleId }: { moduleId: string }) {
                 max={1}
                 step={0.001}
                 orientation="vertical"
+                size="md"
                 data-param="release"
               />
             </div>

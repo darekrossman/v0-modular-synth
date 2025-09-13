@@ -175,7 +175,7 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'VCA',
     description: 'Voltage-controlled amplifier',
     component: VCAModule,
-    hp: 9,
+    hp: 3,
   },
   {
     type: 'mixer-vca' as ModuleType,
@@ -189,21 +189,21 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'Stereo Mixer',
     description: '6-ch stereo mixer, 2 sends/returns, VCAs',
     component: StereoMixerModule,
-    hp: 9,
+    hp: 40,
   },
   {
     type: 'attenuverter' as ModuleType,
     name: 'Attenuverter',
     description: '6-channel attenuverter with normalized inputs',
     component: AttenuverterModule,
-    hp: 9,
+    hp: 7,
   },
   {
     type: 'process' as ModuleType,
     name: 'Process',
     description: 'CV utilities: S&H, T&H, H&T, Slew, Glide',
     component: ProcessModule,
-    hp: 9,
+    hp: 5,
   },
   {
     type: 'kick' as ModuleType,

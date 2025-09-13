@@ -7,7 +7,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const sliderVariants = cva(
-  'relative flex w-full touch-none items-center select-none data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
+  'relative flex w-full touch-none items-center select-none data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-24 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
   {
     variants: {
       variant: {
@@ -20,7 +20,7 @@ const sliderVariants = cva(
       size: {
         default: '',
         sm: 'data-[orientation=vertical]:min-h-24',
-        md: 'data-[orientation=vertical]:min-h-36',
+        md: 'data-[orientation=vertical]:h-36',
         lg: 'data-[orientation=vertical]:min-h-56',
         xl: 'data-[orientation=vertical]:min-h-72',
       },

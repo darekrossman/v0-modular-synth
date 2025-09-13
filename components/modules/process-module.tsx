@@ -109,7 +109,7 @@ export function ProcessModule({ moduleId }: { moduleId: string }) {
         <div className="flex flex-col items-center justify-center gap-6 flex-1">
           <Knob value={slew} onValueChange={setSlew} label="Slew" size="md" />
 
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-1">
             <Port
               id={`${moduleId}-slew-cv-in`}
               type="input"
@@ -136,7 +136,7 @@ export function ProcessModule({ moduleId }: { moduleId: string }) {
         </div>
 
         <PortGroup>
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-1">
             <Port
               id={`${moduleId}-sh1-out`}
               type="output"
@@ -159,7 +159,7 @@ export function ProcessModule({ moduleId }: { moduleId: string }) {
               audioNode={slewOutRef.current ?? undefined}
             />
           </div>
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-1">
             <Port
               id={`${moduleId}-sh2-out`}
               type="output"

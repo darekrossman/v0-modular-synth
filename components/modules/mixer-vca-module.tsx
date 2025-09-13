@@ -234,7 +234,7 @@ export function MixerVCAModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="Mixer VCA" moduleId={moduleId}>
-      <div className="flex flex-col gap-4 mt-4 flex-1">
+      <div className="flex flex-col gap-3.5 mt-4 flex-1">
         <div className="relative grid grid-cols-4 gap-4 items-end">
           <div className="absolute top-[12px] left-0 w-full h-[120px] text-neutral-600">
             <div className="z-1 absolute top-[-9px] left-1/2 -translate-x-1/2 text-[9px] leading-[8px]">

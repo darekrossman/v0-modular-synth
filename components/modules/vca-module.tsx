@@ -98,7 +98,7 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer title="VCA" moduleId={moduleId} data-module-id={moduleId}>
-      <div className="flex flex-col flex-1 justify-center items-center gap-3 mt-4 mb-9">
+      <div className="flex flex-col flex-1 justify-start items-center gap-3 mt-4 mb-9">
         <Slider
           value={offset}
           onValueChange={setOffset}
@@ -108,7 +108,7 @@ export function VCAModule({ moduleId }: { moduleId: string }) {
           max={1}
           step={0.01}
         />
-        <TextLabel variant="control" className="text-xs">
+        <TextLabel variant="control" className="text-[10px]">
           Offset
         </TextLabel>
       </div>
