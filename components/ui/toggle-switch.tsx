@@ -34,11 +34,11 @@ const ToggleSwitch = React.forwardRef<HTMLButtonElement, ToggleSwitchProps>(
       : 'flex flex-col items-center gap-1.5 w-9'
 
     const buttonClass = isHorizontal
-      ? 'relative w-9 h-5 px-[1px] focus-visible:outline-none rounded-sm transition cursor-pointer border-2'
-      : 'relative w-5 h-9 px-[1px] focus-visible:outline-none rounded-sm transition cursor-pointer border-2'
+      ? 'relative w-8 h-4 px-[1px] focus-visible:outline-none rounded-xs transition cursor-pointer'
+      : 'relative w-4 h-8 px-[1px] focus-visible:outline-none rounded-xs transition cursor-pointer'
 
     const knobClass = cn(
-      'w-3.5 h-3.5 bg-neutral-900 rounded-[4px] transition',
+      'w-3.5 h-3.5 bg-module-background rounded-[3px] transition',
       isHorizontal
         ? value
           ? 'translate-x-[16px]'
@@ -49,8 +49,8 @@ const ToggleSwitch = React.forwardRef<HTMLButtonElement, ToggleSwitchProps>(
     )
 
     const trackColor = value
-      ? 'bg-white delay-50'
-      : 'bg-neutral-400/30 duration-0'
+      ? 'bg-knob-background delay-50'
+      : 'bg-knob-background duration-0'
 
     return (
       <div className={containerClass}>

@@ -153,198 +153,175 @@ export function QuantizerModule({ moduleId }: { moduleId: string }) {
 
   return (
     <ModuleContainer moduleId={moduleId} title="Quantizer">
-      <div className="flex flex-col justify-between gap-3 flex-1">
-        {/* Row 1: Inputs left, controls center, output right */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center">
-            <div className="flex flex-col items-center gap-1 mb-[-30px]">
-              <Port
-                id={`${moduleId}-trig-in`}
-                type="input"
-                label="TRIG"
-                audioType="cv"
-                audioNode={trigInRef.current ?? undefined}
-              />
-              <div className="relative">
-                <Toggle
-                  pressed={hold}
-                  size="sm"
-                  variant="push"
-                  onClick={() => setHold(!hold)}
-                />
-                <TextLabel
-                  variant="control"
-                  className="absolute right-[-30px] top-[6px]"
+      <div className="flex flex-col justify-between gap-3 flex-1 mt-4">
+        <div className="flex flex-col gap-3">
+          <Select
+            value={scaleId}
+            onValueChange={(newScaleId) => {
+              setScaleId(newScaleId)
+              const scale = SCALES.find((s) => s.id === newScaleId)
+              if (scale) {
+                setMask12(scale.mask)
+              }
+            }}
+          >
+            <SelectGroup>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Scale" />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {SCALES.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </SelectGroup>
+          </Select>
+          <Select
+            value={String(keyIdx)}
+            onValueChange={(v) => setKeyIdx(Number(v))}
+          >
+            <SelectGroup>
+              <SelectLabel>key</SelectLabel>
+              <SelectTrigger className="w-14 uppercase">
+                <SelectValue placeholder="Key" />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {KEYS.map((k, i) => (
+                  <SelectItem key={k} value={String(i)} className="uppercase">
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </SelectGroup>
+          </Select>
+        </div>
+
+        <div className="relative h-12 rounded-[2px] overflow-hidden light:shadow-[0_0_0_1px_rgba(0,0,0,0.9)]">
+          <div className="flex h-full">
+            {/* White keys: C, D, E, F, G, A, B */}
+            {([0, 2, 4, 5, 7, 9, 11] as number[]).map((semitone) => {
+              const on = ((displayMask >> semitone) & 1) === 1
+              return (
+                <div
+                  key={semitone}
+                  className="relative w-4 flex-1 border-r border-black/30 last:border-r-0 cursor-pointer select-none bg-neutral-100 hover:bg-neutral-200"
+                  onClick={() => {
+                    // Toggle the note in the original mask (before transposition)
+                    const noteInOriginalScale = (semitone - keyIdx + 12) % 12
+                    setMask12((prev) => {
+                      const nm = prev ^ (1 << noteInOriginalScale)
+                      nodeRef.current?.port.postMessage({
+                        type: 'scale',
+                        mask12: nm & 0xfff,
+                      })
+                      return nm
+                    })
+                  }}
                 >
-                  HOLD
-                </TextLabel>
-              </div>
-            </div>
-            <Port
-              id={`${moduleId}-pitch-in`}
-              type="input"
-              label="PITCH"
-              audioType="cv"
-              audioNode={pitchInRef.current ?? undefined}
-            />
+                  {on && (
+                    <div className="absolute bottom-[3px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                  )}
+                </div>
+              )
+            })}
           </div>
-
-          <div className="relative h-12 rounded-[2px] overflow-hidden mb-[-2px] shadow-[0_0_0_1px_rgba(0,0,0,0.9)]">
-            <div className="flex h-full">
-              {/* White keys: C, D, E, F, G, A, B */}
-              {([0, 2, 4, 5, 7, 9, 11] as number[]).map((semitone) => {
-                const on = ((displayMask >> semitone) & 1) === 1
-                return (
-                  <div
-                    key={semitone}
-                    className="relative w-4 flex-1 border-r border-black/30 last:border-r-0 cursor-pointer select-none bg-neutral-100 hover:bg-neutral-200"
-                    onClick={() => {
-                      // Toggle the note in the original mask (before transposition)
-                      const noteInOriginalScale = (semitone - keyIdx + 12) % 12
-                      setMask12((prev) => {
-                        const nm = prev ^ (1 << noteInOriginalScale)
-                        nodeRef.current?.port.postMessage({
-                          type: 'scale',
-                          mask12: nm & 0xfff,
-                        })
-                        return nm
+          <div className="absolute top-0 left-0 h-8 w-full pointer-events-none">
+            {/* Black keys: C#, D#, F#, G#, A# */}
+            {(
+              [
+                { semitone: 1, pos: 0.65 }, // C#
+                { semitone: 3, pos: 1.7 }, // D#
+                { semitone: 6, pos: 3.7 }, // F#
+                { semitone: 8, pos: 4.7 }, // G#
+                { semitone: 10, pos: 5.72 }, // A#
+              ] as { semitone: number; pos: number }[]
+            ).map(({ semitone, pos }) => {
+              const on = ((displayMask >> semitone) & 1) === 1
+              return (
+                <div
+                  key={semitone}
+                  className="absolute h-full pointer-events-auto cursor-pointer rounded-b-[2px] bg-neutral-800 hover:bg-neutral-700"
+                  style={{
+                    left: `${(pos * 100) / 7}%`,
+                    width: `${(100 / 7) * 0.6}%`,
+                  }}
+                  onClick={() => {
+                    // Toggle the note in the original mask (before transposition)
+                    const noteInOriginalScale = (semitone - keyIdx + 12) % 12
+                    setMask12((prev) => {
+                      const nm = prev ^ (1 << noteInOriginalScale)
+                      nodeRef.current?.port.postMessage({
+                        type: 'scale',
+                        mask12: nm & 0xfff,
                       })
-                    }}
-                  >
-                    {on && (
-                      <div className="absolute bottom-[3px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            <div className="absolute top-0 left-0 h-8 w-full pointer-events-none">
-              {/* Black keys: C#, D#, F#, G#, A# */}
-              {(
-                [
-                  { semitone: 1, pos: 0.65 }, // C#
-                  { semitone: 3, pos: 1.7 }, // D#
-                  { semitone: 6, pos: 3.7 }, // F#
-                  { semitone: 8, pos: 4.7 }, // G#
-                  { semitone: 10, pos: 5.72 }, // A#
-                ] as { semitone: number; pos: number }[]
-              ).map(({ semitone, pos }) => {
-                const on = ((displayMask >> semitone) & 1) === 1
-                return (
-                  <div
-                    key={semitone}
-                    className="absolute h-full pointer-events-auto cursor-pointer rounded-b-[2px] bg-neutral-800 hover:bg-neutral-700"
-                    style={{
-                      left: `${(pos * 100) / 7}%`,
-                      width: `${(100 / 7) * 0.6}%`,
-                    }}
-                    onClick={() => {
-                      // Toggle the note in the original mask (before transposition)
-                      const noteInOriginalScale = (semitone - keyIdx + 12) % 12
-                      setMask12((prev) => {
-                        const nm = prev ^ (1 << noteInOriginalScale)
-                        nodeRef.current?.port.postMessage({
-                          type: 'scale',
-                          mask12: nm & 0xfff,
-                        })
-                        return nm
-                      })
-                    }}
-                  >
-                    {on && (
-                      <div className="absolute bottom-[3px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="flex items-center">
-            <div className="w-10" />
-            <PortGroup>
-              <Port
-                id={`${moduleId}-pitch-out`}
-                type="output"
-                label="OUT"
-                audioType="cv"
-                audioNode={pitchOutRef.current ?? undefined}
-              />
-            </PortGroup>
+                      return nm
+                    })
+                  }}
+                >
+                  {on && (
+                    <div className="absolute bottom-[3px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
-        {/* Row 2 */}
-        <div className="flex items-end justify-between gap-4">
-          <div className="flex justify-between items-center gap-3 flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1">
-                <Select
-                  value={scaleId}
-                  onValueChange={(newScaleId) => {
-                    setScaleId(newScaleId)
-                    const scale = SCALES.find((s) => s.id === newScaleId)
-                    if (scale) {
-                      setMask12(scale.mask)
-                    }
-                  }}
-                >
-                  <SelectGroup>
-                    <SelectLabel>scale</SelectLabel>
-                    <SelectTrigger className="w-26">
-                      <SelectValue placeholder="Scale" />
-                    </SelectTrigger>
-                    <SelectContent side="top">
-                      {SCALES.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </SelectGroup>
-                </Select>
-                <Select
-                  value={String(keyIdx)}
-                  onValueChange={(v) => setKeyIdx(Number(v))}
-                >
-                  <SelectGroup>
-                    <SelectLabel>key</SelectLabel>
-                    <SelectTrigger className="w-14 uppercase">
-                      <SelectValue placeholder="Key" />
-                    </SelectTrigger>
-                    <SelectContent side="top">
-                      {KEYS.map((k, i) => (
-                        <SelectItem
-                          key={k}
-                          value={String(i)}
-                          className="uppercase"
-                        >
-                          {k}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </SelectGroup>
-                </Select>
-              </div>
-            </div>
+        <div className="relative">
+          <Toggle
+            pressed={hold}
+            size="sm"
+            variant="push"
+            onClick={() => setHold(!hold)}
+          />
+          <TextLabel variant="control" className="">
+            HOLD
+          </TextLabel>
+        </div>
 
-            <div className="flex items-center gap-5 pr-1">
-              <Knob
-                value={[(transpose + 12) / 24]}
-                onValueChange={(v) => setTranspose(Math.round(v[0] * 24 - 12))}
-                size="sm"
-                label="Trans"
-                tickLabels={['-12', '-6', '0', '+6', '+12']}
-              />
-              <Knob
-                value={[(octave + 4) / 8]}
-                onValueChange={(v) => setOctave(Math.round(v[0] * 8 - 4))}
-                size="sm"
-                label="Oct"
-                tickLabels={['-4', '-2', '0', '+2', '+4']}
-              />
-            </div>
-          </div>
+        <div className="flex items-center gap-5 pr-1">
+          <Knob
+            value={[(transpose + 12) / 24]}
+            onValueChange={(v) => setTranspose(Math.round(v[0] * 24 - 12))}
+            size="sm"
+            label="Trans"
+            tickLabels={['-12', '-6', '0', '+6', '+12']}
+          />
+          <Knob
+            value={[(octave + 4) / 8]}
+            onValueChange={(v) => setOctave(Math.round(v[0] * 8 - 4))}
+            size="sm"
+            label="Oct"
+            tickLabels={['-4', '-2', '0', '+2', '+4']}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Port
+            id={`${moduleId}-pitch-in`}
+            type="input"
+            label="cv"
+            audioType="cv"
+            audioNode={pitchInRef.current ?? undefined}
+          />
+          <Port
+            id={`${moduleId}-trig-in`}
+            type="input"
+            label="TRIG"
+            audioType="gate"
+            audioNode={trigInRef.current ?? undefined}
+          />
+          <PortGroup>
+            <Port
+              id={`${moduleId}-pitch-out`}
+              type="output"
+              label="OUT"
+              audioType="cv"
+              audioNode={pitchOutRef.current ?? undefined}
+            />
+          </PortGroup>
         </div>
       </div>
     </ModuleContainer>
