@@ -136,6 +136,7 @@ export function Racks({
           }
           worldWidth={WORLD_WIDTH}
           worldHeight={WORLD_HEIGHT}
+          onRemoveModule={handleDeleteModule}
         />
       </LayoutProvider>
 
@@ -184,6 +185,7 @@ function RacksWorld({
   getModuleHp,
   worldWidth,
   worldHeight,
+  onRemoveModule,
 }: {
   modules: ModuleInstance[]
   setModules: React.Dispatch<React.SetStateAction<ModuleInstance[]>>
@@ -192,6 +194,7 @@ function RacksWorld({
   getModuleHp: (type: ModuleType) => number
   worldWidth: number
   worldHeight: number
+  onRemoveModule: (moduleId: string) => void
 }) {
   const { registerViewport, registerWorld, setScaleRef } = useLayout()
 
@@ -448,6 +451,7 @@ function RacksWorld({
           modules={modules}
           getHpForTypeAction={(t: string) => getModuleHp(t as ModuleType)}
           onCommitAction={handleCommitPositions}
+          onRemoveModuleAction={onRemoveModule}
         />
         <WireCanvas />
       </div>

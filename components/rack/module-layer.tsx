@@ -1,7 +1,15 @@
 'use client'
 
+import { Book, X } from 'lucide-react'
 import * as React from 'react'
+import InfoSheet from '@/components/info-sheet'
 import { useLayout } from '@/components/layout-context'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import { toPx } from '@/lib/layout/pack'
 import { availableModules, type ModuleInstance } from '@/lib/module-registry'
 
@@ -9,12 +17,14 @@ export function ModuleLayer({
   modules,
   getHpForTypeAction,
   onCommitAction,
+  onRemoveModuleAction,
 }: {
   modules: ModuleInstance[]
   getHpForTypeAction: (t: string) => number
   onCommitAction: (
     updates: Array<{ id: string; rack: number; xHp: number }>,
   ) => void
+  onRemoveModuleAction: (id: string) => void
 }) {
   const { engineRef, beginGeometryRefresh, endGeometryRefresh } = useLayout()
   const containerRef = React.useRef<HTMLDivElement | null>(null)
@@ -61,6 +71,7 @@ export function ModuleLayer({
     availableModules.find((m) => m.type === type)?.component
 
   const onPointerDown = (e: React.PointerEvent, m: ModuleInstance) => {
+    if (e.button !== 0) return
     const header = (e.target as HTMLElement).closest('.module-header')
     if (!header) return
     e.preventDefault()
@@ -100,18 +111,70 @@ export function ModuleLayer({
       {modules.map((m) => {
         const Cmp = getComponent(m.type)
         if (!Cmp) return null
+        const moduleName =
+          availableModules.find((x) => x.type === m.type)?.name ?? m.type
         return (
-          <div
+          <ModuleWrapper
             key={m.id}
-            data-module-wrapper-id={m.id}
-            className="absolute top-0 h-[520px]"
-            style={{ pointerEvents: 'auto' }}
-            onPointerDown={(e) => onPointerDown(e, m)}
+            module={m}
+            moduleName={moduleName}
+            onPointerDown={onPointerDown}
+            onRemove={() => onRemoveModuleAction(m.id)}
           >
             <Cmp moduleId={m.id} />
-          </div>
+          </ModuleWrapper>
         )
       })}
+    </div>
+  )
+}
+
+function ModuleWrapper({
+  module,
+  moduleName,
+  onPointerDown,
+  onRemove,
+  children,
+}: {
+  module: ModuleInstance
+  moduleName: string
+  onPointerDown: (e: React.PointerEvent, m: ModuleInstance) => void
+  onRemove: () => void
+  children: React.ReactNode
+}) {
+  const [infoOpen, setInfoOpen] = React.useState(false)
+  return (
+    <div
+      data-module-wrapper-id={module.id}
+      className="absolute top-0 h-[520px]"
+      style={{ pointerEvents: 'auto' }}
+      onPointerDown={(e) => onPointerDown(e, module)}
+    >
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div className="h-full">{children}</div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => setInfoOpen(true)}>
+            <Book className="w-3 h-3" />
+            user manual
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={onRemove}
+            className="flex items-center gap-2"
+          >
+            <X className="w-3 h-3" />
+            remove
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+
+      <InfoSheet
+        open={infoOpen}
+        onOpenChange={setInfoOpen}
+        moduleName={moduleName}
+        moduleType={module.type}
+      />
     </div>
   )
 }

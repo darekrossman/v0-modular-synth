@@ -140,7 +140,7 @@ export const availableModules: ModuleCatalogEntry[] = [
     name: 'Quantizer',
     description: 'Pitch CV quantizer',
     component: QuantizerModule,
-    hp: 9,
+    hp: 20,
   },
   {
     type: 'random' as ModuleType,
